@@ -1,0 +1,11 @@
+{
+ "building_id": "ptc-100",
+ "real": false,
+ "matterport_models": [],
+ "rooms": {},
+ "site": {
+  "imagery": {},
+  "footprint_latlng": []
+ },
+ "caveats": []
+}

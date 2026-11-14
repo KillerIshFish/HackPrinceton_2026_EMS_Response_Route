@@ -121,7 +121,12 @@ def test_mark_cleared_koopman_replan(client: TestClient) -> None:
     # Koopman: p_r <- p_r (1 - 0.9), then renormalise.
     expected = 0.1 * p_before / (1.0 - 0.9 * p_before)
     assert post["room_probs"][PL_RESTROOM] == pytest.approx(expected, rel=1e-6)
-    assert after["plan"]["teams"][0][0]["room_id"] != PL_RESTROOM
+    # The searched room keeps its residual mass: the planner may send the crew back for a
+    # second look (it is standing there), but only as a re-search, never as a first look.
+    first = after["plan"]["teams"][0][0]
+    assert first["room_id"] != PL_RESTROOM or first["kind"] == "re_search"
+    assert all(st["kind"] == "re_search" for st in after["plan"]["teams"][0] if st["room_id"] == PL_RESTROOM)
+    assert after["plan"]["p_out"] == pytest.approx(post["p_not_in_model"], abs=1e-6)
 
     # Clearing the same room twice is idempotent; unknown rooms 404.
     again = client.post(f"/rooms/{PL_RESTROOM}/clear").json()

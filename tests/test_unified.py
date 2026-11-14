@@ -9,6 +9,8 @@ Run: uv run pytest tests/test_unified.py
 
 from __future__ import annotations
 
+import math
+
 import networkx as nx
 import pytest
 
@@ -109,6 +111,12 @@ def test_generated_building_is_deterministic_connected_and_queryable() -> None:
     assert child["r"] == child["par"] and by_space[child["par"]]["k"] == "unit", "a child room counts toward its unit"
     # a wall with a door is cut into panels around the opening
     assert any(len(w["p"]) >= 2 for w in payload["walls"])
+    # every entrance says which way is out (the viewer faces that side) and which app room it opens into
+    rooms = {r.id for r in b.rooms}
+    assert payload["entrances"] and len(payload["entrances"]) == len(bm.entrances)
+    for e, src in zip(payload["entrances"], bm.entrances):
+        assert e["o"] == list(src.outward) and abs(math.hypot(*e["o"]) - 1.0) < 1e-6
+        assert e["r"] in rooms
 
 
 def _scan_payload() -> dict:

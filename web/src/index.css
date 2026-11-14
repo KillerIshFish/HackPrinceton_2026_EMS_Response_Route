@@ -16,6 +16,10 @@
   --color-accent-ink: #1a1204;
   --color-alert: #ef5a5a;
   --color-prob: #3fb8ae;
+  /* Status levels for banners and status cells only (never decoration):
+     info = muted blue, warn = yellow (distinct from the amber action colour), critical = alert red. */
+  --color-info: #79a8d8;
+  --color-warn: #e8c547;
 
   --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue",
     Arial, sans-serif;

@@ -241,3 +241,142 @@ def scripted_calls() -> dict[str, list[dict]]:
             ]
         ),
     }
+
+
+# ---------------------------------------------------------------------------
+# Step I1: one scripted call per console mode (POST /calls/demo/scenario?id=)
+# ---------------------------------------------------------------------------
+#
+# Written the way 911 calls sound: fragments, repeats, people talking past the
+# dispatcher's question. Each call starts with the incident type unset; the
+# interpreter suggests one from the caller's words and the dispatcher confirms it.
+# Every scenario has a known true room (``true_room_id``) for scoring.
+
+CARDIAC_TRUE_ROOM_ID = "f2-conference-n"  # "the fishbowl": glass meeting room, floor 2, parking-lot side
+FIRE_TRUE_ROOM_ID = "f3-office-302"  # caller's own office, floor 3, street side; the fire is next door in 301
+THREAT_TRUE_ROOM_ID = "f3-storage-supply"  # caller 1 hiding in the supply and copy room, floor 3
+
+
+def cardiac_arrest_office_script() -> list[dict]:
+    """Coworker calling about a colleague who collapsed in a meeting room on floor 2.
+
+    CPR is started, another colleague goes down to meet the crew, and the caller first
+    describes the room in office slang ("the fishbowl") that the vocabulary cannot read.
+    """
+    return _turns([
+        ("Call connected", "system",
+         "911 call connected. Dispatchable address: 100 Princeton Tech Center. "
+         "Wireless caller, no device location yet - showing the building prior.", None),
+        ("Caller", "caller",
+         "Hi - yes - I need an ambulance, my coworker just collapsed, he's not breathing! "
+         "He just went down, he just - he went down.", None),
+        ("Dispatcher", "dispatcher", "Okay, help is on the way. Tell me exactly where you are.", None),
+        ("Caller", "caller",
+         "We're in the fishbowl. The fishbowl - the glass one, past the big plants, everybody calls it that.", None),
+        ("Phone z-axis fix", "system",
+         "Device barometric z-axis fix received: 5.3 m above ground (±3 m). No usable horizontal fix indoors.",
+         PhoneFix(z_m=5.3)),
+        ("Dispatcher", "dispatcher", "Is anyone doing CPR?", None),
+        ("Caller", "caller",
+         "Yes - Maria's doing compressions, she's doing CPR right now. Dave's going down to meet you "
+         "at the front doors.", None),
+        ("Caller", "caller",
+         "We're in the conference room on the second floor, the one with the windows - you can see the parking lot. "
+         "Please hurry, please.", None),
+    ])
+
+
+def fire_smoke_office_script() -> list[dict]:
+    """Caller shut in her third-floor office with smoke in the hallway; the fire is next door."""
+    return _turns([
+        ("Call connected", "system",
+         "911 call connected. Dispatchable address: 100 Princeton Tech Center. "
+         "Wireless caller, no device location yet - showing the building prior.", None),
+        ("Caller", "caller",
+         "There's smoke - there's smoke everywhere, the fire alarm's going off and I can't get out!", None),
+        ("Dispatcher", "dispatcher", "Okay. Where are you right now? What floor?", None),
+        ("Caller", "caller",
+         "Third floor. Third. I'm in my office, 302. I shut the door, it's all smoke out there.", None),
+        ("Phone z-axis fix", "system",
+         "Device barometric z-axis fix received: 9.4 m above ground (±3 m). No usable horizontal fix indoors.",
+         PhoneFix(z_m=9.4)),
+        ("Dispatcher", "dispatcher", "Are you near a window?", None),
+        ("Caller", "caller",
+         "Yeah. Yes. I can see the street, I can see people down there. "
+         "It's coming in under the door now, I put my jacket down.", None),
+        ("Caller", "caller",
+         "I think the fire's in 301, right next door - I heard a pop and then the smoke started. "
+         "Please, I'm scared.", None),
+    ])
+
+
+def active_threat_office_script() -> list[dict]:
+    """Two callers from the same building in one transcript.
+
+    Caller 1 is hiding, unharmed, with two coworkers. Caller 2 reports a wounded coworker.
+    The console relays both to unified command; it does not rank callers or plan a route.
+    """
+    return _turns([
+        ("Call 1 connected", "system",
+         "911 call connected. Dispatchable address: 100 Princeton Tech Center. "
+         "Wireless caller (caller 1), no device location yet.", None),
+        ("Caller 1", "caller",
+         "Someone's shooting. In the building. I heard - like four, five shots. Really loud.", None),
+        ("Dispatcher", "dispatcher", "Okay. Stay quiet. Are you hurt? Where are you?", None),
+        ("Caller 1", "caller",
+         "No. No, I'm okay. We're hiding in the supply closet, third floor. There's three of us. "
+         "The door's locked.", None),
+        ("Phone z-axis fix (caller 1)", "system",
+         "Device barometric z-axis fix received for caller 1: 9.1 m above ground (±3 m).", PhoneFix(z_m=9.1)),
+        ("Call 2 connected", "system",
+         "Second 911 call from the same address, linked to this incident (caller 2). No device location.", None),
+        ("Caller 2", "caller",
+         "He's been shot! My coworker's been shot, he's bleeding a lot, please, please hurry!", None),
+        ("Caller 2", "caller",
+         "I'm pressing on it with my sweater. The guy with the gun went toward the back, I think. "
+         "I don't know where he is now.", None),
+    ])
+
+
+def scenario_definitions() -> list[dict]:
+    """The three Step I1 scenarios.
+
+    Each: ``id``, ``title``, ``description``, ``building_id``, ``incident_type`` (what the
+    call turns out to be; the call itself starts unset), ``true_room_id``, ``situation``
+    (starting Situation fields) and ``script``.
+    """
+    return [
+        {
+            "id": "cardiac_arrest_office",
+            "title": "Cardiac arrest in an office",
+            "description": "A coworker calls: colleague collapsed and not breathing, CPR started, someone "
+                           "will meet the crew. The room is first described in office slang.",
+            "building_id": DEMO_BUILDING_ID,
+            "incident_type": "cardiac_arrest",
+            "true_room_id": CARDIAC_TRUE_ROOM_ID,
+            "situation": {},
+            "script": cardiac_arrest_office_script(),
+        },
+        {
+            "id": "fire_smoke_office",
+            "title": "Smoke on the third floor",
+            "description": "Caller shut in her office with the door closed and smoke in the hallway; "
+                           "she thinks the fire is in the office next door.",
+            "building_id": DEMO_BUILDING_ID,
+            "incident_type": "fire_smoke",
+            "true_room_id": FIRE_TRUE_ROOM_ID,
+            "situation": {},
+            "script": fire_smoke_office_script(),
+        },
+        {
+            "id": "active_threat_office",
+            "title": "Active threat, two callers",
+            "description": "Shots reported. Caller 1 is hiding, unharmed; caller 2 reports a wounded coworker. "
+                           "Route planning stays off.",
+            "building_id": DEMO_BUILDING_ID,
+            "incident_type": "active_threat",
+            "true_room_id": THREAT_TRUE_ROOM_ID,
+            "situation": {},
+            "script": active_threat_office_script(),
+        },
+    ]

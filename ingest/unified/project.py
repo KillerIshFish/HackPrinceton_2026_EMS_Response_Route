@@ -202,6 +202,11 @@ def viewer_payload(bm: BuildingModel, room_of: Optional[dict[str, str]] = None) 
     root = room_ids(bm)
     room_of = room_of or {}
     slab = {lv.index: lv for lv in bm.levels}
+
+    def app_room(space_id: str) -> str:
+        rid = root.get(space_id, space_id)
+        return room_of.get(rid, rid)
+
     walls = []
     for w in bm.walls:
         lv = slab.get(w.level)
@@ -222,9 +227,12 @@ def viewer_payload(bm: BuildingModel, room_of: Optional[dict[str, str]] = None) 
         "notes": list(bm.notes),
         "levels": [{"i": lv.index, "label": lv.label, "z0": lv.z0, "h": lv.height_m, "src": lv.source} for lv in bm.levels],
         "spaces": [{"id": s.id, "l": s.level, "k": s.kind, "n": s.label, "f": s.fidelity, "p": [list(p) for p in s.polygon],
-                    "par": s.parent, "r": room_of.get(root[s.id], root[s.id])} for s in bm.spaces],
+                    "par": s.parent, "r": app_room(s.id)} for s in bm.spaces],
         "walls": walls,
-        "entrances": [{"id": e.id, "n": e.name, "xy": list(e.xy), "l": slab and min(slab)} for e in bm.entrances],
+        # o: unit vector pointing out of the building at the door (the viewer faces that side by default);
+        # r: the app room the door opens into
+        "entrances": [{"id": e.id, "n": e.name, "xy": list(e.xy), "l": slab and min(slab), "o": list(e.outward),
+                       "r": app_room(e.space_id)} for e in bm.entrances],
         "bounds": {"x0": x0, "y0": y0, "x1": x1, "y1": y1,
                    "z1": max((lv.z0 + lv.height_m for lv in bm.levels), default=3.0)},
         "counts": {"spaces": len(bm.spaces), "walls": len(walls),

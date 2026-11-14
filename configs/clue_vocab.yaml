@@ -95,7 +95,7 @@ views:
     synonyms: [houses, a house, backyard, back yard, backyards, garden, someone's yard, a yard, fence]
     match: {window_facing: residential}
   adjacent_building:
-    synonyms: [another building, building next door, next door, brick wall, a wall outside, alley, alleyway]
+    synonyms: [another building, building next door, the next building, brick wall, a wall outside, alley, alleyway]
     match: {window_facing: adjacent_building}
 
 landmarks:

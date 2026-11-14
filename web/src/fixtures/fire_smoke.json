@@ -1,0 +1,1515 @@
+{
+ "building_id": "ptc-100",
+ "turn": 6,
+ "total_turns": 7,
+ "done": true,
+ "transcript": [
+  {
+   "turn": 0,
+   "title": "Call connected",
+   "speaker": "system",
+   "text": "911 call connected. Dispatchable address: 100 Princeton Tech Center. No device location yet - showing the building prior.",
+   "phone_fix": null,
+   "clues": [],
+   "parser": null,
+   "scripted": true,
+   "at": "2026-11-14T19:02:00Z",
+   "question": null,
+   "answer": null,
+   "evidence_ids": [],
+   "fact_ids": []
+  },
+  {
+   "turn": 1,
+   "title": "Phone z-axis fix",
+   "speaker": "system",
+   "text": "Device barometric z-axis fix received: 8.6 m above ground (±3 m). No usable horizontal fix indoors.",
+   "phone_fix": {
+    "x_m": null,
+    "y_m": null,
+    "horizontal_sigma_m": null,
+    "z_m": 8.6,
+    "z_sigma_m": 2.34375
+   },
+   "clues": [],
+   "parser": null,
+   "scripted": true,
+   "at": "2026-11-14T19:02:16Z",
+   "question": null,
+   "answer": null,
+   "evidence_ids": [],
+   "fact_ids": []
+  },
+  {
+   "turn": 2,
+   "title": "Caller",
+   "speaker": "caller",
+   "text": "There's smoke in the hallway, I can smell it, it's getting thick",
+   "phone_fix": null,
+   "clues": [
+    {
+     "type": "room_type",
+     "value": "corridor",
+     "polarity": true,
+     "confidence": 1.0,
+     "span": "hallway"
+    }
+   ],
+   "parser": "rules",
+   "scripted": true,
+   "at": "2026-11-14T19:02:31Z",
+   "question": null,
+   "answer": null,
+   "evidence_ids": [
+    "t2-e0"
+   ],
+   "fact_ids": [
+    "t2-f0"
+   ]
+  },
+  {
+   "turn": 3,
+   "title": "Caller",
+   "speaker": "caller",
+   "text": "I'm in the conference room on the third floor, I shut the door",
+   "phone_fix": null,
+   "clues": [
+    {
+     "type": "room_type",
+     "value": "conference",
+     "polarity": true,
+     "confidence": 1.0,
+     "span": "conference room"
+    },
+    {
+     "type": "floor",
+     "value": "3",
+     "polarity": true,
+     "confidence": 0.8,
+     "span": "third floor"
+    }
+   ],
+   "parser": "rules",
+   "scripted": true,
+   "at": "2026-11-14T19:02:52Z",
+   "question": null,
+   "answer": null,
+   "evidence_ids": [
+    "t3-e0",
+    "t3-e1"
+   ],
+   "fact_ids": [
+    "t3-f0"
+   ]
+  },
+  {
+   "turn": 4,
+   "title": "Caller",
+   "speaker": "caller",
+   "text": "I think the fire started in the break room, there were flames by the microwave",
+   "phone_fix": null,
+   "clues": [
+    {
+     "type": "room_type",
+     "value": "break_room",
+     "polarity": true,
+     "confidence": 0.7,
+     "span": "break room"
+    }
+   ],
+   "parser": "rules",
+   "scripted": true,
+   "at": "2026-11-14T19:03:17Z",
+   "question": null,
+   "answer": null,
+   "evidence_ids": [
+    "t4-e0"
+   ],
+   "fact_ids": [
+    "t4-f0"
+   ]
+  },
+  {
+   "turn": 5,
+   "title": "Dispatcher",
+   "speaker": "dispatcher",
+   "text": "Help is on the way. Is anyone else with you?",
+   "phone_fix": null,
+   "clues": [],
+   "parser": null,
+   "scripted": true,
+   "at": "2026-11-14T19:03:35Z",
+   "question": null,
+   "answer": null,
+   "evidence_ids": [],
+   "fact_ids": []
+  },
+  {
+   "turn": 6,
+   "title": "Caller",
+   "speaker": "caller",
+   "text": "No, just me. My coworker went down the east stairs already",
+   "phone_fix": null,
+   "clues": [
+    {
+     "type": "landmark",
+     "value": "stairs",
+     "polarity": true,
+     "confidence": 0.8,
+     "span": "stairs"
+    }
+   ],
+   "parser": "rules",
+   "scripted": true,
+   "at": "2026-11-14T19:03:44Z",
+   "question": null,
+   "answer": null,
+   "evidence_ids": [
+    "t6-e0"
+   ],
+   "fact_ids": [
+    "t6-f0"
+   ]
+  }
+ ],
+ "clues": [
+  {
+   "type": "room_type",
+   "value": "conference",
+   "polarity": true,
+   "confidence": 1.0,
+   "span": "conference room"
+  },
+  {
+   "type": "floor",
+   "value": "3",
+   "polarity": true,
+   "confidence": 0.8,
+   "span": "third floor"
+  }
+ ],
+ "phone_fix": {
+  "x_m": null,
+  "y_m": null,
+  "horizontal_sigma_m": null,
+  "z_m": 8.6,
+  "z_sigma_m": 2.34375
+ },
+ "cleared_room_ids": [
+  "f3-suite-vacant"
+ ],
+ "n_teams": 1,
+ "posterior": {
+  "room_probs": {
+   "f1-corridor-n-west": 5.000995392770104e-06,
+   "f1-corridor-n-mid": 5.490992080419029e-06,
+   "f1-corridor-n-east": 5.000995392770104e-06,
+   "f1-corridor-s-west": 5.000995392770104e-06,
+   "f1-corridor-s-mid": 5.490992080419029e-06,
+   "f1-corridor-s-east": 5.000995392770104e-06,
+   "f1-stair-west": 2.9929705439871567e-06,
+   "f1-corridor-link-w": 2.0806969157171296e-06,
+   "f1-restroom-core": 2.7991710556428156e-05,
+   "f1-elevator": 1.1267007039215111e-06,
+   "f1-corridor-link-e": 2.0806969157171296e-06,
+   "f1-stair-east": 2.9929705439871567e-06,
+   "f1-storage-janitor": 2.816115416121865e-06,
+   "f1-mechanical": 2.287396495160722e-06,
+   "f1-storage-mail": 4.932780942023423e-06,
+   "f1-office-101": 4.428218854418771e-05,
+   "f1-office-102": 4.428218854418771e-05,
+   "f1-corridor-rear": 4.08883267776472e-06,
+   "f1-conference-b": 0.0004117096041225623,
+   "f1-open-office-n": 5.325759958196227e-05,
+   "f1-conference-a": 0.0003791265792481077,
+   "f1-reception": 2.7080469946293402e-05,
+   "f1-lobby": 3.5968313760915095e-05,
+   "f1-office-security": 3.8976443155469346e-05,
+   "f1-break-room": 3.3842940110958826e-05,
+   "f2-corridor-n-west": 0.0006550561572685261,
+   "f2-corridor-n-mid": 0.0007192384494077354,
+   "f2-corridor-n-east": 0.0006550561572685261,
+   "f2-corridor-s-west": 0.0006550561572685261,
+   "f2-corridor-s-mid": 0.0007192384494077354,
+   "f2-corridor-s-east": 0.0006550561572685261,
+   "f2-stair-west": 0.0003920347109690377,
+   "f2-corridor-link-w": 0.00027254040825963887,
+   "f2-restroom-core": 0.003666498549263825,
+   "f2-elevator": 0.00014758106647519897,
+   "f2-corridor-link-e": 0.00027254040825963887,
+   "f2-stair-east": 0.0003920347109690377,
+   "f2-storage-supply": 0.0003688693146121134,
+   "f2-server-room": 0.0003688693146121134,
+   "f2-storage-janitor": 0.0003688693146121134,
+   "f2-open-office-n1": 0.010496267860253644,
+   "f2-open-office-n2": 0.010496267860253644,
+   "f2-break-room": 0.0032306053842807683,
+   "f2-conference-n": 0.0539278463597396,
+   "f2-office-201": 0.005800309335443815,
+   "f2-office-202": 0.0034801856012662887,
+   "f2-open-office-s1": 0.010496267860253644,
+   "f2-open-office-s2": 0.009422630314643363,
+   "f2-conference-s": 0.0406021653481067,
+   "f3-corridor-n-west": 0.004461828481635117,
+   "f3-corridor-n-mid": 0.004898997685993817,
+   "f3-corridor-n-east": 0.004461828481635117,
+   "f3-corridor-s-west": 0.004461828481635117,
+   "f3-corridor-s-mid": 0.004898997685993817,
+   "f3-corridor-s-east": 0.004461828481635117,
+   "f3-stair-west": 0.002670292645572676,
+   "f3-corridor-link-w": 0.0018563729879892336,
+   "f3-restroom-core": 0.024973870520040062,
+   "f3-elevator": 0.0010052289386834935,
+   "f3-corridor-link-e": 0.0018563729879892336,
+   "f3-stair-east": 0.002670292645572676,
+   "f3-storage-supply": 0.0025125046084604296,
+   "f3-mechanical": 0.0012562523042302148,
+   "f3-storage-janitor": 0.0025125046084604296,
+   "f3-suite-vacant": 0.002354967191211738,
+   "f3-open-office-n1": 0.0714939419622202,
+   "f3-break-room": 0.01975402040574082,
+   "f3-conference-n": 0.3382522151249386,
+   "f3-office-301": 0.03477431801583338,
+   "f3-office-302": 0.03477431801583338,
+   "f3-open-office-s1": 0.0714939419622202,
+   "f3-open-office-s2": 0.0714939419622202,
+   "f3-office-303": 0.03950804081148164,
+   "f4-corridor-n-west": 0.00027339226579420513,
+   "f4-corridor-n-mid": 0.00030017919402486527,
+   "f4-corridor-n-east": 0.00027339226579420513,
+   "f4-corridor-s-west": 0.00027339226579420513,
+   "f4-corridor-s-mid": 0.00030017919402486527,
+   "f4-corridor-s-east": 0.00027339226579420513,
+   "f4-stair-west": 0.0001636184267753791,
+   "f4-corridor-link-w": 0.00011374664432630683,
+   "f4-restroom-core": 0.0015302387967685248,
+   "f4-elevator": 6.159398962101542e-05,
+   "f4-corridor-link-e": 0.00011374664432630683,
+   "f4-stair-east": 0.0001636184267753791,
+   "f4-storage-supply": 0.00015395018668975204,
+   "f4-mechanical": 0.0001250464080582409,
+   "f4-suite-vacant": 0.0013598667667958989,
+   "f4-office-405": 0.001822615105294701,
+   "f4-boardroom": 0.020725928816749707,
+   "f4-break-room": 0.001065373717628083,
+   "f4-restroom-north": 0.0015338075712561926,
+   "f4-storage-records": 0.00018226151052947007,
+   "f4-office-406": 0.001822615105294701,
+   "f4-office-401": 0.002960846973821386,
+   "f4-office-402": 0.002130747435256166,
+   "f4-reception": 0.001480423486910693,
+   "f4-open-office-s": 0.003932600621912034,
+   "f4-office-403": 0.002130747435256166,
+   "f4-office-404": 0.002420799642791872
+  },
+  "p_not_in_model": 0.040039183424087715,
+  "p_floor": {
+   "1": 0.0011529031644573918,
+   "2": 0.15826108525016377,
+   "3": 0.7528587069972268,
+   "4": 0.04768812116406453
+  },
+  "credible_set_90": [
+   "f3-conference-n",
+   "f3-open-office-n1",
+   "f3-open-office-s1",
+   "f3-open-office-s2",
+   "f2-conference-n",
+   "f2-conference-s",
+   "f3-office-303",
+   "f3-office-301",
+   "f3-office-302",
+   "f3-restroom-core",
+   "f4-boardroom",
+   "f3-break-room",
+   "f2-open-office-n1",
+   "f2-open-office-n2",
+   "f2-open-office-s1",
+   "f2-open-office-s2",
+   "f2-office-201"
+  ],
+  "entropy_bits": 3.941313646105939,
+  "peak_count": 1
+ },
+ "plan": {
+  "teams": [
+   [
+    {
+     "room_id": "f3-conference-n",
+     "room_name": "Conference Room 3N",
+     "floor_label": "3",
+     "eta_s": 33.4,
+     "cumulative_prob": 0.338252,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.3044,
+     "travel_s": 33.4,
+     "search_s": 28.0,
+     "hazard_class": "closed_door"
+    },
+    {
+     "room_id": "f3-office-303",
+     "room_name": "Office 303",
+     "floor_label": "3",
+     "eta_s": 75.9,
+     "cumulative_prob": 0.37776,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0356,
+     "travel_s": 14.5,
+     "search_s": 21.0,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f3-open-office-s2",
+     "room_name": "Open Office 3 South-East",
+     "floor_label": "3",
+     "eta_s": 108.1,
+     "cumulative_prob": 0.449254,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0643,
+     "travel_s": 11.2,
+     "search_s": 49.0,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f3-open-office-s1",
+     "room_name": "Open Office 3 South-Centre",
+     "floor_label": "3",
+     "eta_s": 181.5,
+     "cumulative_prob": 0.520748,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0643,
+     "travel_s": 24.4,
+     "search_s": 49.0,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f3-office-302",
+     "room_name": "Office 302",
+     "floor_label": "3",
+     "eta_s": 252.4,
+     "cumulative_prob": 0.555522,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0313,
+     "travel_s": 21.9,
+     "search_s": 17.5,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f3-office-301",
+     "room_name": "Office 301",
+     "floor_label": "3",
+     "eta_s": 279.0,
+     "cumulative_prob": 0.590297,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0313,
+     "travel_s": 9.1,
+     "search_s": 17.5,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f3-open-office-n1",
+     "room_name": "Open Office 3 North",
+     "floor_label": "3",
+     "eta_s": 323.1,
+     "cumulative_prob": 0.661791,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0643,
+     "travel_s": 26.6,
+     "search_s": 49.0,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f3-restroom-core",
+     "room_name": "Restroom (Core)",
+     "floor_label": "3",
+     "eta_s": 380.6,
+     "cumulative_prob": 0.686765,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0225,
+     "travel_s": 8.5,
+     "search_s": 15.0,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f3-corridor-n-mid",
+     "room_name": "North Corridor (Mid)",
+     "floor_label": "3",
+     "eta_s": 400.3,
+     "cumulative_prob": 0.691664,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0044,
+     "travel_s": 4.7,
+     "search_s": 16.0,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f3-break-room",
+     "room_name": "Break Room 3",
+     "floor_label": "3",
+     "eta_s": 433.8,
+     "cumulative_prob": 0.711418,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0178,
+     "travel_s": 17.5,
+     "search_s": 21.0,
+     "hazard_class": "fire_room"
+    },
+    {
+     "room_id": "f3-corridor-n-east",
+     "room_name": "North Corridor (East)",
+     "floor_label": "3",
+     "eta_s": 459.8,
+     "cumulative_prob": 0.715879,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.004,
+     "travel_s": 5.0,
+     "search_s": 14.0,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f2-conference-n",
+     "room_name": "Conference Room 2N",
+     "floor_label": "2",
+     "eta_s": 511.5,
+     "cumulative_prob": 0.769807,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0485,
+     "travel_s": 37.7,
+     "search_s": 31.5,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f2-conference-s",
+     "room_name": "Conference Room 2S",
+     "floor_label": "2",
+     "eta_s": 557.3,
+     "cumulative_prob": 0.810409,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0365,
+     "travel_s": 14.3,
+     "search_s": 21.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f2-open-office-s2",
+     "room_name": "Open Office 2 South-East",
+     "floor_label": "2",
+     "eta_s": 588.9,
+     "cumulative_prob": 0.819832,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0085,
+     "travel_s": 10.6,
+     "search_s": 42.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f2-open-office-s1",
+     "room_name": "Open Office 2 South-Centre",
+     "floor_label": "2",
+     "eta_s": 653.5,
+     "cumulative_prob": 0.830328,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0094,
+     "travel_s": 22.6,
+     "search_s": 49.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f2-office-201",
+     "room_name": "Office 201",
+     "floor_label": "2",
+     "eta_s": 724.5,
+     "cumulative_prob": 0.836129,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0052,
+     "travel_s": 22.0,
+     "search_s": 21.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f2-office-202",
+     "room_name": "Office 202",
+     "floor_label": "2",
+     "eta_s": 754.7,
+     "cumulative_prob": 0.839609,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0031,
+     "travel_s": 9.2,
+     "search_s": 21.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f2-open-office-n1",
+     "room_name": "Open Office 2 North-West",
+     "floor_label": "2",
+     "eta_s": 788.5,
+     "cumulative_prob": 0.850105,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0094,
+     "travel_s": 12.8,
+     "search_s": 49.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f2-open-office-n2",
+     "room_name": "Open Office 2 North-Centre",
+     "floor_label": "2",
+     "eta_s": 857.6,
+     "cumulative_prob": 0.860601,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0094,
+     "travel_s": 20.1,
+     "search_s": 49.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f2-restroom-core",
+     "room_name": "Restroom (Core)",
+     "floor_label": "2",
+     "eta_s": 915.1,
+     "cumulative_prob": 0.864268,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0033,
+     "travel_s": 8.5,
+     "search_s": 15.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f3-stair-west",
+     "room_name": "Stair A (West)",
+     "floor_label": "3",
+     "eta_s": 974.8,
+     "cumulative_prob": 0.866938,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0024,
+     "travel_s": 44.7,
+     "search_s": 12.0,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f3-corridor-n-west",
+     "room_name": "North Corridor (West)",
+     "floor_label": "3",
+     "eta_s": 992.6,
+     "cumulative_prob": 0.8714,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.004,
+     "travel_s": 5.8,
+     "search_s": 14.0,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f3-corridor-link-w",
+     "room_name": "Cross Corridor West",
+     "floor_label": "3",
+     "eta_s": 1009.1,
+     "cumulative_prob": 0.873256,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0017,
+     "travel_s": 2.5,
+     "search_s": 10.0,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f3-corridor-s-west",
+     "room_name": "South Corridor (West)",
+     "floor_label": "3",
+     "eta_s": 1021.6,
+     "cumulative_prob": 0.877718,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.004,
+     "travel_s": 2.5,
+     "search_s": 14.0,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f3-storage-supply",
+     "room_name": "Supply & Copy Room 3",
+     "floor_label": "3",
+     "eta_s": 1039.6,
+     "cumulative_prob": 0.880231,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0023,
+     "travel_s": 4.0,
+     "search_s": 11.0,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f3-corridor-s-mid",
+     "room_name": "South Corridor (Mid)",
+     "floor_label": "3",
+     "eta_s": 1067.1,
+     "cumulative_prob": 0.88513,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0044,
+     "travel_s": 16.5,
+     "search_s": 16.0,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f3-corridor-s-east",
+     "room_name": "South Corridor (East)",
+     "floor_label": "3",
+     "eta_s": 1095.6,
+     "cumulative_prob": 0.889592,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.004,
+     "travel_s": 12.5,
+     "search_s": 14.0,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f3-storage-janitor",
+     "room_name": "Janitor Closet 3",
+     "floor_label": "3",
+     "eta_s": 1113.6,
+     "cumulative_prob": 0.892104,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0023,
+     "travel_s": 4.0,
+     "search_s": 11.0,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f3-corridor-link-e",
+     "room_name": "Cross Corridor East",
+     "floor_label": "3",
+     "eta_s": 1131.1,
+     "cumulative_prob": 0.89396,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0017,
+     "travel_s": 6.5,
+     "search_s": 10.0,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f3-stair-east",
+     "room_name": "Stair B (East)",
+     "floor_label": "3",
+     "eta_s": 1144.5,
+     "cumulative_prob": 0.896631,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0024,
+     "travel_s": 3.4,
+     "search_s": 12.0,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f4-boardroom",
+     "room_name": "Boardroom",
+     "floor_label": "4",
+     "eta_s": 1200.3,
+     "cumulative_prob": 0.917357,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0187,
+     "travel_s": 43.8,
+     "search_s": 28.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-office-405",
+     "room_name": "Executive Office 405",
+     "floor_label": "4",
+     "eta_s": 1237.8,
+     "cumulative_prob": 0.919179,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0016,
+     "travel_s": 9.5,
+     "search_s": 14.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-restroom-core",
+     "room_name": "Restroom (Core)",
+     "floor_label": "4",
+     "eta_s": 1262.3,
+     "cumulative_prob": 0.920709,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0014,
+     "travel_s": 10.5,
+     "search_s": 15.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-office-406",
+     "room_name": "Executive Office 406",
+     "floor_label": "4",
+     "eta_s": 1300.1,
+     "cumulative_prob": 0.922532,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0016,
+     "travel_s": 22.8,
+     "search_s": 14.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-restroom-north",
+     "room_name": "Restroom (North, window)",
+     "floor_label": "4",
+     "eta_s": 1324.3,
+     "cumulative_prob": 0.924066,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0014,
+     "travel_s": 10.2,
+     "search_s": 15.1,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-office-403",
+     "room_name": "Executive Office 403",
+     "floor_label": "4",
+     "eta_s": 1352.9,
+     "cumulative_prob": 0.926197,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0019,
+     "travel_s": 13.5,
+     "search_s": 17.5,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-office-404",
+     "room_name": "Executive Office 404",
+     "floor_label": "4",
+     "eta_s": 1379.3,
+     "cumulative_prob": 0.928617,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0022,
+     "travel_s": 8.9,
+     "search_s": 21.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-open-office-s",
+     "room_name": "Executive Assistants",
+     "floor_label": "4",
+     "eta_s": 1423.5,
+     "cumulative_prob": 0.93255,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0035,
+     "travel_s": 23.2,
+     "search_s": 42.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-reception",
+     "room_name": "Executive Reception",
+     "floor_label": "4",
+     "eta_s": 1476.7,
+     "cumulative_prob": 0.93403,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0013,
+     "travel_s": 11.2,
+     "search_s": 28.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-office-401",
+     "room_name": "Executive Office 401",
+     "floor_label": "4",
+     "eta_s": 1527.3,
+     "cumulative_prob": 0.936991,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0027,
+     "travel_s": 22.6,
+     "search_s": 28.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-office-402",
+     "room_name": "Executive Office 402",
+     "floor_label": "4",
+     "eta_s": 1564.6,
+     "cumulative_prob": 0.939122,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0019,
+     "travel_s": 9.3,
+     "search_s": 17.5,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-suite-vacant",
+     "room_name": "Suite 420 (vacant)",
+     "floor_label": "4",
+     "eta_s": 1595.6,
+     "cumulative_prob": 0.940482,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0012,
+     "travel_s": 13.5,
+     "search_s": 51.5,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-break-room",
+     "room_name": "Executive Lounge",
+     "floor_label": "4",
+     "eta_s": 1670.3,
+     "cumulative_prob": 0.941547,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.001,
+     "travel_s": 23.2,
+     "search_s": 17.5,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f2-break-room",
+     "room_name": "Break Room 2",
+     "floor_label": "2",
+     "eta_s": 1768.3,
+     "cumulative_prob": 0.944778,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0029,
+     "travel_s": 80.5,
+     "search_s": 24.5,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f2-corridor-n-mid",
+     "room_name": "North Corridor (Mid)",
+     "floor_label": "2",
+     "eta_s": 1811.3,
+     "cumulative_prob": 0.945497,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0006,
+     "travel_s": 18.5,
+     "search_s": 16.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f3-suite-vacant",
+     "room_name": "Suite 310 (vacant)",
+     "floor_label": "3",
+     "eta_s": 1876.9,
+     "cumulative_prob": 0.947852,
+     "kind": "re_search",
+     "mode": "rapid",
+     "p_find": 0.0021,
+     "travel_s": 49.6,
+     "search_s": 56.0,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f3-elevator",
+     "room_name": "Elevator",
+     "floor_label": "3",
+     "eta_s": 1956.9,
+     "cumulative_prob": 0.948857,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0009,
+     "travel_s": 24.0,
+     "search_s": 10.0,
+     "hazard_class": "open_path"
+    },
+    {
+     "room_id": "f2-corridor-s-mid",
+     "room_name": "South Corridor (Mid)",
+     "floor_label": "2",
+     "eta_s": 2027.9,
+     "cumulative_prob": 0.949577,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0006,
+     "travel_s": 61.0,
+     "search_s": 16.0,
+     "hazard_class": null
+    }
+   ]
+  ],
+  "expected_time_to_find_s": 343.9,
+  "baseline_nearest_s": 578.97,
+  "baseline_highest_prob_s": 421.28,
+  "entrance_id": "ent-main",
+  "staging_latlng": [
+   40.3571922,
+   -74.6669407
+  ],
+  "objective": "expected_time",
+  "solver": "heuristic",
+  "p_out": 0.04,
+  "cumulative_success": 0.8542,
+  "time_to_cover_all_s": 2043.9,
+  "notes": [
+   "Hazard class does not change the order; the officer may reorder."
+  ]
+ },
+ "approach": {
+  "entrance_id": "ent-main",
+  "entrance_name": "Main Entrance (Street)",
+  "entrance_latlng": [
+   40.3573,
+   -74.6669407
+  ],
+  "staging_id": "stg-street",
+  "staging_name": "Street Curb Staging",
+  "staging_latlng": [
+   40.3571922,
+   -74.6669407
+  ],
+  "stairwell_id": "f1-stair-east",
+  "stairwell_name": "Stair B (East)",
+  "target_room_id": "f3-conference-n",
+  "target_floor_label": "3",
+  "entrance_expected_travel_s": {
+   "ent-main": 78.3,
+   "ent-rear": 79.4
+  },
+  "stairs_s_to_target_floor": 58.0,
+  "elevator_s_to_target_floor": null,
+  "entrance_access_s": {
+   "ent-main": 10.0,
+   "ent-rear": 11.7
+  },
+  "entrance_warnings": {
+   "ent-main": [],
+   "ent-rear": [
+    "No key holder recorded for this entrance"
+   ]
+  },
+  "warnings": []
+ },
+ "next_question": {
+  "question": "If you look outside, can you see a parking lot?",
+  "clue_type": "view",
+  "value": "parking_lot",
+  "expected_info_gain_bits": 0.5311,
+  "p_yes": 0.5502
+ },
+ "history": [
+  {
+   "turn": 0,
+   "entropy_bits": 5.812304107928523,
+   "expected_time_to_find_s": 1113.58,
+   "top_room_id": "f2-open-office-n1",
+   "top_room_prob": 0.037002038026235334
+  },
+  {
+   "turn": 1,
+   "entropy_bits": 5.008408055559912,
+   "expected_time_to_find_s": 636.77,
+   "top_room_id": "f3-open-office-n1",
+   "top_room_prob": 0.09386133346836434
+  },
+  {
+   "turn": 2,
+   "entropy_bits": 5.008408055559912,
+   "expected_time_to_find_s": 636.77,
+   "top_room_id": "f3-open-office-n1",
+   "top_room_prob": 0.09386133346836434
+  },
+  {
+   "turn": 3,
+   "entropy_bits": 3.9943548395809336,
+   "expected_time_to_find_s": 409.84,
+   "top_room_id": "f3-conference-n",
+   "top_room_prob": 0.3312318537897075
+  },
+  {
+   "turn": 4,
+   "entropy_bits": 3.9943548395809336,
+   "expected_time_to_find_s": 409.84,
+   "top_room_id": "f3-conference-n",
+   "top_room_prob": 0.3312318537897075
+  },
+  {
+   "turn": 5,
+   "entropy_bits": 3.9943548395809336,
+   "expected_time_to_find_s": 409.84,
+   "top_room_id": "f3-conference-n",
+   "top_room_prob": 0.3312318537897075
+  },
+  {
+   "turn": 6,
+   "entropy_bits": 3.9943548395809336,
+   "expected_time_to_find_s": 409.84,
+   "top_room_id": "f3-conference-n",
+   "top_room_prob": 0.3312318537897075
+  }
+ ],
+ "parser_mode": "rules",
+ "llm": null,
+ "buildings": [
+  {
+   "id": "ptc-100",
+   "name": "100 Princeton Tech Center",
+   "real": false,
+   "floors": 4,
+   "rooms": 100
+  }
+ ],
+ "situation": {
+  "incident_type": "fire_smoke",
+  "incident_confirmed": true,
+  "suggested_type": null,
+  "suggested_span": null,
+  "dismissed_types": [],
+  "witnessed": null,
+  "cpr_in_progress": null,
+  "smoke_reported": true,
+  "load": "heavy",
+  "call_started_at": "2026-11-14T19:02:00Z",
+  "closed_room_ids": [
+   "f3-mechanical"
+  ],
+  "closed_entrance_ids": [],
+  "meet_person": null,
+  "timestamps": {
+   "wheels_stopped": "2026-11-14T19:06:50Z",
+   "building_entry": "2026-11-14T19:07:52Z"
+  }
+ },
+ "policy": {
+  "route_enabled": true,
+  "elevator_allowed": false,
+  "show_hazard_class": true,
+  "show_incident_board": false,
+  "stake": {
+   "label": "Survival chance lost per minute",
+   "quantified": true,
+   "per_min_low": 2.5,
+   "per_min_high": 5.0,
+   "unit": "percentage points of survival per minute",
+   "origin": "Counted from fire-department arrival to reaching the victim",
+   "note": "From a voluntary survey reported in trade press, not a fitted curve."
+  },
+  "banners": [
+   {
+    "level": "warning",
+    "text": "Elevator routes are not offered while fire or smoke is reported.",
+    "source": "policy: fire_smoke"
+   },
+   {
+    "level": "info",
+    "text": "Hazard class is shown for information. Whether a space can be searched is the incident commander's decision.",
+    "source": "policy: fire_smoke"
+   },
+   {
+    "level": "warning",
+    "text": "Smoke in the third-floor hallway, getting thick",
+    "source": "Caller, 19:02:31 UTC, unverified"
+   },
+   {
+    "level": "warning",
+    "text": "Flames seen in the break room, by the microwave",
+    "source": "Caller, 19:03:17 UTC, unverified"
+   }
+  ],
+  "travel": {
+   "walk_mps": 0.5,
+   "stair_s_per_floor": 29.0,
+   "stair_s_per_floor_high": 90.0,
+   "high_floor_from": 18,
+   "search_advance_mps": 0.04,
+   "elevator_allowed": false,
+   "elevator_fixed_s": null,
+   "elevator_s_per_floor": null,
+   "notes": [
+    "Times use smoke rates: rooms searched at 0.040 m/s, movement at 0.5 m/s.",
+    "Heavy load: 29 s per floor of stairs."
+   ]
+  },
+  "protocol_prompts": []
+ },
+ "evidence": [
+  {
+   "id": "t2-e0",
+   "kind": "vocab",
+   "clue": {
+    "type": "room_type",
+    "value": "corridor",
+    "polarity": true,
+    "confidence": 1.0,
+    "span": "hallway"
+   },
+   "selector": null,
+   "default_match": 0.0,
+   "negate": false,
+   "confidence": 1.0,
+   "span": "hallway",
+   "turn": 2,
+   "source": "rules",
+   "rationale": "",
+   "status": "rejected",
+   "matched_room_ids": [
+    "f1-corridor-n-west",
+    "f1-corridor-n-mid",
+    "f1-corridor-n-east",
+    "f1-corridor-s-west",
+    "f1-corridor-s-mid",
+    "f1-corridor-s-east",
+    "f1-corridor-link-w",
+    "f1-corridor-link-e",
+    "f1-corridor-rear",
+    "f2-corridor-n-west",
+    "f2-corridor-n-mid",
+    "f2-corridor-n-east",
+    "f2-corridor-s-west",
+    "f2-corridor-s-mid",
+    "f2-corridor-s-east",
+    "f2-corridor-link-w",
+    "f2-corridor-link-e",
+    "f3-corridor-n-west",
+    "f3-corridor-n-mid",
+    "f3-corridor-n-east",
+    "f3-corridor-s-west",
+    "f3-corridor-s-mid",
+    "f3-corridor-s-east",
+    "f3-corridor-link-w",
+    "f3-corridor-link-e",
+    "f4-corridor-n-west",
+    "f4-corridor-n-mid",
+    "f4-corridor-n-east",
+    "f4-corridor-s-west",
+    "f4-corridor-s-mid",
+    "f4-corridor-s-east",
+    "f4-corridor-link-w",
+    "f4-corridor-link-e"
+   ],
+   "unmatched": false
+  },
+  {
+   "id": "t3-e0",
+   "kind": "vocab",
+   "clue": {
+    "type": "room_type",
+    "value": "conference",
+    "polarity": true,
+    "confidence": 1.0,
+    "span": "conference room"
+   },
+   "selector": null,
+   "default_match": 0.0,
+   "negate": false,
+   "confidence": 1.0,
+   "span": "conference room",
+   "turn": 3,
+   "source": "rules",
+   "rationale": "",
+   "status": "active",
+   "matched_room_ids": [
+    "f1-conference-b",
+    "f1-conference-a",
+    "f2-conference-n",
+    "f2-conference-s",
+    "f3-conference-n",
+    "f4-boardroom"
+   ],
+   "unmatched": false
+  },
+  {
+   "id": "t3-e1",
+   "kind": "vocab",
+   "clue": {
+    "type": "floor",
+    "value": "3",
+    "polarity": true,
+    "confidence": 0.8,
+    "span": "third floor"
+   },
+   "selector": null,
+   "default_match": 0.0,
+   "negate": false,
+   "confidence": 0.8,
+   "span": "third floor",
+   "turn": 3,
+   "source": "rules",
+   "rationale": "",
+   "status": "active",
+   "matched_room_ids": [
+    "f3-corridor-n-west",
+    "f3-corridor-n-mid",
+    "f3-corridor-n-east",
+    "f3-corridor-s-west",
+    "f3-corridor-s-mid",
+    "f3-corridor-s-east",
+    "f3-stair-west",
+    "f3-corridor-link-w",
+    "f3-restroom-core",
+    "f3-elevator",
+    "f3-corridor-link-e",
+    "f3-stair-east",
+    "f3-storage-supply",
+    "f3-mechanical",
+    "f3-storage-janitor",
+    "f3-suite-vacant",
+    "f3-open-office-n1",
+    "f3-break-room",
+    "f3-conference-n",
+    "f3-office-301",
+    "f3-office-302",
+    "f3-open-office-s1",
+    "f3-open-office-s2",
+    "f3-office-303"
+   ],
+   "unmatched": false
+  },
+  {
+   "id": "t4-e0",
+   "kind": "vocab",
+   "clue": {
+    "type": "room_type",
+    "value": "break_room",
+    "polarity": true,
+    "confidence": 0.7,
+    "span": "break room"
+   },
+   "selector": null,
+   "default_match": 0.0,
+   "negate": false,
+   "confidence": 0.7,
+   "span": "break room",
+   "turn": 4,
+   "source": "rules",
+   "rationale": "",
+   "status": "rejected",
+   "matched_room_ids": [
+    "f1-break-room",
+    "f2-break-room",
+    "f3-break-room",
+    "f4-break-room"
+   ],
+   "unmatched": false
+  },
+  {
+   "id": "t6-e0",
+   "kind": "vocab",
+   "clue": {
+    "type": "landmark",
+    "value": "stairs",
+    "polarity": true,
+    "confidence": 0.8,
+    "span": "stairs"
+   },
+   "selector": null,
+   "default_match": 0.0,
+   "negate": false,
+   "confidence": 0.8,
+   "span": "stairs",
+   "turn": 6,
+   "source": "rules",
+   "rationale": "",
+   "status": "rejected",
+   "matched_room_ids": [
+    "f1-corridor-n-west",
+    "f1-corridor-n-east",
+    "f1-corridor-s-west",
+    "f1-corridor-s-east",
+    "f1-stair-west",
+    "f1-corridor-link-w",
+    "f1-corridor-link-e",
+    "f1-stair-east",
+    "f1-storage-janitor",
+    "f1-storage-mail",
+    "f1-conference-a",
+    "f1-break-room",
+    "f2-corridor-n-west",
+    "f2-corridor-n-east",
+    "f2-corridor-s-west",
+    "f2-corridor-s-east",
+    "f2-stair-west",
+    "f2-corridor-link-w",
+    "f2-corridor-link-e",
+    "f2-stair-east",
+    "f2-storage-supply",
+    "f2-storage-janitor",
+    "f2-conference-n",
+    "f2-office-201",
+    "f2-conference-s",
+    "f3-corridor-n-west",
+    "f3-corridor-n-east",
+    "f3-corridor-s-west",
+    "f3-corridor-s-east",
+    "f3-stair-west",
+    "f3-corridor-link-w",
+    "f3-corridor-link-e",
+    "f3-stair-east",
+    "f3-storage-supply",
+    "f3-storage-janitor",
+    "f3-conference-n",
+    "f3-office-301",
+    "f3-office-303",
+    "f4-corridor-n-west",
+    "f4-corridor-n-east",
+    "f4-corridor-s-west",
+    "f4-corridor-s-east",
+    "f4-stair-west",
+    "f4-corridor-link-w",
+    "f4-corridor-link-e",
+    "f4-stair-east",
+    "f4-storage-supply",
+    "f4-office-406",
+    "f4-office-401",
+    "f4-office-404"
+   ],
+   "unmatched": false
+  }
+ ],
+ "facts": [
+  {
+   "id": "t2-f0",
+   "category": "hazard",
+   "text": "Smoke in the third-floor hallway, getting thick",
+   "span": "There's smoke in the hallway",
+   "turn": 2,
+   "source": "rules",
+   "observed_at": "2026-11-14T19:02:31Z",
+   "room_id": null,
+   "verified": false,
+   "premise_key": null
+  },
+  {
+   "id": "t3-f0",
+   "category": "access",
+   "text": "Caller shut the door of the room they are in",
+   "span": "I shut the door",
+   "turn": 3,
+   "source": "rules",
+   "observed_at": "2026-11-14T19:02:52Z",
+   "room_id": "f3-conference-n",
+   "verified": false,
+   "premise_key": null
+  },
+  {
+   "id": "t4-f0",
+   "category": "hazard",
+   "text": "Flames seen in the break room, by the microwave",
+   "span": "there were flames by the microwave",
+   "turn": 4,
+   "source": "rules",
+   "observed_at": "2026-11-14T19:03:17Z",
+   "room_id": "f3-break-room",
+   "verified": false,
+   "premise_key": null
+  },
+  {
+   "id": "t6-f0",
+   "category": "people",
+   "text": "A coworker left by the east stairs",
+   "span": "My coworker went down the east stairs",
+   "turn": 6,
+   "source": "rules",
+   "observed_at": "2026-11-14T19:03:44Z",
+   "room_id": null,
+   "verified": false,
+   "premise_key": null
+  }
+ ],
+ "questions": [
+  {
+   "id": "view:parking_lot",
+   "question": "If you look outside, can you see a parking lot?",
+   "kind": "yes_no",
+   "expected_info_gain_bits": 0.5311,
+   "clue_type": "view",
+   "value": "parking_lot",
+   "p_yes": 0.5502,
+   "partition": null
+  },
+  {
+   "id": "landmark:stairs",
+   "question": "Are you close to a stairwell or exit stairs?",
+   "kind": "yes_no",
+   "expected_info_gain_bits": 0.5255,
+   "clue_type": "landmark",
+   "value": "stairs",
+   "p_yes": 0.5673,
+   "partition": null
+  },
+  {
+   "id": "view:street",
+   "question": "If you look outside, can you see the street?",
+   "kind": "yes_no",
+   "expected_info_gain_bits": 0.4968,
+   "clue_type": "view",
+   "value": "street",
+   "p_yes": 0.3785,
+   "partition": null
+  }
+ ],
+ "searched": [
+  {
+   "room_id": "f3-suite-vacant",
+   "mode": "thorough",
+   "at": "2026-11-14T19:08:28Z"
+  }
+ ],
+ "found_room_id": null,
+ "scenarios": [
+  {
+   "id": "demo",
+   "title": "Demo",
+   "building_id": "ptc-100",
+   "incident_type": "unknown",
+   "description": ""
+  },
+  {
+   "id": "elevator_stuck",
+   "title": "Elevator stuck",
+   "building_id": "ptc-100",
+   "incident_type": "unknown",
+   "description": ""
+  },
+  {
+   "id": "hiding_no_windows",
+   "title": "Hiding no windows",
+   "building_id": "ptc-100",
+   "incident_type": "unknown",
+   "description": ""
+  },
+  {
+   "id": "lobby_collapse",
+   "title": "Lobby collapse",
+   "building_id": "ptc-100",
+   "incident_type": "unknown",
+   "description": ""
+  }
+ ],
+ "agent_trace": [],
+ "scenario_id": null,
+ "prior_hour": 14,
+ "can_undo": true
+}

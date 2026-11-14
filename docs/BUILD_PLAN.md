@@ -91,7 +91,7 @@ Each prompt tells the agent to read this section first.
 4. **No elevator route when fire, smoke or an alarm is reported.**
 5. **Unpublished numbers are labelled settings.** Detection probability and room search time have no published basis. They live in `configs/situations.yaml` with `label: unverified` and the UI says so.
 6. **Schema changes are additive.** `core/schema.py` models use `extra="forbid"`; add optional fields with defaults, do not rename or remove.
-7. **Anthropic budget.** Model is `claude-haiku-5-5`. Every model reply is cached on disk. Tests never touch the network; they stub the client. A live check is capped at ten requests and reports how many it used.
+7. **Anthropic use.** Model is `claude-haiku-5-5`. Every model reply is cached on disk. Tests never touch the network; they stub the client. The ten-request cap on live checks was lifted by the user on 2026-11-14: live evaluation runs and prompt iteration may use as many requests as the work needs. The caches and the offline tests stay, a run still reports how many requests and tokens it used (`data/processed/llm_usage.json` before and after), and `LLM_MAX_CALLS` caps a process only when it is set.
 8. **Stay in your files.** Each step lists the files it owns. If you need a change elsewhere, say so in your report instead of making it.
 9. **Do not commit.** Leave changes in the working tree. Finish by running `uv run pytest` and, for web work, `npm run typecheck` and `npm run build` in `web/`, and report the actual results.
 
