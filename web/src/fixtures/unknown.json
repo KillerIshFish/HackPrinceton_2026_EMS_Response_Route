@@ -1,0 +1,938 @@
+{
+ "building_id": "ptc-100",
+ "turn": 4,
+ "total_turns": 5,
+ "done": true,
+ "transcript": [
+  {
+   "turn": 0,
+   "title": "Call connected",
+   "speaker": "system",
+   "text": "911 call connected. Dispatchable address: 100 Princeton Tech Center. No device location yet - showing the building prior.",
+   "phone_fix": null,
+   "clues": [],
+   "parser": null,
+   "scripted": true,
+   "at": "2026-11-14T19:02:00Z",
+   "question": null,
+   "answer": null,
+   "evidence_ids": [],
+   "fact_ids": []
+  },
+  {
+   "turn": 1,
+   "title": "Phone z-axis fix",
+   "speaker": "system",
+   "text": "Device barometric z-axis fix received: 12.6 m above ground (±3 m). No usable horizontal fix indoors.",
+   "phone_fix": {
+    "x_m": null,
+    "y_m": null,
+    "horizontal_sigma_m": null,
+    "z_m": 12.6,
+    "z_sigma_m": 2.34375
+   },
+   "clues": [],
+   "parser": null,
+   "scripted": true,
+   "at": "2026-11-14T19:02:21Z",
+   "question": null,
+   "answer": null,
+   "evidence_ids": [],
+   "fact_ids": []
+  },
+  {
+   "turn": 2,
+   "title": "Caller: room type",
+   "speaker": "caller",
+   "text": "I'm locked in a bathroom",
+   "phone_fix": null,
+   "clues": [
+    {
+     "type": "room_type",
+     "value": "restroom",
+     "polarity": true,
+     "confidence": 1.0,
+     "span": "bathroom"
+    }
+   ],
+   "parser": "rules",
+   "scripted": true,
+   "at": "2026-11-14T19:02:48Z",
+   "question": null,
+   "answer": null,
+   "evidence_ids": [
+    "t2-e0"
+   ],
+   "fact_ids": []
+  },
+  {
+   "turn": 3,
+   "title": "Caller: view",
+   "speaker": "caller",
+   "text": "I can see the parking lot out a small window",
+   "phone_fix": null,
+   "clues": [
+    {
+     "type": "view",
+     "value": "parking_lot",
+     "polarity": true,
+     "confidence": 0.9,
+     "span": "parking lot"
+    },
+    {
+     "type": "landmark",
+     "value": "window",
+     "polarity": true,
+     "confidence": 0.8,
+     "span": "window"
+    }
+   ],
+   "parser": "rules",
+   "scripted": true,
+   "at": "2026-11-14T19:03:15Z",
+   "question": null,
+   "answer": null,
+   "evidence_ids": [
+    "t3-e0",
+    "t3-e1"
+   ],
+   "fact_ids": []
+  },
+  {
+   "turn": 4,
+   "title": "Caller (live)",
+   "speaker": "caller",
+   "text": "My chest really hurts and I feel dizzy",
+   "phone_fix": null,
+   "clues": [],
+   "parser": "rules",
+   "scripted": false,
+   "at": "2026-11-14T19:03:36Z",
+   "question": null,
+   "answer": null,
+   "evidence_ids": [],
+   "fact_ids": [
+    "t4-f0"
+   ]
+  }
+ ],
+ "clues": [
+  {
+   "type": "room_type",
+   "value": "restroom",
+   "polarity": true,
+   "confidence": 1.0,
+   "span": "bathroom"
+  },
+  {
+   "type": "view",
+   "value": "parking_lot",
+   "polarity": true,
+   "confidence": 0.9,
+   "span": "parking lot"
+  },
+  {
+   "type": "landmark",
+   "value": "window",
+   "polarity": true,
+   "confidence": 0.8,
+   "span": "window"
+  }
+ ],
+ "phone_fix": {
+  "x_m": null,
+  "y_m": null,
+  "horizontal_sigma_m": null,
+  "z_m": 12.6,
+  "z_sigma_m": 2.34375
+ },
+ "cleared_room_ids": [],
+ "n_teams": 1,
+ "posterior": {
+  "room_probs": {
+   "f1-corridor-n-west": 1.3104138460684941e-09,
+   "f1-corridor-n-mid": 1.4388079743556601e-09,
+   "f1-corridor-n-east": 1.3104138460684941e-09,
+   "f1-corridor-s-west": 1.3104138460684941e-09,
+   "f1-corridor-s-mid": 1.4388079743556601e-09,
+   "f1-corridor-s-east": 1.3104138460684941e-09,
+   "f1-stair-west": 7.842498810108822e-10,
+   "f1-corridor-link-w": 5.452062706895355e-10,
+   "f1-restroom-core": 7.334684839205028e-08,
+   "f1-elevator": 2.9523006658401443e-10,
+   "f1-corridor-link-e": 5.452062706895355e-10,
+   "f1-stair-east": 7.842498810108822e-10,
+   "f1-storage-janitor": 7.379084249403692e-10,
+   "f1-mechanical": 5.993678864492702e-10,
+   "f1-storage-mail": 1.2925395723009885e-09,
+   "f1-office-101": 5.815420131744212e-07,
+   "f1-office-102": 5.815420131744212e-07,
+   "f1-corridor-rear": 1.0713992984169337e-09,
+   "f1-conference-b": 5.406833760841863e-07,
+   "f1-open-office-n": 6.994128496342523e-07,
+   "f1-conference-a": 6.268104830662894e-08,
+   "f1-reception": 4.4772177361877806e-08,
+   "f1-lobby": 5.946646148700898e-08,
+   "f1-office-security": 6.443980585834235e-08,
+   "f1-break-room": 5.5952578374757885e-08,
+   "f2-corridor-n-west": 1.2305470572284736e-06,
+   "f2-corridor-n-mid": 1.3511158509749713e-06,
+   "f2-corridor-n-east": 1.2305470572284736e-06,
+   "f2-corridor-s-west": 1.2305470572284736e-06,
+   "f2-corridor-s-mid": 1.3511158509749713e-06,
+   "f2-corridor-s-east": 1.2305470572284736e-06,
+   "f2-stair-west": 7.364516073338856e-07,
+   "f2-corridor-link-w": 5.119771696493896e-07,
+   "f2-restroom-core": 6.887652226554911e-05,
+   "f2-elevator": 2.772364552849331e-07,
+   "f2-corridor-link-e": 5.119771696493896e-07,
+   "f2-stair-east": 7.364516073338856e-07,
+   "f2-storage-supply": 6.929345592148202e-07,
+   "f2-server-room": 6.929345592148202e-07,
+   "f2-storage-janitor": 6.929345592148202e-07,
+   "f2-open-office-n1": 0.0009882221823667259,
+   "f2-open-office-n2": 0.0009882221823667259,
+   "f2-break-room": 0.00030416105474107886,
+   "f2-conference-n": 0.0005077299353398125,
+   "f2-office-201": 6.874970649942105e-05,
+   "f2-office-202": 4.124982389965263e-05,
+   "f2-open-office-s1": 0.0001244098017880161,
+   "f2-open-office-s2": 0.0001116842277058852,
+   "f2-conference-s": 4.812479454959474e-05,
+   "f3-corridor-n-west": 6.277888761527893e-05,
+   "f3-corridor-n-mid": 6.892995246733663e-05,
+   "f3-corridor-n-east": 6.277888761527893e-05,
+   "f3-corridor-s-west": 6.277888761527893e-05,
+   "f3-corridor-s-mid": 6.892995246733663e-05,
+   "f3-corridor-s-east": 6.277888761527893e-05,
+   "f3-stair-west": 3.757159258503791e-05,
+   "f3-corridor-link-w": 2.6119567720879105e-05,
+   "f3-restroom-core": 0.00351387736473806,
+   "f3-elevator": 1.4143787648715356e-05,
+   "f3-corridor-link-e": 2.6119567720879105e-05,
+   "f3-stair-east": 3.757159258503791e-05,
+   "f3-storage-supply": 3.535148092236928e-05,
+   "f3-mechanical": 1.767574046118464e-05,
+   "f3-storage-janitor": 3.535148092236928e-05,
+   "f3-suite-vacant": 0.016606786629792092,
+   "f3-open-office-n1": 0.05041618600547966,
+   "f3-break-room": 0.01393016442789165,
+   "f3-conference-n": 0.023852911346692852,
+   "f3-office-301": 0.0030871616184982025,
+   "f3-office-302": 0.0030871616184982025,
+   "f3-open-office-s1": 0.006347021772803981,
+   "f3-open-office-s2": 0.006347021772803981,
+   "f3-office-303": 0.003507407597748791,
+   "f4-corridor-n-west": 0.0001740021614685281,
+   "f4-corridor-n-mid": 0.00019105086399014856,
+   "f4-corridor-n-east": 0.0001740021614685281,
+   "f4-corridor-s-west": 0.0001740021614685281,
+   "f4-corridor-s-mid": 0.00019105086399014856,
+   "f4-corridor-s-east": 0.0001740021614685281,
+   "f4-stair-west": 0.00010413593754121302,
+   "f4-corridor-link-w": 7.239473989899826e-05,
+   "f4-restroom-core": 0.00973929739479729,
+   "f4-elevator": 3.9201867311031804e-05,
+   "f4-corridor-link-e": 7.239473989899826e-05,
+   "f4-stair-east": 0.00010413593754121302,
+   "f4-storage-supply": 9.798252765008568e-05,
+   "f4-mechanical": 7.95865428848232e-05,
+   "f4-suite-vacant": 0.043377526044277415,
+   "f4-office-405": 0.05813844130105169,
+   "f4-boardroom": 0.0661123235740738,
+   "f4-break-room": 0.03398367936602199,
+   "f4-restroom-north": 0.4892595325778796,
+   "f4-storage-records": 0.00011600144097901871,
+   "f4-office-406": 0.05813844130105169,
+   "f4-office-401": 0.011890069168594298,
+   "f4-office-402": 0.008556583508030036,
+   "f4-reception": 0.005945034584297149,
+   "f4-open-office-s": 0.015792404612738956,
+   "f4-office-403": 0.008556583508030036,
+   "f4-office-404": 0.009721365356128027
+  },
+  "p_not_in_model": 0.04444350701161753,
+  "p_floor": {
+   "1": 2.778613800733025e-06,
+   "2": 0.0032639075491402215,
+   "3": 0.13131458042090974,
+   "4": 0.8209752264045317
+  },
+  "credible_set_90": [
+   "f4-restroom-north",
+   "f4-boardroom",
+   "f4-office-405",
+   "f4-office-406",
+   "f3-open-office-n1",
+   "f4-suite-vacant",
+   "f4-break-room",
+   "f3-conference-n",
+   "f3-suite-vacant",
+   "f4-open-office-s",
+   "f3-break-room"
+  ],
+  "entropy_bits": 3.0630824458540555,
+  "peak_count": 1
+ },
+ "plan": {
+  "teams": [
+   [
+    {
+     "room_id": "f4-restroom-north",
+     "room_name": "Restroom (North, window)",
+     "floor_label": "4",
+     "eta_s": 100.4,
+     "cumulative_prob": 0.48926,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.4403,
+     "travel_s": 100.4,
+     "search_s": 15.1,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-office-406",
+     "room_name": "Executive Office 406",
+     "floor_label": "4",
+     "eta_s": 125.6,
+     "cumulative_prob": 0.547398,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0523,
+     "travel_s": 10.1,
+     "search_s": 14.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-office-405",
+     "room_name": "Executive Office 405",
+     "floor_label": "4",
+     "eta_s": 163.5,
+     "cumulative_prob": 0.605536,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0523,
+     "travel_s": 23.9,
+     "search_s": 14.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-boardroom",
+     "room_name": "Boardroom",
+     "floor_label": "4",
+     "eta_s": 187.1,
+     "cumulative_prob": 0.671649,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0595,
+     "travel_s": 9.6,
+     "search_s": 28.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-break-room",
+     "room_name": "Executive Lounge",
+     "floor_label": "4",
+     "eta_s": 226.0,
+     "cumulative_prob": 0.705632,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0306,
+     "travel_s": 10.9,
+     "search_s": 17.5,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-restroom-core",
+     "room_name": "Restroom (Core)",
+     "floor_label": "4",
+     "eta_s": 255.3,
+     "cumulative_prob": 0.715372,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0088,
+     "travel_s": 11.8,
+     "search_s": 15.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-suite-vacant",
+     "room_name": "Suite 420 (vacant)",
+     "floor_label": "4",
+     "eta_s": 291.2,
+     "cumulative_prob": 0.758749,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.039,
+     "travel_s": 20.9,
+     "search_s": 51.5,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f3-open-office-n1",
+     "room_name": "Open Office 3 North",
+     "floor_label": "3",
+     "eta_s": 396.1,
+     "cumulative_prob": 0.809165,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0454,
+     "travel_s": 53.4,
+     "search_s": 49.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f3-conference-n",
+     "room_name": "Conference Room 3N",
+     "floor_label": "3",
+     "eta_s": 465.9,
+     "cumulative_prob": 0.833018,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0215,
+     "travel_s": 20.8,
+     "search_s": 28.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f3-break-room",
+     "room_name": "Break Room 3",
+     "floor_label": "3",
+     "eta_s": 503.4,
+     "cumulative_prob": 0.846949,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0125,
+     "travel_s": 9.5,
+     "search_s": 21.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-office-403",
+     "room_name": "Executive Office 403",
+     "floor_label": "4",
+     "eta_s": 566.8,
+     "cumulative_prob": 0.855505,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0077,
+     "travel_s": 42.4,
+     "search_s": 17.5,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-office-404",
+     "room_name": "Executive Office 404",
+     "floor_label": "4",
+     "eta_s": 593.2,
+     "cumulative_prob": 0.865226,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0087,
+     "travel_s": 8.9,
+     "search_s": 21.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-open-office-s",
+     "room_name": "Executive Assistants",
+     "floor_label": "4",
+     "eta_s": 637.3,
+     "cumulative_prob": 0.881019,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0142,
+     "travel_s": 23.1,
+     "search_s": 42.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-reception",
+     "room_name": "Executive Reception",
+     "floor_label": "4",
+     "eta_s": 690.6,
+     "cumulative_prob": 0.886964,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0054,
+     "travel_s": 11.3,
+     "search_s": 28.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-office-401",
+     "room_name": "Executive Office 401",
+     "floor_label": "4",
+     "eta_s": 741.2,
+     "cumulative_prob": 0.898854,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0107,
+     "travel_s": 22.6,
+     "search_s": 28.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f4-office-402",
+     "room_name": "Executive Office 402",
+     "floor_label": "4",
+     "eta_s": 778.4,
+     "cumulative_prob": 0.907411,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0077,
+     "travel_s": 9.2,
+     "search_s": 17.5,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f3-suite-vacant",
+     "room_name": "Suite 310 (vacant)",
+     "floor_label": "3",
+     "eta_s": 837.9,
+     "cumulative_prob": 0.924017,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0149,
+     "travel_s": 42.0,
+     "search_s": 56.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f3-office-301",
+     "room_name": "Office 301",
+     "floor_label": "3",
+     "eta_s": 908.0,
+     "cumulative_prob": 0.927104,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0028,
+     "travel_s": 14.1,
+     "search_s": 17.5,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f3-open-office-s1",
+     "room_name": "Open Office 3 South-Centre",
+     "floor_label": "3",
+     "eta_s": 948.9,
+     "cumulative_prob": 0.933452,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0057,
+     "travel_s": 23.4,
+     "search_s": 49.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f3-office-303",
+     "room_name": "Office 303",
+     "floor_label": "3",
+     "eta_s": 1021.0,
+     "cumulative_prob": 0.936959,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0032,
+     "travel_s": 23.1,
+     "search_s": 21.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f3-open-office-s2",
+     "room_name": "Open Office 3 South-East",
+     "floor_label": "3",
+     "eta_s": 1053.3,
+     "cumulative_prob": 0.943306,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0057,
+     "travel_s": 11.3,
+     "search_s": 49.0,
+     "hazard_class": null
+    },
+    {
+     "room_id": "f3-restroom-core",
+     "room_name": "Restroom (Core)",
+     "floor_label": "3",
+     "eta_s": 1130.7,
+     "cumulative_prob": 0.94682,
+     "kind": "first",
+     "mode": "rapid",
+     "p_find": 0.0032,
+     "travel_s": 28.4,
+     "search_s": 15.0,
+     "hazard_class": null
+    }
+   ]
+  ],
+  "expected_time_to_find_s": 250.4,
+  "baseline_nearest_s": 816.89,
+  "baseline_highest_prob_s": 294.42,
+  "entrance_id": "ent-main",
+  "staging_latlng": [
+   40.3571922,
+   -74.6669407
+  ],
+  "objective": "expected_time",
+  "solver": "heuristic",
+  "p_out": 0.0444,
+  "cumulative_success": 0.8521,
+  "time_to_cover_all_s": 1145.7,
+  "notes": []
+ },
+ "approach": {
+  "entrance_id": "ent-main",
+  "entrance_name": "Main Entrance (Street)",
+  "entrance_latlng": [
+   40.3573,
+   -74.6669407
+  ],
+  "staging_id": "stg-street",
+  "staging_name": "Street Curb Staging",
+  "staging_latlng": [
+   40.3571922,
+   -74.6669407
+  ],
+  "stairwell_id": "f1-stair-east",
+  "stairwell_name": "Stair B (East)",
+  "target_room_id": "f4-restroom-north",
+  "target_floor_label": "4",
+  "entrance_expected_travel_s": {
+   "ent-main": 99.9,
+   "ent-rear": 100.9
+  },
+  "stairs_s_to_target_floor": 45.0,
+  "elevator_s_to_target_floor": 81.0,
+  "entrance_access_s": {
+   "ent-main": 10.0,
+   "ent-rear": 11.7
+  },
+  "entrance_warnings": {
+   "ent-main": [],
+   "ent-rear": [
+    "No key holder recorded for this entrance"
+   ]
+  },
+  "warnings": []
+ },
+ "next_question": {
+  "question": "Are you close to the elevators?",
+  "clue_type": "landmark",
+  "value": "elevator",
+  "expected_info_gain_bits": 0.2765,
+  "p_yes": 0.2035
+ },
+ "history": [
+  {
+   "turn": 0,
+   "entropy_bits": 5.812304107928523,
+   "expected_time_to_find_s": 1113.58,
+   "top_room_id": "f2-open-office-n1",
+   "top_room_prob": 0.037002038026235334
+  },
+  {
+   "turn": 1,
+   "entropy_bits": 4.886933311870008,
+   "expected_time_to_find_s": 534.33,
+   "top_room_id": "f4-open-office-s",
+   "top_room_prob": 0.09426398314779966
+  },
+  {
+   "turn": 2,
+   "entropy_bits": 4.1665549439398735,
+   "expected_time_to_find_s": 396.94,
+   "top_room_id": "f4-restroom-north",
+   "top_room_prob": 0.20277847596424176
+  },
+  {
+   "turn": 3,
+   "entropy_bits": 3.0630824458540555,
+   "expected_time_to_find_s": 250.4,
+   "top_room_id": "f4-restroom-north",
+   "top_room_prob": 0.4892595325778796
+  },
+  {
+   "turn": 4,
+   "entropy_bits": 3.0630824458540555,
+   "expected_time_to_find_s": 250.4,
+   "top_room_id": "f4-restroom-north",
+   "top_room_prob": 0.4892595325778796
+  }
+ ],
+ "parser_mode": "rules",
+ "llm": null,
+ "buildings": [
+  {
+   "id": "ptc-100",
+   "name": "100 Princeton Tech Center",
+   "real": false,
+   "floors": 4,
+   "rooms": 100
+  }
+ ],
+ "situation": {
+  "incident_type": "unknown",
+  "incident_confirmed": false,
+  "suggested_type": "other_medical",
+  "suggested_span": "My chest really hurts",
+  "dismissed_types": [],
+  "witnessed": null,
+  "cpr_in_progress": null,
+  "smoke_reported": false,
+  "load": "light",
+  "call_started_at": "2026-11-14T19:02:00Z",
+  "closed_room_ids": [],
+  "closed_entrance_ids": [],
+  "meet_person": null,
+  "timestamps": {}
+ },
+ "policy": {
+  "route_enabled": true,
+  "elevator_allowed": true,
+  "show_hazard_class": false,
+  "show_incident_board": false,
+  "stake": {
+   "label": "Time-critical",
+   "quantified": false,
+   "per_min_low": null,
+   "per_min_high": null,
+   "unit": null,
+   "origin": null,
+   "note": null
+  },
+  "banners": [
+   {
+    "level": "info",
+    "text": "Incident type not set yet. Travel times assume a light load in clear air.",
+    "source": "policy: unknown"
+   }
+  ],
+  "travel": {
+   "walk_mps": 1.2,
+   "stair_s_per_floor": 15.0,
+   "stair_s_per_floor_high": 15.0,
+   "high_floor_from": null,
+   "search_advance_mps": null,
+   "elevator_allowed": true,
+   "elevator_fixed_s": 75.0,
+   "elevator_s_per_floor": 2.0,
+   "notes": []
+  },
+  "protocol_prompts": []
+ },
+ "evidence": [
+  {
+   "id": "t2-e0",
+   "kind": "vocab",
+   "clue": {
+    "type": "room_type",
+    "value": "restroom",
+    "polarity": true,
+    "confidence": 1.0,
+    "span": "bathroom"
+   },
+   "selector": null,
+   "default_match": 0.0,
+   "negate": false,
+   "confidence": 1.0,
+   "span": "bathroom",
+   "turn": 2,
+   "source": "rules",
+   "rationale": "",
+   "status": "active",
+   "matched_room_ids": [
+    "f1-restroom-core",
+    "f2-restroom-core",
+    "f3-restroom-core",
+    "f4-restroom-core",
+    "f4-restroom-north"
+   ],
+   "unmatched": false
+  },
+  {
+   "id": "t3-e0",
+   "kind": "vocab",
+   "clue": {
+    "type": "view",
+    "value": "parking_lot",
+    "polarity": true,
+    "confidence": 0.9,
+    "span": "parking lot"
+   },
+   "selector": null,
+   "default_match": 0.0,
+   "negate": false,
+   "confidence": 0.9,
+   "span": "parking lot",
+   "turn": 3,
+   "source": "rules",
+   "rationale": "",
+   "status": "active",
+   "matched_room_ids": [
+    "f1-office-101",
+    "f1-office-102",
+    "f1-conference-b",
+    "f1-open-office-n",
+    "f2-open-office-n1",
+    "f2-open-office-n2",
+    "f2-break-room",
+    "f2-conference-n",
+    "f3-suite-vacant",
+    "f3-open-office-n1",
+    "f3-break-room",
+    "f3-conference-n",
+    "f4-suite-vacant",
+    "f4-office-405",
+    "f4-boardroom",
+    "f4-break-room",
+    "f4-restroom-north",
+    "f4-office-406"
+   ],
+   "unmatched": false
+  },
+  {
+   "id": "t3-e1",
+   "kind": "vocab",
+   "clue": {
+    "type": "landmark",
+    "value": "window",
+    "polarity": true,
+    "confidence": 0.8,
+    "span": "window"
+   },
+   "selector": null,
+   "default_match": 0.0,
+   "negate": false,
+   "confidence": 0.8,
+   "span": "window",
+   "turn": 3,
+   "source": "rules",
+   "rationale": "",
+   "status": "active",
+   "matched_room_ids": [
+    "f1-office-101",
+    "f1-office-102",
+    "f1-conference-b",
+    "f1-open-office-n",
+    "f1-conference-a",
+    "f1-reception",
+    "f1-lobby",
+    "f1-office-security",
+    "f1-break-room",
+    "f2-open-office-n1",
+    "f2-open-office-n2",
+    "f2-break-room",
+    "f2-conference-n",
+    "f2-office-201",
+    "f2-office-202",
+    "f2-open-office-s1",
+    "f2-open-office-s2",
+    "f2-conference-s",
+    "f3-suite-vacant",
+    "f3-open-office-n1",
+    "f3-break-room",
+    "f3-conference-n",
+    "f3-office-301",
+    "f3-office-302",
+    "f3-open-office-s1",
+    "f3-open-office-s2",
+    "f3-office-303",
+    "f4-suite-vacant",
+    "f4-office-405",
+    "f4-boardroom",
+    "f4-break-room",
+    "f4-restroom-north",
+    "f4-office-406",
+    "f4-office-401",
+    "f4-office-402",
+    "f4-reception",
+    "f4-open-office-s",
+    "f4-office-403",
+    "f4-office-404"
+   ],
+   "unmatched": false
+  }
+ ],
+ "facts": [
+  {
+   "id": "t4-f0",
+   "category": "patient",
+   "text": "Caller has chest pain and feels dizzy",
+   "span": "My chest really hurts and I feel dizzy",
+   "turn": 4,
+   "source": "rules",
+   "observed_at": "2026-11-14T19:03:36Z",
+   "room_id": null,
+   "verified": false,
+   "premise_key": null
+  }
+ ],
+ "questions": [
+  {
+   "id": "landmark:elevator",
+   "question": "Are you close to the elevators?",
+   "kind": "yes_no",
+   "expected_info_gain_bits": 0.2765,
+   "clue_type": "landmark",
+   "value": "elevator",
+   "p_yes": 0.2035,
+   "partition": null
+  },
+  {
+   "id": "landmark:stairs",
+   "question": "Are you close to a stairwell or exit stairs?",
+   "kind": "yes_no",
+   "expected_info_gain_bits": 0.2446,
+   "clue_type": "landmark",
+   "value": "stairs",
+   "p_yes": 0.1872,
+   "partition": null
+  },
+  {
+   "id": "open:floor",
+   "question": "Which floor did you get off at?",
+   "kind": "open",
+   "expected_info_gain_bits": 0.41,
+   "clue_type": null,
+   "value": null,
+   "p_yes": null,
+   "partition": "floor"
+  }
+ ],
+ "searched": [],
+ "found_room_id": null,
+ "scenarios": [
+  {
+   "id": "demo",
+   "title": "Demo",
+   "building_id": "ptc-100",
+   "incident_type": "unknown",
+   "description": ""
+  },
+  {
+   "id": "elevator_stuck",
+   "title": "Elevator stuck",
+   "building_id": "ptc-100",
+   "incident_type": "unknown",
+   "description": ""
+  },
+  {
+   "id": "hiding_no_windows",
+   "title": "Hiding no windows",
+   "building_id": "ptc-100",
+   "incident_type": "unknown",
+   "description": ""
+  },
+  {
+   "id": "lobby_collapse",
+   "title": "Lobby collapse",
+   "building_id": "ptc-100",
+   "incident_type": "unknown",
+   "description": ""
+  }
+ ],
+ "agent_trace": [],
+ "scenario_id": null,
+ "prior_hour": 14,
+ "can_undo": false
+}

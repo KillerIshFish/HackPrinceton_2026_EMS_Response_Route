@@ -13,20 +13,58 @@ the expected entropy reduction (mutual information between answer and room):
 
     IG = H(p) - [ P(yes) * H(p | yes) + P(no) * H(p | no) ]      (bits)
 
-The best not-yet-asked question is returned.
+``next_question`` returns the best not-yet-asked yes/no question (older callers).
+
+Open questions (Step C3)
+------------------------
+``top_questions`` also scores open questions built from *this* building, each with a
+partition of the rooms into answer cells:
+
+* ``open:unit``   "What number is on the door nearest you?"  cells = suite numbers
+                  (sidecar ``rooms[id]["suite"]``, normalised with ``normalize_unit``)
+* ``open:tenant`` "What name or sign can you see?"           cells = tenant names
+* ``open:floor``  "Which floor did you get off at?"          cells = floor labels
+
+An open question is offered only when its labelled rooms hold at least
+``MIN_LABELLED_SHARE`` of the in-building probability and it has two or more cells.
+Answer model, with the fusion noise floor ``eps``:
+
+    P(don't know)            = DONT_KNOW = 0.2   (independent of the room: no information)
+    P(answer a | r, answers) = 1 - eps            if a is r's cell
+                             = eps / (K - 1)      for each of the other K - 1 cells
+    unlabelled rooms and "not in model" answer like the average labelled room.
+
+    IG = (1 - DONT_KNOW) * [ H(p) - sum_a P(a | answers) * H(p | a) ]   (bits)
+
+The top ``k`` questions of both kinds, best gain first, go to ``DemoState.questions``.
 """
 
 from __future__ import annotations
 
-from typing import Iterable, Mapping
+import math
+import re
+from collections import defaultdict
+from typing import Any, Iterable, Mapping
 
+import core.evidence as _evidence
 from core.clue_likelihood import clue_match
-from core.schema import Building, Clue
+from core.schema import Building, Clue, Policy, Question
 from core.uncertainty import entropy_bits
 from parser.extract import SECTION_FOR_TYPE, TYPE_FOR_SECTION, load_vocab
 
 EPS = 0.1
 MIN_GAIN_BITS = 1e-6
+
+# Open questions: probability the caller cannot answer, and the share of the in-building
+# probability the labelled rooms must hold before the question is offered.
+DONT_KNOW = 0.2
+MIN_LABELLED_SHARE = 0.5
+
+OPEN_QUESTIONS: dict[str, str] = {
+    "unit": "What number is on the door nearest you?",
+    "tenant": "What name or sign can you see?",
+    "floor": "Which floor did you get off at?",
+}
 
 # Room types a dispatcher would not normally ask about directly.
 _SKIP_ROOM_TYPES: set[str] = set()
@@ -217,11 +255,23 @@ def rank_questions(
     return ranked
 
 
+def prompts_allowed(policy: Policy | None) -> bool:
+    """False when the console must not suggest questions to the caller.
+
+    That is whenever the route is off (``route_enabled`` false, e.g. an unconfirmed
+    active-threat suggestion) or the incident board is shown: during an active threat the
+    console does not prompt contact with callers.
+    """
+    return policy is None or (policy.route_enabled and not policy.show_incident_board)
+
+
 def next_question(
     building: Building,
     room_probs: Mapping[str, float],
     p_nim: float,
     asked: set[str] | None = None,
+    *,
+    policy: Policy | None = None,
 ) -> dict | None:
     """Best next yes/no question, or None when nothing left would reduce uncertainty.
 
@@ -230,9 +280,253 @@ def next_question(
     asserted or was already asked, ``"negative:<section>:<key>"`` for things they
     denied (``asked_from_clues(clues)`` builds this). Questions made redundant by
     those answers are skipped too - nobody asks "are you in an office?" after
-    "I'm in a bathroom".
+    "I'm in a bathroom". Open questions are only in ``top_questions``. With a
+    ``policy`` that forbids prompts (see ``prompts_allowed``) this returns None.
     """
+    if not prompts_allowed(policy):
+        return None
     ranked = rank_questions(building, room_probs, p_nim, asked)
     if not ranked or ranked[0]["expected_info_gain_bits"] <= MIN_GAIN_BITS:
         return None
     return ranked[0]
+
+
+# ---------------------------------------------------------------------------
+# Open questions built from the building
+# ---------------------------------------------------------------------------
+
+
+def _norm_tenant(value: object) -> str:
+    return " ".join(str(value or "").lower().split())
+
+
+def open_partitions(
+    building: Building, meta: Mapping[str, Mapping[str, Any]] | None = None
+) -> dict[str, dict[str, str]]:
+    """``partition -> {room id: answer cell}``; rooms without that data are left out.
+
+    ``unit`` from sidecar ``suite`` (``normalize_unit``), ``tenant`` from sidecar ``tenant``
+    (case / space folded), ``floor`` from ``Room.floor_label``. ``meta`` overrides the
+    building's sidecar metadata (tests).
+    """
+    meta = _evidence.room_meta(building) if meta is None else meta
+    units: dict[str, str] = {}
+    tenants: dict[str, str] = {}
+    for r in building.rooms:
+        m = meta.get(r.id) or {}
+        unit = _evidence.normalize_unit(m.get("suite")) if m.get("suite") else ""
+        if unit:
+            units[r.id] = unit
+        tenant = _norm_tenant(m.get("tenant"))
+        if tenant:
+            tenants[r.id] = tenant
+    floors = {r.id: str(r.floor_label) for r in building.rooms}
+    return {"unit": units, "tenant": tenants, "floor": floors}
+
+
+def labelled_share(room_probs: Mapping[str, float], cells: Mapping[str, str]) -> float:
+    """Share of the in-building probability held by rooms that have a cell."""
+    in_model = sum(p for p in room_probs.values() if p > 0.0)
+    if in_model <= 0.0:
+        return 0.0
+    return sum(p for rid, p in room_probs.items() if p > 0.0 and rid in cells) / in_model
+
+
+def _sum_vlogv(f: float, s: float, g: float) -> float:
+    """sum over a group of (f * q) * log2(f * q), given s = sum q and g = sum q log2 q."""
+    if f <= 0.0 or s <= 0.0:
+        return 0.0
+    return f * (s * math.log2(f) + g)
+
+
+def open_info_gain_bits(
+    room_probs: Mapping[str, float],
+    p_nim: float,
+    cells: Mapping[str, str],
+    eps: float = EPS,
+    dont_know: float = DONT_KNOW,
+) -> float:
+    """Expected entropy reduction (bits) of an open question with answer cells ``cells``.
+
+    See the module docstring for the answer model. Rooms in one cell share a likelihood,
+    so each answer's posterior entropy comes from per-cell sums in O(1); the whole score
+    is O(rooms + cells).
+    """
+    labels = set(cells.values())
+    K = len(labels)
+    total = sum(p for p in room_probs.values() if p > 0.0) + max(p_nim, 0.0)
+    if K < 2 or total <= 0.0:
+        return 0.0
+
+    s_cell: dict[str, float] = defaultdict(float)  # sum of q per cell (q = p / total)
+    g_cell: dict[str, float] = defaultdict(float)  # sum of q log2 q per cell
+    s_u = g_u = 0.0  # rooms without a cell
+    for rid, p in room_probs.items():
+        if p <= 0.0:
+            continue
+        q = p / total
+        qlog = q * math.log2(q)
+        c = cells.get(rid)
+        if c is None:
+            s_u += q
+            g_u += qlog
+        else:
+            s_cell[c] += q
+            g_cell[c] += qlog
+    s_l = sum(s_cell.values())
+    if s_l <= 0.0:
+        return 0.0
+    g_l = sum(g_cell.values())
+    n = max(p_nim, 0.0) / total
+    h_now = -(g_l + g_u + (n * math.log2(n) if n > 0.0 else 0.0))
+
+    hit, miss = 1.0 - eps, eps / (K - 1)
+    all_miss = _sum_vlogv(miss, s_l, g_l)  # every labelled room at the miss rate
+    expected_h = 0.0
+    for a in labels:
+        s_a, g_a = s_cell.get(a, 0.0), g_cell.get(a, 0.0)
+        labelled_a = hit * s_a + miss * (s_l - s_a)
+        q_a = labelled_a / s_l  # P(answer a) for an average labelled room
+        z = labelled_a + (s_u + n) * q_a  # P(answer a | the caller answers)
+        if z <= 0.0:
+            continue
+        vlogv = (
+            all_miss - _sum_vlogv(miss, s_a, g_a) + _sum_vlogv(hit, s_a, g_a)
+            + _sum_vlogv(q_a, s_u, g_u)
+            + (n * q_a * math.log2(n * q_a) if n > 0.0 and q_a > 0.0 else 0.0)
+        )
+        expected_h += z * (math.log2(z) - vlogv / z)
+    return max(0.0, (1.0 - dont_know) * (h_now - expected_h))
+
+
+def _open_excluded(asked: Iterable[str]) -> set[str]:
+    """Open partitions already asked or answered.
+
+    ``open:<partition>`` (logged through POST /calls/demo/ask, whatever the reply) and
+    ``unit:<x>`` / ``tenant:<x>`` / ``floor:<x>`` (the caller already gave one).
+    """
+    out: set[str] = set()
+    for key in asked:
+        head, _, rest = str(key).partition(":")
+        if not rest:
+            continue
+        if head == "open":
+            out.add(rest)
+        elif head in OPEN_QUESTIONS:
+            out.add(head)
+    return out
+
+
+def rank_open_questions(
+    building: Building,
+    room_probs: Mapping[str, float],
+    p_nim: float,
+    asked: set[str] | None = None,
+    meta: Mapping[str, Mapping[str, Any]] | None = None,
+) -> list[dict]:
+    """Open questions this building supports and not yet asked, best gain first.
+
+    Each: ``{"id", "question", "partition", "n_answers", "labelled_share",
+    "expected_info_gain_bits"}``. A partition is offered only with two or more cells and
+    when its labelled rooms hold at least ``MIN_LABELLED_SHARE`` of the probability.
+    """
+    excluded = _open_excluded(asked or ())
+    out: list[dict] = []
+    for partition, cells in open_partitions(building, meta).items():
+        if partition in excluded:
+            continue
+        n_answers = len(set(cells.values()))
+        if n_answers < 2:
+            continue
+        share = labelled_share(room_probs, cells)
+        if share < MIN_LABELLED_SHARE:
+            continue
+        gain = open_info_gain_bits(room_probs, p_nim, cells)
+        out.append(
+            {
+                "id": f"open:{partition}",
+                "question": OPEN_QUESTIONS[partition],
+                "partition": partition,
+                "n_answers": n_answers,
+                "labelled_share": round(share, 4),
+                "expected_info_gain_bits": round(gain, 4),
+            }
+        )
+    out.sort(key=lambda q: -q["expected_info_gain_bits"])
+    return out
+
+
+# Questions must not tell the caller to move, fetch something or open a door; those are
+# protocol prompts (Policy.protocol_prompts), not location questions.
+_INSTRUCTION = re.compile(
+    r"^\s*(?:please\s+)?(?:go|move|walk|run|leave|head|get|fetch|bring|grab|open|unlock|close|shut|take|carry|pick)\b"
+    r"|\b(?:can|could|would|will)\s+you\s+(?:please\s+)?"
+    r"(?:go|move|walk|run|leave|head|get|fetch|bring|grab|open|unlock|carry|pick)\b",
+    re.IGNORECASE,
+)
+
+
+def is_instruction(text: str) -> bool:
+    """True for text that tells the caller to do something rather than asking where they are."""
+    return bool(_INSTRUCTION.search(text or ""))
+
+
+def top_questions(
+    building: Building,
+    room_probs: Mapping[str, float],
+    p_nim: float,
+    asked: set[str] | None = None,
+    policy: Policy | None = None,
+    k: int = 3,
+    *,
+    meta: Mapping[str, Mapping[str, Any]] | None = None,
+    vocab: dict | None = None,
+) -> list[Question]:
+    """The best ``k`` questions for DemoState.questions, yes/no and open, best gain first.
+
+    * yes/no: vocabulary questions from ``rank_questions`` (``id = "<type>:<value>"``;
+      ``clue_type`` / ``value`` are what the answer buttons send back).
+    * open: ``rank_open_questions`` (``id = "open:<partition>"``, ``partition`` set).
+
+    ``asked`` holds every key that counts as asked: logged question ids (an asked open
+    question is never offered again, whatever the reply), asserted / denied clue keys, and
+    ``unit:<x>`` / ``tenant:<x>`` for a unit or tenant the caller already gave. Once
+    ``open:floor`` is asked the yes/no floor questions are dropped too.
+
+    Returns nothing when ``prompts_allowed(policy)`` is false (route off or incident board
+    shown). Protocol prompts are never produced here; they come from Policy.protocol_prompts.
+    """
+    if not prompts_allowed(policy):
+        return []
+    asked = set(asked or ())
+    candidates: list[Question] = []
+    for q in rank_questions(building, room_probs, p_nim, asked, vocab):
+        if q["clue_type"] == "floor" and "open:floor" in asked:
+            continue
+        candidates.append(
+            Question(
+                id=question_key(q["clue_type"], q["value"]),
+                question=q["question"],
+                kind="yes_no",
+                expected_info_gain_bits=q["expected_info_gain_bits"],
+                clue_type=q["clue_type"],
+                value=q["value"],
+                p_yes=q["p_yes"],
+            )
+        )
+    for q in rank_open_questions(building, room_probs, p_nim, asked, meta):
+        candidates.append(
+            Question(
+                id=q["id"],
+                question=q["question"],
+                kind="open",
+                expected_info_gain_bits=q["expected_info_gain_bits"],
+                partition=q["partition"],
+            )
+        )
+    candidates = [
+        q for q in candidates
+        if q.expected_info_gain_bits > MIN_GAIN_BITS and q.id not in asked and not is_instruction(q.question)
+    ]
+    candidates.sort(key=lambda q: -q.expected_info_gain_bits)  # stable: ties keep yes/no first
+    return candidates[: max(k, 0)]

@@ -1,0 +1,305 @@
+# Situation settings: one entry per incident type, plus travel, survival, search and policy
+# settings. Read through situation/config.py (load_situations, section, setting_value).
+#
+# Every numeric setting is a mapping, so the console can say where a number comes from:
+#
+#   some_setting:
+#     value: 1.2                 # the number the code uses
+#     range: [1.2, 1.3]          # plausible range, or null
+#     label: measured            # measured | derived | judgement | unverified
+#     source: "ODPM Technical Report 2/2005, timed"
+#
+# Ground rule 5 (docs/BUILD_PLAN.md section 3): numbers with no published basis (detection
+# probability, room search time) carry `label: unverified`, and the UI says so.
+#
+# Section owners (edit only your own section; they are kept apart to merge cleanly):
+#   incident_types  Step 0 (names and display labels; the keys are the contract's spelling)
+#   travel          B1
+#   survival        B2
+#   search          A1
+#   policy          B2
+
+version: 1
+
+labels: [measured, derived, judgement, unverified]
+
+# ---------------------------------------------------------------------------
+# Incident types (core.schema.IncidentType). `label` is the plain wording the console shows.
+# `medical` marks the types for which an elevator option may be offered (policy decides).
+# ---------------------------------------------------------------------------
+incident_types:
+  unknown:
+    label: "Not yet known"
+    medical: true
+  cardiac_arrest:
+    label: "Cardiac arrest"
+    medical: true
+  stroke:
+    label: "Stroke"
+    medical: true
+  internal_bleeding:
+    label: "Internal bleeding"
+    medical: true
+  external_bleeding:
+    label: "Severe external bleeding"
+    medical: true
+  overdose:
+    label: "Overdose"
+    medical: true
+  fire_smoke:
+    label: "Fire or smoke"
+    medical: false
+  active_threat:
+    label: "Active threat"
+    medical: false
+  other_medical:
+    label: "Other medical"
+    medical: true
+
+
+# ---------------------------------------------------------------------------
+# Travel (B1): walking, stairs by load and height, smoke rates, elevator option.
+# Read by situation/travel.py (profile_for) and planning/approach.py (access, sanity check).
+# ---------------------------------------------------------------------------
+travel:
+  walk_mps:
+    value: 1.2
+    range: [1.2, 1.3]
+    label: measured
+    source: "Clear visibility. Measured 1.29 m/s for firefighters wearing breathing apparatus on a clear walkway (ODPM Technical Report 2/2005)."
+  stair_s_per_floor:
+    light:
+      value: 15.0
+      range: null
+      label: measured
+      source: "ODPM Technical Report 2/2005, timed. Light load, measured up to about floor 10."
+    heavy:
+      value: 29.0
+      range: [25.0, 30.0]
+      label: measured
+      source: "ODPM Technical Report 2/2005, timed. Breathing apparatus and tools, or heavy EMS kit."
+  light_rate_measured_to_floor:
+    value: 10
+    range: null
+    label: measured
+    source: "Highest floor the light-load stair rate was timed to (ODPM Technical Report 2/2005)."
+  stair_s_per_floor_high:
+    value: 90.0
+    range: [60.0, 120.0]
+    label: judgement
+    source: "Reconstructed, not timed: stair seconds per floor above high_floor_from, any load."
+  high_floor_from:
+    value: 18
+    range: null
+    label: judgement
+    source: "Floor above which the high-rise stair rate applies."
+  smoke:
+    search_advance_mps:
+      value: 0.040
+      range: null
+      label: measured
+      source: "2.38 m/min, firefighters advancing with a hose in live fire (ODPM Technical Report 2/2005). Used only when smoke is reported."
+    walk_mps:
+      value: 0.5
+      range: [0.4, 0.6]
+      label: measured
+      source: "Movement in smoke without searching; civilians, secondary citation. Used only when smoke is reported."
+  elevator:
+    fixed_s:
+      value: 75.0
+      range: [60.0, 90.0]
+      label: judgement
+      source: "Judgement on measured EMS intervals in Singapore: call, wait and door time per ride. Medical incident types only; never with fire or smoke."
+    s_per_floor:
+      value: 2.0
+      range: [1.0, 3.0]
+      label: judgement
+      source: "Judgement on measured EMS intervals in Singapore."
+  meet_person_credit_s:
+    value: 24.0
+    range: null
+    label: derived
+    source: "Escorted 1.9 min against 2.3 min unescorted (Silverman 2007); applied once to the curb-to-room estimate when someone will meet the crew."
+  curb_to_patient_median_min:
+    houses:
+      value: 1.3
+      range: null
+      label: measured
+      source: "Whole-interval median, curb to patient, houses."
+    multi_storey_residential:
+      value: 2.8
+      range: null
+      label: measured
+      source: "Whole-interval median, curb to patient, multi-storey residential buildings."
+  sanity_check:
+    min_floors_exclusive:
+      value: 2
+      range: null
+      label: judgement
+      source: "Check applies to buildings with more than this many floors."
+    floor_min:
+      value: 2.0
+      range: null
+      label: judgement
+      source: "Predicted curb-to-room minutes below this draw a warning (between the house and multi-storey medians)."
+
+
+# ---------------------------------------------------------------------------
+# Survival and stake (B2): curves and per-minute ranges per incident type.
+# Read by situation/survival.py. Stake wording (labels, units, origins) is in that file.
+# Only cardiac arrest has a curve for the planner; a linear cost (stroke, internal
+# bleeding) gives the same room order as the expected-time objective, so it passes none.
+# Fire passes no curve either: its stake is a display range only.
+# For fixed ranges the console shows `range`; `value` is only the midpoint.
+# ---------------------------------------------------------------------------
+survival:
+  cardiac_arrest:
+    collapse_to_call_min:
+      value: 1.2
+      range: null
+      label: judgement
+      source: "Modelling assumption: minutes from collapse to the call (Valenzuela origin)."
+    patient_to_shock_min:
+      value: 1.0
+      range: null
+      label: judgement
+      source: "Modelling assumption: minutes from reaching the patient to the first shock."
+    stake_horizon_min:
+      value: 5
+      range: null
+      label: judgement
+      source: "The stake range covers reaching the patient between now and this many minutes from now."
+    valenzuela:
+      # Witnessed arrest. S = 1 / (1 + exp(intercept + per_min_to_cpr * t_cpr + per_min_to_defib * t_defib)),
+      # t in minutes from collapse; t_cpr = earlier of CPR start and t_defib.
+      intercept:
+        value: -0.260
+        range: null
+        label: measured
+        source: "Valenzuela et al. 1997, Circulation 96:3308, logistic survival model (fitted coefficient)."
+      per_min_to_cpr:
+        value: 0.106
+        range: null
+        label: measured
+        source: "Valenzuela et al. 1997, Circulation 96:3308, logistic survival model (fitted coefficient)."
+      per_min_to_defib:
+        value: 0.139
+        range: null
+        label: measured
+        source: "Valenzuela et al. 1997, Circulation 96:3308, logistic survival model (fitted coefficient)."
+    de_maio:
+      # Witnessed unknown or false. S = 1 / (1 + exp(intercept + per_min * t)), t in minutes from the call.
+      # Check values: 12.0% at 5 min, 9.5% at 6, 7.5% at 7, 5.9% at 8.
+      intercept:
+        value: 0.679
+        range: null
+        label: measured
+        source: "De Maio et al. 2003, Ann Emerg Med 42:242, logistic model of survival by response interval (fitted coefficient)."
+      per_min:
+        value: 0.262
+        range: null
+        label: measured
+        source: "De Maio et al. 2003, Ann Emerg Med 42:242, logistic model of survival by response interval (fitted coefficient)."
+      fitted_to_min:
+        value: 10
+        range: null
+        label: judgement
+        source: "Approximate upper end of the response intervals behind the fit; later times are extrapolated."
+  stroke:
+    stake_per_min:
+      value: 0.08
+      range: [0.03, 0.13]
+      label: derived
+      source: "Evidence report: percentage points of good functional outcome lost per minute of delay to stroke treatment; linear."
+  internal_bleeding:
+    stake_per_min:
+      value: 0.35
+      range: [0.2, 0.5]
+      label: derived
+      source: "Evidence report: percentage points of mortality added per minute of delay for internal bleeding; linear."
+  fire_smoke:
+    stake_per_min:
+      value: 3.75
+      range: [2.5, 5.0]
+      label: derived
+      source: "Voluntary survey reported in trade press: survival points per minute from fire-department arrival to reaching the victim. Not a fitted curve."
+  # external_bleeding, overdose: no published curve ("Unquantified, time-critical").
+  # unknown, other_medical: "Time-critical". active_threat: no stake card.
+
+
+# ---------------------------------------------------------------------------
+# Search (A1): detection probability and time multiplier per search mode (rapid, thorough).
+# Read by planning/search_order.py (search_settings). None of these numbers has a published
+# basis, so every one is labelled unverified (ground rule 5).
+#   detection_probability  q: chance that one look finds a person who is in the room
+#   time_multiplier        look time = room search time x this
+#   search_s_per_m2, min_search_s   room search time = max(min_search_s, search_s_per_m2 x area)
+# ---------------------------------------------------------------------------
+search:
+  modes:
+    rapid:
+      detection_probability:
+        value: 0.9
+        range: null
+        label: unverified
+        source: "No published value; planning setting carried over from the original planner."
+      time_multiplier:
+        value: 1.0
+        range: null
+        label: unverified
+        source: "Reference look time (defines the unit)."
+    thorough:
+      detection_probability:
+        value: 0.97
+        range: null
+        label: unverified
+        source: "No published value; planning setting."
+      time_multiplier:
+        value: 2.0
+        range: null
+        label: unverified
+        source: "No published value; planning setting."
+  search_s_per_m2:
+    value: 0.5
+    range: null
+    label: unverified
+    source: "No published value; planning setting carried over from the original planner."
+  min_search_s:
+    value: 10.0
+    range: null
+    label: unverified
+    source: "No published value; planning setting carried over from the original planner."
+
+
+# ---------------------------------------------------------------------------
+# Policy (B2): protocol prompts and the words that withdraw the elevator option.
+# Read by situation/policy.py. The route / elevator / hazard class / incident board table
+# and the required banner texts are safety rules (docs/BUILD_PLAN.md section 3) and live in
+# that file, not here. Prompts are reminders for the dispatcher; none moves a caller
+# toward danger, and active threat has none (enforced in code).
+# ---------------------------------------------------------------------------
+policy:
+  elevator_off_words: [fire, smoke, flame, burning, alarm]
+  protocol_prompts:
+    unknown:
+      - "Ask what happened, so the incident type can be set."
+      - "Confirm the address and a call-back number."
+    other_medical:
+      - "Keep the caller on the line and follow the protocol card for the complaint."
+    cardiac_arrest:
+      - "Keep the caller on the line; protocol CPR instructions continue until the crew takes over."
+      - "If another person is present, ask whether a defibrillator is close by; the caller stays with the patient."
+    stroke:
+      - "Ask when the patient was last seen well and note the time."
+      - "Nothing to eat or drink, per protocol."
+    internal_bleeding:
+      - "Keep the patient lying still; nothing to eat or drink, per protocol."
+    external_bleeding:
+      - "Protocol bleeding-control instructions: firm, direct pressure on the wound until the crew takes over."
+    overdose:
+      - "Ask what was taken and when, and whether naloxone is on hand; follow the protocol card."
+      - "If the patient stops breathing normally, move to protocol CPR instructions."
+    fire_smoke:
+      - "Keep the caller on the line and note any change in smoke or heat they describe."
+      - "Whether the caller stays or leaves follows the fire protocol and the incident commander."
+    active_threat: []

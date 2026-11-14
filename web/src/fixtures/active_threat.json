@@ -1,0 +1,752 @@
+{
+ "building_id": "ptc-100",
+ "turn": 6,
+ "total_turns": 7,
+ "done": true,
+ "transcript": [
+  {
+   "turn": 0,
+   "title": "Call connected",
+   "speaker": "system",
+   "text": "911 call connected. Dispatchable address: 100 Princeton Tech Center. No device location yet - showing the building prior.",
+   "phone_fix": null,
+   "clues": [],
+   "parser": null,
+   "scripted": true,
+   "at": "2026-11-14T19:02:00Z",
+   "question": null,
+   "answer": null,
+   "evidence_ids": [],
+   "fact_ids": []
+  },
+  {
+   "turn": 1,
+   "title": "Phone z-axis fix",
+   "speaker": "system",
+   "text": "Device barometric z-axis fix received: 4.6 m above ground (±3 m). No usable horizontal fix indoors.",
+   "phone_fix": {
+    "x_m": null,
+    "y_m": null,
+    "horizontal_sigma_m": null,
+    "z_m": 4.6,
+    "z_sigma_m": 2.34375
+   },
+   "clues": [],
+   "parser": null,
+   "scripted": true,
+   "at": "2026-11-14T19:02:12Z",
+   "question": null,
+   "answer": null,
+   "evidence_ids": [],
+   "fact_ids": []
+  },
+  {
+   "turn": 2,
+   "title": "Caller 1",
+   "speaker": "caller",
+   "text": "There's a man with a gun, he's shooting on the second floor",
+   "phone_fix": null,
+   "clues": [
+    {
+     "type": "floor",
+     "value": "2",
+     "polarity": true,
+     "confidence": 0.8,
+     "span": "second floor"
+    }
+   ],
+   "parser": "rules",
+   "scripted": true,
+   "at": "2026-11-14T19:02:20Z",
+   "question": null,
+   "answer": null,
+   "evidence_ids": [
+    "t2-e0"
+   ],
+   "fact_ids": [
+    "t2-f0"
+   ]
+  },
+  {
+   "turn": 3,
+   "title": "Caller 1",
+   "speaker": "caller",
+   "text": "I'm hiding under a desk in the server room, I'm not hurt",
+   "phone_fix": null,
+   "clues": [
+    {
+     "type": "room_type",
+     "value": "server_room",
+     "polarity": true,
+     "confidence": 1.0,
+     "span": "server room"
+    }
+   ],
+   "parser": "rules",
+   "scripted": true,
+   "at": "2026-11-14T19:02:41Z",
+   "question": null,
+   "answer": null,
+   "evidence_ids": [
+    "t3-e0"
+   ],
+   "fact_ids": [
+    "t3-f0"
+   ]
+  },
+  {
+   "turn": 4,
+   "title": "Second caller",
+   "speaker": "system",
+   "text": "Second 911 call connected from the same address.",
+   "phone_fix": null,
+   "clues": [],
+   "parser": null,
+   "scripted": true,
+   "at": "2026-11-14T19:03:03Z",
+   "question": null,
+   "answer": null,
+   "evidence_ids": [],
+   "fact_ids": []
+  },
+  {
+   "turn": 5,
+   "title": "Caller 2",
+   "speaker": "caller",
+   "text": "My friend is shot in the leg, we're in the break room, he's bleeding a lot",
+   "phone_fix": null,
+   "clues": [
+    {
+     "type": "room_type",
+     "value": "break_room",
+     "polarity": true,
+     "confidence": 1.0,
+     "span": "break room"
+    }
+   ],
+   "parser": "rules",
+   "scripted": true,
+   "at": "2026-11-14T19:03:10Z",
+   "question": null,
+   "answer": null,
+   "evidence_ids": [
+    "t5-e0"
+   ],
+   "fact_ids": [
+    "t5-f0",
+    "t5-f1"
+   ]
+  },
+  {
+   "turn": 6,
+   "title": "Caller 2",
+   "speaker": "caller",
+   "text": "He went up the west stairs, I heard more shots upstairs",
+   "phone_fix": null,
+   "clues": [
+    {
+     "type": "landmark",
+     "value": "stairs",
+     "polarity": true,
+     "confidence": 0.8,
+     "span": "stairs"
+    }
+   ],
+   "parser": "rules",
+   "scripted": true,
+   "at": "2026-11-14T19:03:36Z",
+   "question": null,
+   "answer": null,
+   "evidence_ids": [
+    "t6-e0"
+   ],
+   "fact_ids": [
+    "t6-f0"
+   ]
+  }
+ ],
+ "clues": [
+  {
+   "type": "floor",
+   "value": "2",
+   "polarity": true,
+   "confidence": 0.8,
+   "span": "second floor"
+  },
+  {
+   "type": "room_type",
+   "value": "server_room",
+   "polarity": true,
+   "confidence": 1.0,
+   "span": "server room"
+  },
+  {
+   "type": "room_type",
+   "value": "break_room",
+   "polarity": true,
+   "confidence": 1.0,
+   "span": "break room"
+  }
+ ],
+ "phone_fix": {
+  "x_m": null,
+  "y_m": null,
+  "horizontal_sigma_m": null,
+  "z_m": 4.6,
+  "z_sigma_m": 2.34375
+ },
+ "cleared_room_ids": [],
+ "n_teams": 1,
+ "posterior": {
+  "room_probs": {
+   "f1-corridor-n-west": 0.0007398292782286637,
+   "f1-corridor-n-mid": 0.0008123176265046534,
+   "f1-corridor-n-east": 0.0007398292782286637,
+   "f1-corridor-s-west": 0.0007398292782286637,
+   "f1-corridor-s-mid": 0.0008123176265046534,
+   "f1-corridor-s-east": 0.0007398292782286637,
+   "f1-stair-west": 0.0004427693015912082,
+   "f1-corridor-link-w": 0.00030781082094037736,
+   "f1-restroom-core": 0.0041409930205668355,
+   "f1-elevator": 0.00016668005128880108,
+   "f1-corridor-link-e": 0.00030781082094037736,
+   "f1-stair-east": 0.0004427693015912082,
+   "f1-storage-janitor": 0.00041660598982555953,
+   "f1-mechanical": 0.0003383892135721722,
+   "f1-storage-mail": 0.0007297378776379648,
+   "f1-office-101": 0.006550947764597955,
+   "f1-office-102": 0.006550947764597955,
+   "f1-corridor-rear": 0.0006048872056874353,
+   "f1-conference-b": 0.006090683860620111,
+   "f1-open-office-n": 0.007878737804053324,
+   "f1-conference-a": 0.005608662305266872,
+   "f1-reception": 0.004006187360904908,
+   "f1-lobby": 0.0053210230201992115,
+   "f1-office-security": 0.005766034867642401,
+   "f1-break-room": 0.05006602883822644,
+   "f2-corridor-n-west": 0.005039249396437675,
+   "f2-corridor-n-mid": 0.005532994204933404,
+   "f2-corridor-n-east": 0.005039249396437675,
+   "f2-corridor-s-west": 0.005039249396437675,
+   "f2-corridor-s-mid": 0.005532994204933404,
+   "f2-corridor-s-east": 0.005039249396437675,
+   "f2-stair-west": 0.0030158646075034196,
+   "f2-corridor-link-w": 0.002096612744705897,
+   "f2-restroom-core": 0.028205826930107522,
+   "f2-elevator": 0.0011353191507455927,
+   "f2-corridor-link-e": 0.002096612744705897,
+   "f2-stair-east": 0.0030158646075034196,
+   "f2-storage-supply": 0.00283765666561239,
+   "f2-server-room": 0.028376566656123897,
+   "f2-storage-janitor": 0.00283765666561239,
+   "f2-open-office-n1": 0.08074622441560972,
+   "f2-open-office-n2": 0.08074622441560972,
+   "f2-break-room": 0.24852565771993193,
+   "f2-conference-n": 0.04148588853094331,
+   "f2-office-201": 0.04462091531154812,
+   "f2-office-202": 0.02677254918692887,
+   "f2-open-office-s1": 0.08074622441560972,
+   "f2-open-office-s2": 0.07248689077882721,
+   "f2-conference-s": 0.03123464071808369,
+   "f3-corridor-n-west": 0.00030877292035423484,
+   "f3-corridor-n-mid": 0.0003390264391693071,
+   "f3-corridor-n-east": 0.00030877292035423484,
+   "f3-corridor-s-west": 0.00030877292035423484,
+   "f3-corridor-s-mid": 0.0003390264391693071,
+   "f3-corridor-s-east": 0.00030877292035423484,
+   "f3-stair-west": 0.00018479286278430697,
+   "f3-corridor-link-w": 0.00012846699758348716,
+   "f3-restroom-core": 0.0017282723808772175,
+   "f3-elevator": 6.956508442658544e-05,
+   "f3-corridor-link-e": 0.00012846699758348716,
+   "f3-stair-east": 0.00018479286278430697,
+   "f3-storage-supply": 0.00017387342174872148,
+   "f3-mechanical": 8.693671087436074e-05,
+   "f3-storage-janitor": 0.00017387342174872148,
+   "f3-suite-vacant": 0.0016297132441594469,
+   "f3-open-office-n1": 0.004947611352200832,
+   "f3-break-room": 0.013670419189180636,
+   "f3-conference-n": 0.0023408144152179764,
+   "f3-office-301": 0.0024064949540913002,
+   "f3-office-302": 0.0024064949540913002,
+   "f3-open-office-s1": 0.004947611352200832,
+   "f3-open-office-s2": 0.004947611352200832,
+   "f3-office-303": 0.0027340838378361277,
+   "f4-corridor-n-west": 9.838407747962386e-07,
+   "f4-corridor-n-mid": 1.0802373284745415e-06,
+   "f4-corridor-n-east": 9.838407747962386e-07,
+   "f4-corridor-s-west": 9.838407747962386e-07,
+   "f4-corridor-s-mid": 1.0802373284745415e-06,
+   "f4-corridor-s-east": 9.838407747962386e-07,
+   "f4-stair-west": 5.8880407352417e-07,
+   "f4-corridor-link-w": 4.093334036329492e-07,
+   "f4-restroom-core": 5.506780958351166e-06,
+   "f4-elevator": 2.2165469200634486e-07,
+   "f4-corridor-link-e": 4.093334036329492e-07,
+   "f4-stair-east": 5.8880407352417e-07,
+   "f4-storage-supply": 5.540115427657489e-07,
+   "f4-mechanical": 4.499972032204945e-07,
+   "f4-suite-vacant": 4.893673087559931e-06,
+   "f4-office-405": 6.5589384986415916e-06,
+   "f4-boardroom": 7.458518918304725e-06,
+   "f4-break-room": 3.833898156386614e-05,
+   "f4-restroom-north": 5.519623698605065e-06,
+   "f4-storage-records": 6.558938498641592e-07,
+   "f4-office-406": 6.5589384986415916e-06,
+   "f4-office-401": 1.0655027026149602e-05,
+   "f4-office-402": 7.667796312773228e-06,
+   "f4-reception": 5.327513513074801e-06,
+   "f4-open-office-s": 1.415202010776164e-05,
+   "f4-office-403": 7.667796312773228e-06,
+   "f4-office-404": 8.711590246607833e-06
+  },
+  "p_not_in_model": 0.03253012736290709,
+  "p_floor": {
+   "1": 0.11032165955567508,
+   "2": 0.8122061822613301,
+   "3": 0.044803039951346026,
+   "4": 0.00013899086874141558
+  },
+  "credible_set_90": [
+   "f2-break-room",
+   "f2-open-office-n1",
+   "f2-open-office-n2",
+   "f2-open-office-s1",
+   "f2-open-office-s2",
+   "f1-break-room",
+   "f2-office-201",
+   "f2-conference-n",
+   "f2-conference-s",
+   "f2-server-room",
+   "f2-restroom-core",
+   "f2-office-202",
+   "f3-break-room",
+   "f1-open-office-n",
+   "f1-office-101",
+   "f1-office-102",
+   "f1-conference-b",
+   "f1-office-security",
+   "f1-conference-a",
+   "f2-corridor-n-mid"
+  ],
+  "entropy_bits": 4.219250447661601,
+  "peak_count": 1
+ },
+ "plan": {
+  "teams": [
+   []
+  ],
+  "expected_time_to_find_s": 0.0,
+  "baseline_nearest_s": 0.0,
+  "baseline_highest_prob_s": 0.0,
+  "entrance_id": "",
+  "staging_latlng": [
+   0.0,
+   0.0
+  ],
+  "objective": "expected_time",
+  "solver": "heuristic",
+  "p_out": null,
+  "cumulative_success": null,
+  "time_to_cover_all_s": null,
+  "notes": [
+   "Route planning is off for this incident type."
+  ]
+ },
+ "approach": {
+  "entrance_id": "",
+  "entrance_name": "",
+  "entrance_latlng": [
+   0.0,
+   0.0
+  ],
+  "staging_id": "",
+  "staging_name": "",
+  "staging_latlng": [
+   0.0,
+   0.0
+  ],
+  "stairwell_id": null,
+  "stairwell_name": null,
+  "target_room_id": "",
+  "target_floor_label": "",
+  "entrance_expected_travel_s": {}
+ },
+ "next_question": null,
+ "history": [
+  {
+   "turn": 0,
+   "entropy_bits": 5.812304107928523,
+   "expected_time_to_find_s": 0.0,
+   "top_room_id": "f2-open-office-n1",
+   "top_room_prob": 0.037002038026235334
+  },
+  {
+   "turn": 1,
+   "entropy_bits": 4.915423760824062,
+   "expected_time_to_find_s": 0.0,
+   "top_room_id": "f2-open-office-n1",
+   "top_room_prob": 0.09542058658931107
+  },
+  {
+   "turn": 2,
+   "entropy_bits": 4.4888941047942055,
+   "expected_time_to_find_s": 0.0,
+   "top_room_id": "f2-open-office-n1",
+   "top_room_prob": 0.1181871784141113
+  },
+  {
+   "turn": 3,
+   "entropy_bits": 4.532340000460498,
+   "expected_time_to_find_s": 0.0,
+   "top_room_id": "f2-open-office-n1",
+   "top_room_prob": 0.11388419071251217
+  },
+  {
+   "turn": 4,
+   "entropy_bits": 4.532340000460498,
+   "expected_time_to_find_s": 0.0,
+   "top_room_id": "f2-open-office-n1",
+   "top_room_prob": 0.11388419071251217
+  },
+  {
+   "turn": 5,
+   "entropy_bits": 4.219250447661601,
+   "expected_time_to_find_s": 0.0,
+   "top_room_id": "f2-break-room",
+   "top_room_prob": 0.24852565771993193
+  },
+  {
+   "turn": 6,
+   "entropy_bits": 4.219250447661601,
+   "expected_time_to_find_s": 0.0,
+   "top_room_id": "f2-break-room",
+   "top_room_prob": 0.24852565771993193
+  }
+ ],
+ "parser_mode": "rules",
+ "llm": null,
+ "buildings": [
+  {
+   "id": "ptc-100",
+   "name": "100 Princeton Tech Center",
+   "real": false,
+   "floors": 4,
+   "rooms": 100
+  }
+ ],
+ "situation": {
+  "incident_type": "active_threat",
+  "incident_confirmed": true,
+  "suggested_type": null,
+  "suggested_span": null,
+  "dismissed_types": [],
+  "witnessed": null,
+  "cpr_in_progress": null,
+  "smoke_reported": false,
+  "load": "light",
+  "call_started_at": "2026-11-14T19:02:00Z",
+  "closed_room_ids": [],
+  "closed_entrance_ids": [],
+  "meet_person": null,
+  "timestamps": {}
+ },
+ "policy": {
+  "route_enabled": false,
+  "elevator_allowed": false,
+  "show_hazard_class": false,
+  "show_incident_board": true,
+  "stake": null,
+  "banners": [
+   {
+    "level": "critical",
+    "text": "Route planning is off. Caller reports below are for relay to unified command.",
+    "source": "policy: active_threat"
+   }
+  ],
+  "travel": {
+   "walk_mps": 1.2,
+   "stair_s_per_floor": 15.0,
+   "stair_s_per_floor_high": 15.0,
+   "high_floor_from": null,
+   "search_advance_mps": null,
+   "elevator_allowed": false,
+   "elevator_fixed_s": null,
+   "elevator_s_per_floor": null,
+   "notes": []
+  },
+  "protocol_prompts": []
+ },
+ "evidence": [
+  {
+   "id": "t2-e0",
+   "kind": "vocab",
+   "clue": {
+    "type": "floor",
+    "value": "2",
+    "polarity": true,
+    "confidence": 0.8,
+    "span": "second floor"
+   },
+   "selector": null,
+   "default_match": 0.0,
+   "negate": false,
+   "confidence": 0.8,
+   "span": "second floor",
+   "turn": 2,
+   "source": "rules",
+   "rationale": "",
+   "status": "active",
+   "matched_room_ids": [
+    "f2-corridor-n-west",
+    "f2-corridor-n-mid",
+    "f2-corridor-n-east",
+    "f2-corridor-s-west",
+    "f2-corridor-s-mid",
+    "f2-corridor-s-east",
+    "f2-stair-west",
+    "f2-corridor-link-w",
+    "f2-restroom-core",
+    "f2-elevator",
+    "f2-corridor-link-e",
+    "f2-stair-east",
+    "f2-storage-supply",
+    "f2-server-room",
+    "f2-storage-janitor",
+    "f2-open-office-n1",
+    "f2-open-office-n2",
+    "f2-break-room",
+    "f2-conference-n",
+    "f2-office-201",
+    "f2-office-202",
+    "f2-open-office-s1",
+    "f2-open-office-s2",
+    "f2-conference-s"
+   ],
+   "unmatched": false
+  },
+  {
+   "id": "t3-e0",
+   "kind": "vocab",
+   "clue": {
+    "type": "room_type",
+    "value": "server_room",
+    "polarity": true,
+    "confidence": 1.0,
+    "span": "server room"
+   },
+   "selector": null,
+   "default_match": 0.0,
+   "negate": false,
+   "confidence": 1.0,
+   "span": "server room",
+   "turn": 3,
+   "source": "rules",
+   "rationale": "",
+   "status": "active",
+   "matched_room_ids": [
+    "f2-server-room"
+   ],
+   "unmatched": false
+  },
+  {
+   "id": "t5-e0",
+   "kind": "vocab",
+   "clue": {
+    "type": "room_type",
+    "value": "break_room",
+    "polarity": true,
+    "confidence": 1.0,
+    "span": "break room"
+   },
+   "selector": null,
+   "default_match": 0.0,
+   "negate": false,
+   "confidence": 1.0,
+   "span": "break room",
+   "turn": 5,
+   "source": "rules",
+   "rationale": "",
+   "status": "active",
+   "matched_room_ids": [
+    "f1-break-room",
+    "f2-break-room",
+    "f3-break-room",
+    "f4-break-room"
+   ],
+   "unmatched": false
+  },
+  {
+   "id": "t6-e0",
+   "kind": "vocab",
+   "clue": {
+    "type": "landmark",
+    "value": "stairs",
+    "polarity": true,
+    "confidence": 0.8,
+    "span": "stairs"
+   },
+   "selector": null,
+   "default_match": 0.0,
+   "negate": false,
+   "confidence": 0.8,
+   "span": "stairs",
+   "turn": 6,
+   "source": "rules",
+   "rationale": "",
+   "status": "rejected",
+   "matched_room_ids": [
+    "f1-corridor-n-west",
+    "f1-corridor-n-east",
+    "f1-corridor-s-west",
+    "f1-corridor-s-east",
+    "f1-stair-west",
+    "f1-corridor-link-w",
+    "f1-corridor-link-e",
+    "f1-stair-east",
+    "f1-storage-janitor",
+    "f1-storage-mail",
+    "f1-conference-a",
+    "f1-break-room",
+    "f2-corridor-n-west",
+    "f2-corridor-n-east",
+    "f2-corridor-s-west",
+    "f2-corridor-s-east",
+    "f2-stair-west",
+    "f2-corridor-link-w",
+    "f2-corridor-link-e",
+    "f2-stair-east",
+    "f2-storage-supply",
+    "f2-storage-janitor",
+    "f2-conference-n",
+    "f2-office-201",
+    "f2-conference-s",
+    "f3-corridor-n-west",
+    "f3-corridor-n-east",
+    "f3-corridor-s-west",
+    "f3-corridor-s-east",
+    "f3-stair-west",
+    "f3-corridor-link-w",
+    "f3-corridor-link-e",
+    "f3-stair-east",
+    "f3-storage-supply",
+    "f3-storage-janitor",
+    "f3-conference-n",
+    "f3-office-301",
+    "f3-office-303",
+    "f4-corridor-n-west",
+    "f4-corridor-n-east",
+    "f4-corridor-s-west",
+    "f4-corridor-s-east",
+    "f4-stair-west",
+    "f4-corridor-link-w",
+    "f4-corridor-link-e",
+    "f4-stair-east",
+    "f4-storage-supply",
+    "f4-office-406",
+    "f4-office-401",
+    "f4-office-404"
+   ],
+   "unmatched": false
+  }
+ ],
+ "facts": [
+  {
+   "id": "t2-f0",
+   "category": "threat",
+   "text": "Man with a gun shooting on the second floor",
+   "span": "a man with a gun, he's shooting on the second floor",
+   "turn": 2,
+   "source": "rules",
+   "observed_at": "2026-11-14T19:02:20Z",
+   "room_id": null,
+   "verified": false,
+   "premise_key": null
+  },
+  {
+   "id": "t3-f0",
+   "category": "people",
+   "text": "Caller 1 hiding under a desk in the server room, reports not hurt",
+   "span": "I'm hiding under a desk in the server room, I'm not hurt",
+   "turn": 3,
+   "source": "rules",
+   "observed_at": "2026-11-14T19:02:41Z",
+   "room_id": "f2-server-room",
+   "verified": false,
+   "premise_key": null
+  },
+  {
+   "id": "t5-f0",
+   "category": "patient",
+   "text": "Person shot in the leg, bleeding heavily (Caller 2's friend)",
+   "span": "My friend is shot in the leg",
+   "turn": 5,
+   "source": "rules",
+   "observed_at": "2026-11-14T19:03:10Z",
+   "room_id": "f2-break-room",
+   "verified": false,
+   "premise_key": null
+  },
+  {
+   "id": "t5-f1",
+   "category": "people",
+   "text": "Caller 2 is with the wounded person in the break room",
+   "span": "we're in the break room",
+   "turn": 5,
+   "source": "rules",
+   "observed_at": "2026-11-14T19:03:10Z",
+   "room_id": "f2-break-room",
+   "verified": false,
+   "premise_key": null
+  },
+  {
+   "id": "t6-f0",
+   "category": "threat",
+   "text": "Shooter went up the west stairs; more shots heard upstairs",
+   "span": "He went up the west stairs, I heard more shots upstairs",
+   "turn": 6,
+   "source": "rules",
+   "observed_at": "2026-11-14T19:03:36Z",
+   "room_id": "f2-stair-west",
+   "verified": false,
+   "premise_key": null
+  }
+ ],
+ "questions": [],
+ "searched": [],
+ "found_room_id": null,
+ "scenarios": [
+  {
+   "id": "demo",
+   "title": "Demo",
+   "building_id": "ptc-100",
+   "incident_type": "unknown",
+   "description": ""
+  },
+  {
+   "id": "elevator_stuck",
+   "title": "Elevator stuck",
+   "building_id": "ptc-100",
+   "incident_type": "unknown",
+   "description": ""
+  },
+  {
+   "id": "hiding_no_windows",
+   "title": "Hiding no windows",
+   "building_id": "ptc-100",
+   "incident_type": "unknown",
+   "description": ""
+  },
+  {
+   "id": "lobby_collapse",
+   "title": "Lobby collapse",
+   "building_id": "ptc-100",
+   "incident_type": "unknown",
+   "description": ""
+  }
+ ],
+ "agent_trace": [],
+ "scenario_id": null,
+ "prior_hour": 14,
+ "can_undo": false
+}

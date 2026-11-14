@@ -7,20 +7,17 @@ Run from the repo root::
 The server holds ONE in-memory demo call. Every mutating endpoint returns the
 full ``DemoState`` so the web client can simply replace its state.
 
-Pipeline per request::
-
-    revealed turns -> parser.extract (rules, or Claude Haiku when the session's
-                      parser mode is "llm") -> clues
-    core.fusion.posterior_probs(prior, phone fix, clues)
-    planning.search_order.koopman_update   for every room marked clear
-    core.uncertainty.summarize             -> Posterior
-    planning.search_order.plan_search      -> SearchPlan (+ baselines)
-    planning.approach.recommend_approach   -> entrance / staging / stairwell
+The call itself lives in ``api/session.py`` (``CallSession``; see its docstring for the
+pipeline: interpreter -> evidence matches -> fusion -> residual after looks -> policy -> plan / approach)
+and writes call events to ``data/processed/call_log.jsonl`` (``CALL_LOG_PATH`` overrides it).
 
 Network use
 -----------
-* Anthropic: only when the parser mode is "llm" (``POST /calls/demo/parser``);
-  results are cached on disk, see ``parser/extract.py``.
+* Anthropic: only when the parser mode is "llm" (Claude Haiku; "agent" is an older name for the
+  same interpreter). A new session starts in that mode when a key is configured
+  (``default_parser_mode``; ``PARSER_MODE`` overrides it). One request per caller turn in the
+  usual case, plus one no-output request when a call starts to write the building's prompt
+  cache; replies are cached on disk, see ``parser/agent.py``.
 * Vexcel: ``GET /vexcel/tile/...`` proxies aerial tiles (cached on disk) so the
   API key stays on the server. Only tiles around a known building are served.
 * Matterport: nothing at request time; scans are fetched by ``ingest.real_building``.
@@ -37,11 +34,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
 
-from core.fusion import posterior_probs
-from core.schema import Building, Clue, PhoneFix, Posterior, SearchPlan
-from core.uncertainty import summarize
+from core.schema import Building, Gates, Posterior, SearchPlan, Situation, TranscriptTurn  # noqa: F401  (TranscriptTurn re-exported)
 from ingest import matterport_api, vexcel
 from ingest.matterport import list_buildings, load_building
 from ingest.real_building import load_meta
@@ -49,19 +43,32 @@ from ingest.unified import index as property_index
 from ingest.unified import pipeline as unified
 from ingest.unified.lift import from_building, from_model3d
 from ingest.unified.project import viewer_payload
-from parser.extract import LLM_MODEL, extract_clues_with_source, llm_usage
-from parser.next_question import next_question
-from planning.approach import recommend_approach
-from planning.search_order import koopman_update, plan_search
-from sim.generate_calls import demo_script_for
+from parser.extract import LLM_MODEL
+from api.session import (  # noqa: F401  (models re-exported for older imports)
+    DEMO_HOUR,
+    MAX_TEAMS,
+    MAX_UTTERANCE_CHARS,
+    AskRequest,
+    BuildingSummary,
+    CallSession,
+    DemoState,
+    HistoryPoint,
+    LLMStatus,
+    SituationPatch,
+    Utterance,
+    building_summaries,
+    llm_available,
+    scenario_script,
+    start_scenario,
+)
 
 load_dotenv()
 
 SYNTHETIC_BUILDING_ID = "ptc-100"
 REAL_BUILDING_ID = "bundy-olympic"
-DEMO_HOUR = 14  # 2 pm on a weekday: business-hours prior
-MAX_TEAMS = 3
-MAX_UTTERANCE_CHARS = 600
+
+# Pre-Step-0 name of the session class.
+DemoSession = CallSession
 
 
 def default_building_id() -> str:
@@ -73,229 +80,29 @@ def default_building_id() -> str:
     return REAL_BUILDING_ID if REAL_BUILDING_ID in known else SYNTHETIC_BUILDING_ID
 
 
-def llm_available() -> bool:
-    return (os.getenv("LLM_PROVIDER") or "").strip().lower() == "anthropic" and bool((os.getenv("LLM_API_KEY") or "").strip())
+MODEL_PARSER_MODES = ("llm", "agent")  # both are the grounded Claude Haiku interpreter (parser.agent)
 
 
-# ---------------------------------------------------------------------------
-# Response models
-# ---------------------------------------------------------------------------
+def default_parser_mode() -> str:
+    """Parser a new session starts with: ``PARSER_MODE`` (rules | llm | agent) when set, else
+    Claude Haiku (``llm``) when a key is configured, else the offline rules."""
+    wanted = (os.getenv("PARSER_MODE") or "").strip().lower()
+    if wanted in ("rules", "llm", "agent"):
+        return wanted if wanted == "rules" or llm_available() else "rules"
+    return "llm" if llm_available() else "rules"
 
 
-class TranscriptTurn(BaseModel):
-    turn: int
-    title: str
-    speaker: str
-    text: str
-    phone_fix: Optional[PhoneFix] = None
-    clues: list[Clue] = []
-    parser: Optional[str] = None  # "rules" | "llm" | "rules (llm unavailable: ...)" for caller turns
-    scripted: bool = True
+def _prewarm(building: Building, mode: str) -> None:
+    """Write the building's prompt cache in the background when a call starts in a model mode,
+    so the first caller turn does not pay for it (``parser.agent.prewarm``; one request with
+    no output). ``LLM_PREWARM=0`` turns it off."""
+    if mode not in MODEL_PARSER_MODES or not llm_available():
+        return
+    if (os.getenv("LLM_PREWARM") or "1").strip().lower() in ("0", "false", "no", "off"):
+        return
+    from parser.agent import prewarm
 
-
-class HistoryPoint(BaseModel):
-    turn: int
-    entropy_bits: float
-    expected_time_to_find_s: float
-    top_room_id: str
-    top_room_prob: float
-
-
-class BuildingSummary(BaseModel):
-    id: str
-    name: str
-    real: bool
-    floors: int
-    rooms: int
-
-
-class LLMStatus(BaseModel):
-    available: bool
-    model: str
-    usage: dict[str, Any]
-
-
-class DemoState(BaseModel):
-    building_id: str
-    turn: int
-    total_turns: int
-    done: bool
-    transcript: list[TranscriptTurn]
-    clues: list[Clue]
-    phone_fix: Optional[PhoneFix] = None
-    cleared_room_ids: list[str]
-    n_teams: int
-    posterior: Posterior
-    plan: SearchPlan
-    approach: dict[str, Any]
-    next_question: Optional[dict[str, Any]] = None
-    history: list[HistoryPoint]
-    parser_mode: str = "rules"
-    llm: Optional[LLMStatus] = None
-    buildings: list[BuildingSummary] = []
-
-
-class Utterance(BaseModel):
-    text: str = Field(min_length=1, max_length=MAX_UTTERANCE_CHARS)
-
-
-# ---------------------------------------------------------------------------
-# In-memory demo session
-# ---------------------------------------------------------------------------
-
-
-class DemoSession:
-    """One call against one building: scripted turns plus anything the dispatcher types in."""
-
-    def __init__(self, building: Building, parser_mode: str = "rules") -> None:
-        self.building = building
-        self.script = demo_script_for(building.id, building)
-        self.parser_mode = parser_mode
-        self.lock = threading.Lock()
-        self._history_cache: dict[int, HistoryPoint] = {}
-        self.reset()
-
-    # -- transcript --------------------------------------------------------
-
-    def _make_turn(self, raw: dict, scripted: bool) -> TranscriptTurn:
-        fix = raw.get("phone_fix")
-        if fix is not None and not isinstance(fix, PhoneFix):
-            fix = PhoneFix.model_validate(fix)
-        speaker = raw.get("speaker", "system")
-        clues: list[Clue] = []
-        parser = None
-        if speaker == "caller":
-            clues, parser = extract_clues_with_source(raw["text"], use_llm=self.parser_mode == "llm")
-        index = len(self.revealed)
-        return TranscriptTurn(
-            turn=index, title=raw.get("title", f"Turn {index}"), speaker=speaker, text=raw["text"],
-            phone_fix=fix, clues=clues, parser=parser, scripted=scripted,
-        )
-
-    # -- mutations ---------------------------------------------------------
-
-    def reset(self) -> None:
-        self.revealed: list[TranscriptTurn] = []
-        self.script_pos = 0  # index of the latest revealed scripted turn
-        self.cleared: list[str] = []
-        self.n_teams = 1
-        self._history_cache.clear()
-        self.revealed.append(self._make_turn(self.script[0], scripted=True))
-
-    def step(self) -> None:
-        if self.script_pos < len(self.script) - 1:
-            self.script_pos += 1
-            self.revealed.append(self._make_turn(self.script[self.script_pos], scripted=True))
-
-    def say(self, text: str) -> None:
-        """A caller utterance typed (or pasted) by the dispatcher."""
-        self.revealed.append(
-            self._make_turn({"title": "Caller (live)", "speaker": "caller", "text": text}, scripted=False)
-        )
-
-    def set_parser(self, mode: str) -> None:
-        """Switch parser and re-extract every revealed caller turn with it."""
-        if mode == self.parser_mode:
-            return
-        self.parser_mode = mode
-        for t in self.revealed:
-            if t.speaker == "caller":
-                t.clues, t.parser = extract_clues_with_source(t.text, use_llm=mode == "llm")
-        self._history_cache.clear()
-
-    def clear_room(self, room_id: str) -> None:
-        if room_id not in {r.id for r in self.building.rooms}:
-            raise KeyError(room_id)
-        if room_id not in self.cleared:
-            self.cleared.append(room_id)
-
-    # -- evidence ----------------------------------------------------------
-
-    def _evidence(self, upto: int) -> tuple[Optional[PhoneFix], list[Clue]]:
-        fix: Optional[PhoneFix] = None
-        clues: list[Clue] = []
-        for t in self.revealed[: upto + 1]:
-            if t.phone_fix is not None:
-                fix = t.phone_fix  # latest fix wins
-            clues.extend(t.clues)
-        return fix, clues
-
-    def _probs(self, upto: int, cleared: list[str]) -> tuple[dict[str, float], float]:
-        fix, clues = self._evidence(upto)
-        room_probs, p_nim = posterior_probs(self.building, hour=DEMO_HOUR, fix=fix, clues=clues)
-        for room_id in cleared:
-            room_probs, p_nim = koopman_update(room_probs, p_nim, room_id)
-        return room_probs, p_nim
-
-    def _history_point(self, index: int) -> HistoryPoint:
-        """Evidence-only snapshot after a revealed turn (single team, nothing cleared). Cached."""
-        if index not in self._history_cache:
-            room_probs, p_nim = self._probs(index, cleared=[])
-            post = summarize(self.building, room_probs, p_nim)
-            plan = plan_search(self.building, room_probs, p_nim, n_teams=1)
-            top_id = max(room_probs, key=room_probs.get)
-            self._history_cache[index] = HistoryPoint(
-                turn=index,
-                entropy_bits=post.entropy_bits,
-                expected_time_to_find_s=plan.expected_time_to_find_s,
-                top_room_id=top_id,
-                top_room_prob=room_probs[top_id],
-            )
-        return self._history_cache[index]
-
-    # -- views -------------------------------------------------------------
-
-    @property
-    def _last(self) -> int:
-        return len(self.revealed) - 1
-
-    def posterior(self) -> Posterior:
-        room_probs, p_nim = self._probs(self._last, self.cleared)
-        return summarize(self.building, room_probs, p_nim)
-
-    def plan(self, n_teams: Optional[int] = None) -> SearchPlan:
-        room_probs, p_nim = self._probs(self._last, self.cleared)
-        return self._plan(room_probs, p_nim, n_teams or self.n_teams)
-
-    def _plan(self, room_probs: dict[str, float], p_nim: float, n_teams: int) -> SearchPlan:
-        # After a room is cleared the crew replans from where it is standing, and
-        # cleared rooms are not offered again (their residual mass stays in the posterior).
-        start = self.cleared[-1] if self.cleared else None
-        return plan_search(
-            self.building, room_probs, p_nim, n_teams=n_teams, start_node=start, exclude=tuple(self.cleared),
-        )
-
-    def state(self) -> DemoState:
-        fix, clues = self._evidence(self._last)
-        room_probs, p_nim = self._probs(self._last, self.cleared)
-        asked = {f"{c.type}:{c.value}" for c in clues} | {c.value for c in clues}
-        return DemoState(
-            building_id=self.building.id,
-            turn=self.script_pos,
-            total_turns=len(self.script),
-            done=self.script_pos >= len(self.script) - 1,
-            transcript=list(self.revealed),
-            clues=clues,
-            phone_fix=fix,
-            cleared_room_ids=list(self.cleared),
-            n_teams=self.n_teams,
-            posterior=summarize(self.building, room_probs, p_nim),
-            plan=self._plan(room_probs, p_nim, self.n_teams),
-            approach=recommend_approach(self.building, room_probs),
-            next_question=next_question(self.building, room_probs, p_nim, asked=asked),
-            history=[self._history_point(i) for i in range(len(self.revealed))],
-            parser_mode=self.parser_mode,
-            llm=LLMStatus(available=llm_available(), model=LLM_MODEL, usage=llm_usage()),
-            buildings=building_summaries(),
-        )
-
-
-def building_summaries() -> list[BuildingSummary]:
-    return [
-        BuildingSummary(id=b.id, name=b.name, real=bool(load_meta(b.id).get("real")),
-                        floors=len(b.floors), rooms=len(b.rooms))
-        for b in list_buildings()
-    ]
+    threading.Thread(target=prewarm, args=(building,), daemon=True, name="llm-prewarm").start()
 
 
 # ---------------------------------------------------------------------------
@@ -316,15 +123,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_session: Optional[DemoSession] = None
+_session: Optional[CallSession] = None
 _session_lock = threading.Lock()
 
 
-def get_session() -> DemoSession:
+def get_session() -> CallSession:
     global _session
     with _session_lock:
         if _session is None:
-            _session = DemoSession(load_building(default_building_id()))
+            building, mode = load_building(default_building_id()), default_parser_mode()
+            _session = CallSession(building, parser_mode=mode)
+            _prewarm(building, mode)
         return _session
 
 
@@ -557,18 +366,22 @@ def demo_building(id: str = Query(...)) -> DemoState:
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Unknown building '{id}'")
     with _session_lock:
-        mode = _session.parser_mode if _session is not None else "rules"
-        _session = DemoSession(building, parser_mode=mode)
+        mode = _session.parser_mode if _session is not None else default_parser_mode()
+        _session = CallSession(building, parser_mode=mode)
         s = _session
+    _prewarm(building, mode)
     with s.lock:
         return s.state()
 
 
 @app.post("/calls/demo/parser", response_model=DemoState)
-def demo_parser(mode: str = Query(..., pattern="^(rules|llm)$")) -> DemoState:
-    """Choose the clue parser: ``rules`` (offline) or ``llm`` (Claude Haiku, cached)."""
-    if mode == "llm" and not llm_available():
-        raise HTTPException(status_code=409, detail="LLM parser needs LLM_PROVIDER=anthropic and LLM_API_KEY in .env")
+def demo_parser(mode: str = Query(..., pattern="^(rules|llm|agent)$")) -> DemoState:
+    """Choose the interpreter: ``rules`` (offline) or ``llm`` (Claude Haiku: the grounded
+    interpreter that reads the call against the building's room list; replies are cached and it
+    falls back to the rules when the model cannot be reached). ``agent`` is accepted as an older
+    name for ``llm``; both run the same interpreter."""
+    if mode in ("llm", "agent") and not llm_available():
+        raise HTTPException(status_code=409, detail=f"The {mode} parser needs LLM_PROVIDER=anthropic and LLM_API_KEY in .env")
     s = get_session()
     with s.lock:
         s.set_parser(mode)
@@ -577,13 +390,113 @@ def demo_parser(mode: str = Query(..., pattern="^(rules|llm)$")) -> DemoState:
 
 @app.post("/calls/demo/utterance", response_model=DemoState)
 def demo_utterance(utterance: Utterance) -> DemoState:
-    """Add something the caller just said; it is parsed with the session's parser."""
+    """Add a turn: something the caller said (parsed with the session's interpreter) or a dispatcher turn.
+
+    ``answers`` carries the caller's Yes / No / Not sure reply to a yes/no question.
+    """
     text = utterance.text.strip()
     if not text:
         raise HTTPException(status_code=422, detail="Utterance is empty")
+    if utterance.speaker not in ("caller", "dispatcher"):
+        raise HTTPException(status_code=422, detail="speaker must be 'caller' or 'dispatcher'")
     s = get_session()
     with s.lock:
-        s.say(text)
+        s.say(text, speaker=utterance.speaker, answer=utterance.answers)
+        return s.state()
+
+
+@app.post("/calls/demo/ask", response_model=DemoState)
+def demo_ask(req: AskRequest) -> DemoState:
+    """Log a (suggested) question the dispatcher asked as a dispatcher turn. It is not suggested again."""
+    s = get_session()
+    with s.lock:
+        s.ask(req)
+        return s.state()
+
+
+@app.post("/calls/demo/situation", response_model=DemoState)
+def demo_situation(patch: SituationPatch) -> DemoState:
+    """Patch the situation (incident type, confirm / dismiss a suggestion, smoke, crew load, teams...)."""
+    s = get_session()
+    with s.lock:
+        s.patch_situation(patch)
+        return s.state()
+
+
+def _set_evidence_status(evidence_id: str, status: str) -> DemoState:
+    s = get_session()
+    with s.lock:
+        try:
+            s.set_evidence_status(evidence_id, status)
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"Unknown evidence '{evidence_id}'")
+        return s.state()
+
+
+@app.post("/calls/demo/evidence/{evidence_id}/reject", response_model=DemoState)
+def demo_evidence_reject(evidence_id: str) -> DemoState:
+    """The dispatcher rejects an evidence item; the posterior and plan rebuild without it."""
+    return _set_evidence_status(evidence_id, "rejected")
+
+
+@app.post("/calls/demo/evidence/{evidence_id}/restore", response_model=DemoState)
+def demo_evidence_restore(evidence_id: str) -> DemoState:
+    """Undo a reject, or reinstate a superseded item."""
+    return _set_evidence_status(evidence_id, "active")
+
+
+@app.post("/calls/demo/gates", response_model=DemoState)
+def demo_gates(gates: Gates) -> DemoState:
+    """Rooms and entrances closed on the officer's word (replaces both lists). Undoable."""
+    s = get_session()
+    with s.lock:
+        try:
+            s.set_gates(gates)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=f"Unknown room or entrance '{exc.args[0]}'")
+        return s.state()
+
+
+@app.post("/calls/demo/undo", response_model=DemoState)
+def demo_undo() -> DemoState:
+    """Undo the last searched, found or gate action (no-op when there is none)."""
+    s = get_session()
+    with s.lock:
+        s.undo()
+        return s.state()
+
+
+@app.post("/calls/demo/timestamp", response_model=DemoState)
+def demo_timestamp(
+    name: str = Query(..., pattern="^(wheels_stopped|building_entry|floor_arrival|patient_contact)$"),
+) -> DemoState:
+    """Log one of the four call timestamps at the server's current time."""
+    s = get_session()
+    with s.lock:
+        s.log_timestamp(name)  # type: ignore[arg-type]
+        return s.state()
+
+
+@app.post("/calls/demo/scenario", response_model=DemoState)
+def demo_scenario(id: str = Query(..., min_length=1, max_length=100)) -> DemoState:
+    """Start a scripted scenario (``state.scenarios`` lists them). Keeps the parser mode.
+
+    The call starts with the incident type unset (``summary.incident_type`` is what the call
+    turns out to be): the interpreter suggests a type from the caller's words and the
+    dispatcher confirms it with POST /calls/demo/situation.
+    """
+    global _session
+    try:
+        summary, _ = scenario_script(id)
+        building = load_building(summary.building_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Unknown scenario '{id}'")
+    with _session_lock:
+        mode = _session.parser_mode if _session is not None else default_parser_mode()
+        _session = start_scenario(id, building, parser_mode=mode)
+        s = _session
+    _prewarm(building, mode)
+    with s.lock:
         return s.state()
 
 
@@ -601,13 +514,37 @@ def get_plan(teams: Optional[int] = Query(None, ge=1, le=MAX_TEAMS)) -> SearchPl
         return s.plan(teams)
 
 
+@app.post("/rooms/{room_id}/searched", response_model=DemoState)
+def searched_room(room_id: str, mode: str = Query("rapid", pattern="^(rapid|thorough)$")) -> DemoState:
+    """The crew searched a room (rapid or thorough). Each call is one look; undoable."""
+    s = get_session()
+    with s.lock:
+        try:
+            s.search_room(room_id, mode)
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"Unknown room '{room_id}'")
+        return s.state()
+
+
 @app.post("/rooms/{room_id}/clear", response_model=DemoState)
 def clear_room(room_id: str) -> DemoState:
-    """Dispatcher marks a room searched-and-empty: Koopman update p_r <- p_r (1 - 0.9), then replan."""
+    """Pre-Step-0 alias of ``/rooms/{id}/searched?mode=rapid``, recorded once per room (idempotent)."""
     s = get_session()
     with s.lock:
         try:
             s.clear_room(room_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"Unknown room '{room_id}'")
+        return s.state()
+
+
+@app.post("/rooms/{room_id}/found", response_model=DemoState)
+def found_room(room_id: str) -> DemoState:
+    """The caller was found in this room: the search ends. Undoable."""
+    s = get_session()
+    with s.lock:
+        try:
+            s.mark_found(room_id)
         except KeyError:
             raise HTTPException(status_code=404, detail=f"Unknown room '{room_id}'")
         return s.state()

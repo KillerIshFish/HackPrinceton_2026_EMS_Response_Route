@@ -8,7 +8,9 @@ Shared signature::
     order = baseline(candidates, probs, travel, start)
 
 * ``candidates`` - room ids to visit
-* ``probs``      - room id -> posterior probability
+* ``probs``      - room id -> search weight. The planner passes each room's residual
+                   mass ``p_r * prod (1 - q)`` over its looks so far (= ``p_find / q``),
+                   so a searched room ranks on what is left of its probability
 * ``travel``     - travel[a][b] = seconds from node a to node b
 * ``start``      - node id the team starts from (entrance or a room)
 

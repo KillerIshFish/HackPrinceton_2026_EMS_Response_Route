@@ -390,8 +390,11 @@ Copy `.env.example` to `.env` (gitignored). Never commit real keys.
 
 | Variable | Used by | Purpose |
 |---|---|---|
-| `LLM_PROVIDER`, `LLM_API_KEY` | `parser/extract.py` | `anthropic` and its key; only used when the parser is set to Claude Haiku |
-| `LLM_MAX_CALLS` | `parser/extract.py` | Request budget per server process (default 200); the rules take over beyond it |
+| `LLM_PROVIDER`, `LLM_API_KEY` | `parser/agent.py`, `parser/extract.py` | `anthropic` and its key; only used when the parser is Claude Haiku |
+| `PARSER_MODE` | `api/server.py` | Parser a new call starts with: `rules` or `llm` (Claude Haiku; `agent` is an older name for it). Default: `llm` when a key is configured, else `rules` |
+| `LLM_MAX_CALLS` | `parser/extract.py` | Optional cap on requests per server process; the rules take over beyond it. Unset means no cap |
+| `LLM_THINKING`, `LLM_EFFORT`, `LLM_STRICT_TOOLS` | `parser/agent.py` | Model settings of the Claude Haiku interpreter (`disabled` or `adaptive`; `low`, `medium` or `high`; `1` or `0`). The defaults in `parser/agent.py` were chosen by measurement |
+| `LLM_PREWARM` | `api/server.py` | `0` stops the one no-output request that writes a building's prompt cache when a call starts |
 | `MATTERPORT_API_KEY`, `MATTERPORT_API_TOKEN` | `ingest/matterport_api.py` | Model API token id and secret, used when building a real building |
 | `MATTERPORT_SDK_KEY` | web viewer, via `/config` | Browser key that lets the page steer the embedded viewer; the viewer still loads without it |
 | `VEXCEL_API_KEY` | `ingest/vexcel.py` | Aerial tiles; stays on the server |

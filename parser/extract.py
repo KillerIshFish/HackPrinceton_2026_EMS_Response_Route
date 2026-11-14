@@ -336,11 +336,14 @@ def build_system_prompt(vocab: dict | None = None) -> str:
 
 
 # ---------------------------------------------------------------------------
-# LLM extraction (Anthropic). Spend is kept small on purpose:
+# LLM extraction (Anthropic): the single-utterance vocabulary extractor. The console's
+# "llm" and "agent" parser modes use the grounded interpreter in parser/agent.py instead;
+# this one stays as a library function (``extract_clues(..., use_llm=True)``).
 #   * every (model, prompt, utterance) result is cached on disk, so a scripted
 #     demo turn costs one request the first time and nothing afterwards;
 #   * thinking is off, effort is low and the reply is capped at a few hundred tokens;
-#   * a per-process request budget (LLM_MAX_CALLS) falls back to the rules when hit;
+#   * LLM_MAX_CALLS, when set, caps the requests of one process (shared with
+#     parser/agent.py); past it the rules are used. Unset means no cap;
 #   * token usage is appended to data/processed/llm_usage.json so it can be audited.
 # ---------------------------------------------------------------------------
 
@@ -382,6 +385,17 @@ _llm_calls_made = 0
 
 class LLMUnavailable(RuntimeError):
     """The LLM path cannot be used (no key, wrong provider, budget spent, API error)."""
+
+
+def request_budget() -> int | None:
+    """Request cap of this process: ``LLM_MAX_CALLS`` when it is set to a number, else None (no cap)."""
+    raw = (os.getenv("LLM_MAX_CALLS") or "").strip()
+    if not raw:
+        return None
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return None
 
 
 def _read_json(path: Path, default: Any) -> Any:
@@ -469,8 +483,8 @@ def extract_clues_llm(text: str, vocab: dict | None = None, provider: str | None
             usage["cache_hits"] = usage.get("cache_hits", 0) + 1
             _write_json(LLM_USAGE_PATH, usage)
             return _validate_llm_clues(text, cache[cache_key]["clues"], vocab)
-        budget = int(os.getenv("LLM_MAX_CALLS", "200"))
-        if _llm_calls_made >= budget:
+        budget = request_budget()
+        if budget is not None and _llm_calls_made >= budget:
             raise LLMUnavailable(f"LLM request budget for this process is spent ({budget}; raise LLM_MAX_CALLS)")
         _llm_calls_made += 1
 
@@ -479,7 +493,9 @@ def extract_clues_llm(text: str, vocab: dict | None = None, provider: str | None
     except ImportError as exc:  # pragma: no cover - dependency is declared in pyproject
         raise LLMUnavailable("the 'anthropic' package is not installed (run `uv sync`)") from exc
 
-    client = anthropic.Anthropic(api_key=api_key, timeout=LLM_TIMEOUT_S, max_retries=1)
+    # max_retries=0: one LLM_MAX_CALLS slot is exactly one HTTP request (a retry would be a
+    # second, uncounted request). A failure falls back to the rules instead.
+    client = anthropic.Anthropic(api_key=api_key, timeout=LLM_TIMEOUT_S, max_retries=0)
     try:
         response = client.messages.create(
             model=LLM_MODEL,
@@ -495,8 +511,12 @@ def extract_clues_llm(text: str, vocab: dict | None = None, provider: str | None
         raise LLMUnavailable("Anthropic rate limit reached") from exc
     except anthropic.APIStatusError as exc:
         raise LLMUnavailable(f"Anthropic API error {exc.status_code}: {exc.message}") from exc
+    except anthropic.APITimeoutError as exc:  # a subclass of APIConnectionError: test it first
+        raise LLMUnavailable("Anthropic API timed out") from exc
     except anthropic.APIConnectionError as exc:
         raise LLMUnavailable("Anthropic API unreachable") from exc
+    except Exception as exc:  # anything else is still a fallback to the rules, never a crash
+        raise LLMUnavailable(f"unexpected error: {type(exc).__name__}: {exc}") from exc
 
     if response.stop_reason != "end_turn":
         raise LLMUnavailable(f"model stopped with stop_reason={response.stop_reason}")
@@ -531,6 +551,9 @@ def extract_clues_with_source(text: str, vocab: dict | None = None, use_llm: boo
             return extract_clues_llm(text, vocab=vocab), "llm"
         except LLMUnavailable as exc:
             return extract_clues_rules(text, vocab=vocab), f"rules (llm unavailable: {exc})"
+        except Exception as exc:  # e.g. a reply without usage, a cache write error: still the rules
+            reason = f"unexpected error: {type(exc).__name__}: {exc}"
+            return extract_clues_rules(text, vocab=vocab), f"rules (llm unavailable: {reason})"
     return extract_clues_rules(text, vocab=vocab), "rules"
 
 
