@@ -16,8 +16,10 @@ CORE_RESTROOM = "f4-restroom-core"
 
 @pytest.fixture()
 def client() -> TestClient:
+    """A fresh call on the synthetic building with the offline rule parser."""
     c = TestClient(app)
-    c.post("/calls/demo/reset")
+    c.post("/calls/demo/parser", params={"mode": "rules"})
+    c.post("/calls/demo/building", params={"id": "ptc-100"})
     return c
 
 
@@ -31,8 +33,7 @@ def _total(post: dict) -> float:
 
 def test_buildings_endpoint(client: TestClient) -> None:
     buildings = client.get("/buildings").json()
-    assert len(buildings) == 1
-    b = buildings[0]
+    b = buildings[0]  # the synthetic building is always first; real ones follow when built
     assert b["id"] == "ptc-100"
     assert b["name"] == "100 Princeton Tech Center"
     assert b["floors"] == [1, 2, 3, 4]

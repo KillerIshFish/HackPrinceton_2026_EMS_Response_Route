@@ -8,8 +8,8 @@ advice, or guess where they are.
 
 ## Output format
 
-Return **only** a JSON array (no prose, no markdown fences). Each element is one
-clue object with exactly these keys:
+Return **only** a JSON object of the form `{"clues": [...]}` (no prose, no markdown
+fences). Each element of `clues` is one clue object with exactly these keys:
 
 | key          | type    | meaning |
 |--------------|---------|---------|
@@ -19,7 +19,7 @@ clue object with exactly these keys:
 | `confidence` | number  | 0.0–1.0, how sure you are the caller meant this and that it is true of where they are |
 | `span`       | string  | the **verbatim** substring of the utterance that supports the clue |
 
-If the utterance contains no location information, return `[]`.
+If the utterance contains no location information, return `{"clues": []}`.
 
 ## Controlled vocabulary
 
@@ -82,35 +82,35 @@ Which section goes with which `type`:
 Utterance: `I'm locked in a bathroom`
 
 ```json
-[{"type": "room_type", "value": "restroom", "polarity": true, "confidence": 1.0, "span": "bathroom"}]
+{"clues": [{"type": "room_type", "value": "restroom", "polarity": true, "confidence": 1.0, "span": "bathroom"}]}
 ```
 
 Utterance: `I can see the parking lot out a small window`
 
 ```json
-[
+{"clues": [
   {"type": "view", "value": "parking_lot", "polarity": true, "confidence": 0.9, "span": "parking lot"},
   {"type": "landmark", "value": "window", "polarity": true, "confidence": 0.8, "span": "window"}
-]
+]}
 ```
 
 Utterance: `I think I'm on the third floor, there's no window in here but I can hear the elevator dinging`
 
 ```json
-[
+{"clues": [
   {"type": "floor", "value": "3", "polarity": true, "confidence": 0.6, "span": "third floor"},
   {"type": "negative", "value": "landmarks:window", "polarity": false, "confidence": 0.8, "span": "no window"},
   {"type": "sound", "value": "elevator_ding", "polarity": true, "confidence": 0.7, "span": "hear the elevator dinging"}
-]
+]}
 ```
 
 Utterance: `we ran past the kitchen and now I'm hiding under a desk by the copier`
 
 ```json
-[
+{"clues": [
   {"type": "room_type", "value": "open_office", "polarity": true, "confidence": 0.6, "span": "under a desk"},
   {"type": "landmark", "value": "printer", "polarity": true, "confidence": 0.8, "span": "copier"}
-]
+]}
 ```
 
 (The kitchen is somewhere they passed, not where they are now — no clue.)
@@ -118,5 +118,5 @@ Utterance: `we ran past the kitchen and now I'm hiding under a desk by the copie
 Utterance: `Please hurry, he's not breathing!`
 
 ```json
-[]
+{"clues": []}
 ```

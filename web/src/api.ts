@@ -1,4 +1,4 @@
-import type { Building, DemoState, Posterior, SearchPlan } from "./types";
+import type { Building, BuildingMeta, ClientConfig, DemoState, ParserMode, Posterior, SearchPlan } from "./types";
 
 const BASE: string =
   (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") ?? "/api";
@@ -45,8 +45,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 const post = <T,>(path: string) => request<T>(path, { method: "POST" });
 
 export const api = {
+  config: () => request<ClientConfig>("/config"),
   buildings: () => request<Building[]>("/buildings"),
   building: (id: string) => request<Building>(`/buildings/${encodeURIComponent(id)}`),
+  buildingMeta: (id: string) => request<BuildingMeta>(`/buildings/${encodeURIComponent(id)}/meta`),
+  /** URL of one aerial tile, served (and cached) by the backend so the Vexcel key stays there */
+  tileUrl: (layer: string, z: number, x: number, y: number) => `${BASE}/vexcel/tile/${layer}/${z}/${x}/${y}`,
+  setBuilding: (id: string) => post<DemoState>(`/calls/demo/building?id=${encodeURIComponent(id)}`),
+  setParser: (mode: ParserMode) => post<DemoState>(`/calls/demo/parser?mode=${mode}`),
+  say: (text: string) =>
+    request<DemoState>("/calls/demo/utterance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    }),
   state: () => request<DemoState>("/calls/demo/state"),
   step: () => post<DemoState>("/calls/demo/step"),
   reset: () => post<DemoState>("/calls/demo/reset"),

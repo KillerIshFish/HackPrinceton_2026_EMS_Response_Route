@@ -59,6 +59,56 @@ def demo_call_script() -> list[dict]:
     )
 
 
+BUNDY_BUILDING_ID = "bundy-olympic"
+BUNDY_TRUE_ROOM_ID = "f8-s860-r2"  # the windowed private office in scanned Suite 860
+
+
+def bundy_olympic_call_script() -> list[dict]:
+    """Demo call for the real building (11900 W Olympic Blvd, Los Angeles).
+
+    The caller is in a private office of Suite 860 on the 8th floor, which looks
+    out over the parking deck. Floor 8 is 25.6 m above the ground floor (12 ft
+    slab to slab), so a held phone reads about 26.8 m.
+    """
+    return _turns(
+        [
+            (
+                "Call connected",
+                "system",
+                "911 call connected. Dispatchable address: 11900 W Olympic Blvd, Los Angeles "
+                "(Bundy Olympic). No device location yet - showing the building prior.",
+                None,
+            ),
+            (
+                "Phone z-axis fix",
+                "system",
+                "Device barometric z-axis fix received: 26.4 m above ground (±3 m). "
+                "No usable horizontal fix indoors.",
+                PhoneFix(z_m=26.4),
+            ),
+            (
+                "Caller: room and floor",
+                "caller",
+                "I'm in an office on the top floor, I locked the door",
+                None,
+            ),
+            (
+                "Caller: view",
+                "caller",
+                "I can see the parking structure out the window",
+                None,
+            ),
+        ]
+    )
+
+
+def demo_script_for(building_id: str) -> list[dict]:
+    """The scripted demo call that belongs to a building (synthetic script by default)."""
+    if building_id == BUNDY_BUILDING_ID:
+        return bundy_olympic_call_script()
+    return demo_call_script()
+
+
 def scripted_calls() -> dict[str, list[dict]]:
     """All scripted scenarios, keyed by name. ``"demo"`` is ``demo_call_script()``."""
     return {

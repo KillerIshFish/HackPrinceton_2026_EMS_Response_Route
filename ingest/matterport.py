@@ -1,9 +1,10 @@
-"""Matterport ingestion.
+"""Building registry and the synthetic generator.
 
-v0 ships ONLY the synthetic generator: ``generate_synthetic_office()`` builds
-"100 Princeton Tech Center" (id ``ptc-100``), a 4-floor office building, from
-``configs/demo_buildings.yaml``. Real scan ingestion is the clearly marked stub
-``load_matterport_scan``.
+``generate_synthetic_office()`` builds "100 Princeton Tech Center" (id
+``ptc-100``), a 4-floor office building, from ``configs/demo_buildings.yaml``.
+Real buildings are assembled by ``ingest.real_building`` (CoStar + Matterport +
+Vexcel) into ``data/processed/*.building.json``; ``list_buildings()`` returns
+the synthetic building first, then every processed one.
 
 Public API (see the cross-module interface spec)::
 
@@ -356,29 +357,16 @@ def matterport_data_dir() -> Path:
 
 
 def load_matterport_scan(path: os.PathLike | str) -> Building:
-    """STUB - convert one Matterport scan export into a ``Building``.
+    """Not used: a single scan is one tenant suite, never a whole building.
 
-    What the real implementation will need (confirm with ``ingest.inventory``):
-
-    * Room geometry: per-room floor polygons + floor index (MatterPak / E57 /
-      ``*.json`` room annotations, or the Matterport SDK ``Room``/``Floor`` model
-      data) -> ``Room.polygon``, ``centroid``, ``area_m2``, ``floor``.
-    * Room semantics: room labels/tags -> ``Room.room_type`` mapped onto the
-      ``configs/clue_vocab.yaml`` ``room_types`` keys.
-    * Openings: doors -> ``Building.edges`` (kind "door"); stairs / elevators
-      -> vertical edges; exterior doors -> ``Building.entrances``.
-    * Windows: window annotations / mesh openings -> ``has_windows``; facing is
-      resolved in ``ingest.vexcel`` (window-ray x aerial imagery).
-    * Floor elevations -> ``Building.floor_heights_m``.
-    * Georegistration: model-space -> lat/lng via ``ingest.georegister``.
-    * Occupancy: ``ingest.costar`` -> ``Room.occupancy_factor``.
-
-    Output should also be written to ``data/processed/<id>.building.json`` so
-    ``list_buildings()`` picks it up.
+    Real buildings are assembled in ``ingest.real_building`` from the CoStar
+    suite list, the Matterport scans of individual suites (fetched through the
+    Model API by ``ingest.matterport_api``) and a Vexcel site annotation. The
+    result is written to ``data/processed/<id>.building.json``, which
+    ``list_buildings()`` picks up.
     """
     raise NotImplementedError(
-        "Real Matterport ingestion is not part of v0. Drop the scan export under "
-        "MATTERPORT_DATA_DIR and share its file layout before implementing."
+        "Use `uv run python -m ingest.real_building <building id>`; see ingest/real_building.py."
     )
 
 

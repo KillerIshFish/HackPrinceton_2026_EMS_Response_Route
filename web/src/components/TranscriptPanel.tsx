@@ -1,7 +1,7 @@
-import { useEffect, useRef } from "react";
-import type { ReactNode } from "react";
-import { CircleQuestionMark, MessageSquare, Smartphone } from "lucide-react";
-import type { Clue, NextQuestion, PhoneFix, TranscriptTurn } from "../types";
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { CircleQuestionMark, CornerDownLeft, MessageSquare, Smartphone } from "lucide-react";
+import type { Clue, NextQuestion, ParserMode, PhoneFix, TranscriptTurn } from "../types";
 import { CLUE_STYLE, titleCase } from "../lib";
 import { Panel } from "./Panel";
 
@@ -11,11 +11,29 @@ interface Props {
   nextQuestion: NextQuestion | null;
   turn: number;
   totalTurns: number;
+  /** "rules" or "llm": which parser the next utterance will go through */
+  parserMode: ParserMode;
+  /** true while a request is in flight */
+  busy: boolean;
+  /** add something the caller just said */
+  onSay: (text: string) => void;
+}
+
+function parserLabel(parser: string | null | undefined): { text: string; warn: boolean } | null {
+  if (!parser) return null;
+  if (parser === "llm") return { text: "Parsed by Claude Haiku", warn: false };
+  if (parser === "rules") return { text: "Parsed by keyword rules", warn: false };
+  return { text: `Keyword rules - ${parser.replace(/^rules \(|\)$/g, "")}`, warn: true };
+}
+
+/** "landmarks:window" (the value of a negative clue) -> "window" */
+function clueValue(c: Clue): string {
+  return titleCase(c.value.includes(":") ? c.value.slice(c.value.indexOf(":") + 1) : c.value);
 }
 
 function clueTitle(c: Clue): string {
   const negated = c.type === "negative" || !c.polarity;
-  return `${CLUE_STYLE[c.type].label}: ${negated ? "NOT " : ""}${titleCase(c.value)} - confidence ${Math.round(c.confidence * 100)}% - polarity ${negated ? "negative" : "positive"}`;
+  return `${CLUE_STYLE[c.type].label}: ${negated ? "NOT " : ""}${clueValue(c)} - confidence ${Math.round(c.confidence * 100)}% - polarity ${negated ? "negative" : "positive"}`;
 }
 
 /** Split `text` into plain and highlighted segments, one per clue span (first match, no overlaps). */
@@ -88,18 +106,27 @@ export function ClueChip({ clue }: { clue: Clue }) {
       <span className="text-ink-mute">{style.label}</span>
       <span className="font-medium text-ink">
         {negated ? "not " : ""}
-        {titleCase(clue.value).toLowerCase()}
+        {clueValue(clue).toLowerCase()}
       </span>
       <span className="num text-ink-mute">{Math.round(clue.confidence * 100)}%</span>
     </span>
   );
 }
 
-export function TranscriptPanel({ transcript, clues, nextQuestion, turn, totalTurns }: Props) {
+export function TranscriptPanel({ transcript, clues, nextQuestion, turn, totalTurns, parserMode, busy, onSay }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
+  const [draft, setDraft] = useState("");
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [transcript.length]);
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    const text = draft.trim();
+    if (!text || busy) return;
+    onSay(text);
+    setDraft("");
+  }
 
   return (
     <Panel
@@ -146,6 +173,12 @@ export function TranscriptPanel({ transcript, clues, nextQuestion, turn, totalTu
                   ) : (
                     <div className="mt-1.5 text-[11px] text-ink-mute">No location clues extracted</div>
                   )}
+                  {(() => {
+                    const label = parserLabel(t.parser);
+                    return label ? (
+                      <div className={`mt-1.5 text-[10.5px] ${label.warn ? "text-alert" : "text-ink-mute"}`}>{label.text}</div>
+                    ) : null;
+                  })()}
                 </div>
               ) : (
                 <p className="border-l-2 border-line pl-2.5 text-xs text-ink-dim">
@@ -157,6 +190,36 @@ export function TranscriptPanel({ transcript, clues, nextQuestion, turn, totalTu
         })}
         <div ref={endRef} />
       </ol>
+
+      <form onSubmit={submit} className="shrink-0 border-t border-line p-3">
+        <label htmlFor="caller-utterance" className="eyebrow mb-1.5 block">
+          Caller said
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="caller-utterance"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            maxLength={600}
+            autoComplete="off"
+            placeholder="Type what the caller just said"
+            className="min-w-0 flex-1 rounded border border-line-strong bg-bg px-2.5 py-1.5 text-[13px] text-ink placeholder:text-ink-mute focus:border-accent focus:outline-none"
+          />
+          <button
+            type="submit"
+            disabled={busy || draft.trim().length === 0}
+            className="flex shrink-0 items-center gap-1 rounded border border-line-strong px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-raised disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Add
+            <CornerDownLeft size={13} aria-hidden />
+          </button>
+        </div>
+        <p className="mt-1.5 text-[11px] text-ink-mute">
+          {parserMode === "llm"
+            ? "Clues are extracted by Claude Haiku (one small request, cached)."
+            : "Clues are extracted by keyword rules. Switch the parser to Claude Haiku for free-form speech."}
+        </p>
+      </form>
 
       <div className="shrink-0 border-t border-line p-3">
         <div className="eyebrow mb-1.5">Evidence in posterior ({clues.length})</div>

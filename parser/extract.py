@@ -1,16 +1,15 @@
 """Clue extraction: caller utterance -> list[Clue].
 
-v0 is a deterministic keyword/regex extractor driven entirely by
-``configs/clue_vocab.yaml``. It makes NO network calls.
+Two extractors return the same ``list[Clue]``:
 
-LLM swap seam
--------------
-``extract_clues(text, use_llm=True)`` dispatches to ``extract_clues_llm``, which
-is a stub that raises ``NotImplementedError`` until ``LLM_PROVIDER`` /
-``LLM_API_KEY`` are set in ``.env`` and the provider call is implemented. The
-system prompt for that call already lives in ``parser/prompts/extract_clues.md``
-(see ``build_system_prompt``). Both paths return the same ``list[Clue]``, so
-nothing downstream changes when the swap happens.
+* ``extract_clues_rules``: deterministic keyword/regex extraction driven by
+  ``configs/clue_vocab.yaml``. No network. This is the default everywhere.
+* ``extract_clues_llm``: Claude Haiku 5.5 with the system prompt in
+  ``parser/prompts/extract_clues.md`` and a JSON-schema-constrained reply. It
+  needs ``LLM_PROVIDER=anthropic`` and ``LLM_API_KEY`` in ``.env`` and is only
+  used when a caller passes ``use_llm=True``. Replies are validated (span must
+  be verbatim in the utterance, value must be in the vocabulary), cached on
+  disk, and any failure falls back to the rules.
 
 Rule-based behaviour
 --------------------
@@ -25,8 +24,11 @@ Rule-based behaviour
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
+import threading
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -283,30 +285,210 @@ def build_system_prompt(vocab: dict | None = None) -> str:
     return template.replace("{{VOCAB}}", yaml.safe_dump(compact, sort_keys=False, width=100).strip())
 
 
-def extract_clues_llm(text: str, vocab: dict | None = None, provider: str | None = None) -> list[Clue]:
-    """LLM-backed extraction. NOT IMPLEMENTED in v0 (no network calls).
+# ---------------------------------------------------------------------------
+# LLM extraction (Anthropic). Spend is kept small on purpose:
+#   * every (model, prompt, utterance) result is cached on disk, so a scripted
+#     demo turn costs one request the first time and nothing afterwards;
+#   * thinking is off, effort is low and the reply is capped at a few hundred tokens;
+#   * a per-process request budget (LLM_MAX_CALLS) falls back to the rules when hit;
+#   * token usage is appended to data/processed/llm_usage.json so it can be audited.
+# ---------------------------------------------------------------------------
 
-    To implement: send ``build_system_prompt(vocab)`` + ``text`` to the provider
-    named by ``LLM_PROVIDER`` using ``LLM_API_KEY``, parse the JSON array into
-    ``Clue`` objects, drop any clue whose ``span`` is not a substring of ``text``
-    or whose ``value`` is outside the vocabulary, and fall back to
-    ``extract_clues_rules`` on any error.
+LLM_MODEL = "claude-haiku-5-5"
+LLM_MAX_OUTPUT_TOKENS = 600
+LLM_TIMEOUT_S = 20.0
+LLM_MIN_CONFIDENCE = 0.4
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+LLM_CACHE_PATH = _REPO_ROOT / "data" / "processed" / "llm_clue_cache.json"
+LLM_USAGE_PATH = _REPO_ROOT / "data" / "processed" / "llm_usage.json"
+
+_CLUE_TYPES = ["room_type", "floor", "landmark", "view", "sound", "smell", "negative"]
+_CLUES_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "clues": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "type": {"type": "string", "enum": _CLUE_TYPES},
+                    "value": {"type": "string"},
+                    "polarity": {"type": "boolean"},
+                    "confidence": {"type": "number"},
+                    "span": {"type": "string"},
+                },
+                "required": ["type", "value", "polarity", "confidence", "span"],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["clues"],
+    "additionalProperties": False,
+}
+
+_llm_lock = threading.Lock()
+_llm_calls_made = 0
+
+
+class LLMUnavailable(RuntimeError):
+    """The LLM path cannot be used (no key, wrong provider, budget spent, API error)."""
+
+
+def _read_json(path: Path, default: Any) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return default
+
+
+def _write_json(path: Path, data: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=1), encoding="utf-8")
+
+
+def llm_usage() -> dict:
+    """Running totals of LLM requests and tokens: ``{"calls", "input_tokens", "output_tokens", ...}``."""
+    return _read_json(LLM_USAGE_PATH, {"calls": 0, "input_tokens": 0, "output_tokens": 0,
+                                       "cache_read_input_tokens": 0, "cache_hits": 0})
+
+
+def _known_value(clue_type: str, value: str, vocab: dict) -> bool:
+    """True when ``value`` is inside the controlled vocabulary for ``clue_type``."""
+    if clue_type == "floor":
+        return bool(re.fullmatch(r"-?\d{1,3}|[A-Za-z]\d{0,2}", value)) or value in ((vocab.get("floors") or {}).get("relative") or {})
+    if clue_type == "negative":
+        section, _, key = value.partition(":")
+        if section == "floors":
+            return _known_value("floor", key, vocab)
+        return section in TYPE_FOR_SECTION and key in (vocab.get(section) or {})
+    return value in (vocab.get(SECTION_FOR_TYPE.get(clue_type, "")) or {})
+
+
+def _validate_llm_clues(text: str, raw_clues: list[dict], vocab: dict) -> list[Clue]:
+    """Keep only clues whose span is verbatim in ``text`` and whose value is in the vocabulary."""
+    out: list[Clue] = []
+    seen: set[tuple[str, str]] = set()
+    lowered = text.lower()
+    for raw in raw_clues:
+        ctype = str(raw.get("type", ""))
+        value = str(raw.get("value", "")).strip()
+        span = str(raw.get("span", ""))
+        if ctype not in _CLUE_TYPES or not span or not _known_value(ctype, value, vocab):
+            continue
+        idx = text.find(span)
+        if idx < 0:  # recover the caller's own casing if only the case differs
+            idx = lowered.find(span.lower())
+            if idx < 0:
+                continue
+            span = text[idx: idx + len(span)]
+        try:
+            confidence = min(1.0, max(0.0, float(raw.get("confidence", 0.0))))
+        except (TypeError, ValueError):
+            continue
+        if confidence < LLM_MIN_CONFIDENCE or (ctype, value) in seen:
+            continue
+        seen.add((ctype, value))
+        polarity = False if ctype == "negative" else bool(raw.get("polarity", True))
+        out.append(Clue(type=ctype, value=value, polarity=polarity, confidence=round(confidence, 3), span=span))  # type: ignore[arg-type]
+    return out
+
+
+def extract_clues_llm(text: str, vocab: dict | None = None, provider: str | None = None) -> list[Clue]:
+    """Claude-backed extraction of one caller utterance. Raises ``LLMUnavailable`` on any failure.
+
+    Results are cached on disk by (model, system prompt, utterance), so repeating
+    an utterance never sends a second request.
     """
-    provider = (provider or os.getenv("LLM_PROVIDER") or "").strip().lower() or "<unset>"
-    raise NotImplementedError(
-        f"LLM clue extraction (provider={provider}) is not implemented in v0. "
-        "Set LLM_PROVIDER and LLM_API_KEY in .env (see .env.example), then implement "
-        "parser.extract.extract_clues_llm. Until then call extract_clues(text) without "
-        "use_llm=True to use the rule-based extractor."
-    )
+    global _llm_calls_made
+    if not text or not text.strip():
+        return []
+    vocab = vocab or load_vocab()
+    provider = (provider or os.getenv("LLM_PROVIDER") or "").strip().lower()
+    if provider != "anthropic":
+        raise LLMUnavailable(f"LLM_PROVIDER is '{provider or 'unset'}'; only 'anthropic' is implemented")
+    api_key = (os.getenv("LLM_API_KEY") or "").strip()
+    if not api_key:
+        raise LLMUnavailable("LLM_API_KEY is not set in .env")
+
+    system_prompt = build_system_prompt(vocab)
+    cache_key = hashlib.sha256(f"{LLM_MODEL}\x00{system_prompt}\x00{text}".encode()).hexdigest()
+    with _llm_lock:
+        cache = _read_json(LLM_CACHE_PATH, {})
+        if cache_key in cache:
+            usage = llm_usage()
+            usage["cache_hits"] = usage.get("cache_hits", 0) + 1
+            _write_json(LLM_USAGE_PATH, usage)
+            return _validate_llm_clues(text, cache[cache_key]["clues"], vocab)
+        budget = int(os.getenv("LLM_MAX_CALLS", "200"))
+        if _llm_calls_made >= budget:
+            raise LLMUnavailable(f"LLM request budget for this process is spent ({budget}; raise LLM_MAX_CALLS)")
+        _llm_calls_made += 1
+
+    try:
+        import anthropic
+    except ImportError as exc:  # pragma: no cover - dependency is declared in pyproject
+        raise LLMUnavailable("the 'anthropic' package is not installed (run `uv sync`)") from exc
+
+    client = anthropic.Anthropic(api_key=api_key, timeout=LLM_TIMEOUT_S, max_retries=1)
+    try:
+        response = client.messages.create(
+            model=LLM_MODEL,
+            max_tokens=LLM_MAX_OUTPUT_TOKENS,
+            thinking={"type": "disabled"},
+            system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": f"Utterance: `{text}`"}],
+            output_config={"effort": "low", "format": {"type": "json_schema", "schema": _CLUES_SCHEMA}},
+        )
+    except anthropic.AuthenticationError as exc:
+        raise LLMUnavailable("Anthropic rejected LLM_API_KEY") from exc
+    except anthropic.RateLimitError as exc:
+        raise LLMUnavailable("Anthropic rate limit reached") from exc
+    except anthropic.APIStatusError as exc:
+        raise LLMUnavailable(f"Anthropic API error {exc.status_code}: {exc.message}") from exc
+    except anthropic.APIConnectionError as exc:
+        raise LLMUnavailable("Anthropic API unreachable") from exc
+
+    if response.stop_reason != "end_turn":
+        raise LLMUnavailable(f"model stopped with stop_reason={response.stop_reason}")
+    body = next((b.text for b in response.content if b.type == "text"), "")
+    try:
+        raw_clues = json.loads(body)["clues"]
+    except (ValueError, KeyError, TypeError) as exc:
+        raise LLMUnavailable("model reply was not the expected JSON") from exc
+
+    with _llm_lock:
+        cache = _read_json(LLM_CACHE_PATH, {})
+        cache[cache_key] = {"text": text, "model": LLM_MODEL, "clues": raw_clues}
+        _write_json(LLM_CACHE_PATH, cache)
+        usage = llm_usage()
+        usage["calls"] = usage.get("calls", 0) + 1
+        usage["input_tokens"] = usage.get("input_tokens", 0) + (response.usage.input_tokens or 0)
+        usage["output_tokens"] = usage.get("output_tokens", 0) + (response.usage.output_tokens or 0)
+        usage["cache_read_input_tokens"] = usage.get("cache_read_input_tokens", 0) + (
+            response.usage.cache_read_input_tokens or 0
+        )
+        usage["cache_creation_input_tokens"] = usage.get("cache_creation_input_tokens", 0) + (
+            response.usage.cache_creation_input_tokens or 0
+        )
+        _write_json(LLM_USAGE_PATH, usage)
+    return _validate_llm_clues(text, raw_clues, vocab)
+
+
+def extract_clues_with_source(text: str, vocab: dict | None = None, use_llm: bool = False) -> tuple[list[Clue], str]:
+    """``(clues, source)`` where source is ``"llm"``, ``"rules"`` or ``"rules (llm unavailable: ...)"``."""
+    if use_llm:
+        try:
+            return extract_clues_llm(text, vocab=vocab), "llm"
+        except LLMUnavailable as exc:
+            return extract_clues_rules(text, vocab=vocab), f"rules (llm unavailable: {exc})"
+    return extract_clues_rules(text, vocab=vocab), "rules"
 
 
 def extract_clues(text: str, vocab: dict | None = None, use_llm: bool = False) -> list[Clue]:
     """Extract structured clues from one caller utterance.
 
     Rule-based by default. The LLM path is only taken when ``use_llm=True`` is
-    passed explicitly (env vars alone never trigger a network call).
+    passed explicitly (env vars alone never trigger a network call), and it
+    falls back to the rules if the model cannot be reached.
     """
-    if use_llm:
-        return extract_clues_llm(text, vocab=vocab, provider=os.getenv("LLM_PROVIDER"))
-    return extract_clues_rules(text, vocab=vocab)
+    return extract_clues_with_source(text, vocab=vocab, use_llm=use_llm)[0]

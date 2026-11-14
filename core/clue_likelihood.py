@@ -3,6 +3,8 @@
 Driven entirely by configs/clue_vocab.yaml:
 
 * room_type: m = 1 if Room.room_type == value or is listed in that entry's `also`.
+  A composite room (`composite_room_types`, e.g. a whole unscanned tenant suite)
+  gets the partial score listed under its `contains` for the interior room type.
 * view / landmark / sound / smell: m = 1 if the room satisfies the entry's
   `match` dict (ALL keys hold; a list value means any-of), else `miss` (default 0).
 * floor: m = 1 on the stated floor, `adjacent_floor_match` on floors +/-1, else 0.
@@ -57,29 +59,53 @@ def _norm(value: str) -> str:
     return str(value).strip().lower().replace(" ", "_").replace("-", "_")
 
 
-def _satisfies(room: Room, match: dict) -> bool:
-    """True when the room meets every condition (list value = any-of)."""
+def _contains_weight(room: Room, wanted_types, vocab: dict) -> float:
+    """How well a composite room (a whole unscanned suite) matches interior room types.
+
+    ``composite_room_types.<type>.contains`` in the vocab says how likely such a
+    room is to contain each interior room type. 0.0 for ordinary rooms.
+    """
+    contains = ((vocab.get("composite_room_types") or {}).get(room.room_type) or {}).get("contains") or {}
+    return max((float(contains.get(t, 0.0)) for t in wanted_types), default=0.0)
+
+
+def _satisfies(room: Room, match: dict, vocab: dict | None = None) -> float:
+    """1.0 when the room meets every condition (list value = any-of), else 0.0.
+
+    A ``room_type`` condition is met partially by a composite room that probably
+    contains a room of that type (see ``_contains_weight``).
+    """
+    score = 1.0
     for field, wanted in match.items():
         actual = getattr(room, field, None)
-        if isinstance(wanted, (list, tuple, set)):
-            if actual not in wanted:
-                return False
-        elif actual != wanted:
-            return False
-    return True
+        wanted_list = list(wanted) if isinstance(wanted, (list, tuple, set)) else [wanted]
+        if actual in wanted_list:
+            continue
+        if field == "room_type" and vocab is not None:
+            score = min(score, _contains_weight(room, wanted_list, vocab))
+            if score > 0.0:
+                continue
+        return 0.0
+    return score
 
 
-def _room_type_match(building: Building, key: str, entry: dict | None) -> dict[str, float]:
+def _room_type_match(building: Building, key: str, entry: dict | None, vocab: dict | None = None) -> dict[str, float]:
     accepted = {key, *((entry or {}).get("also") or [])}
-    return {r.id: 1.0 if r.room_type in accepted else 0.0 for r in building.rooms}
+    out: dict[str, float] = {}
+    for r in building.rooms:
+        if r.room_type in accepted:
+            out[r.id] = 1.0
+        else:
+            out[r.id] = _contains_weight(r, accepted, vocab) if vocab is not None else 0.0
+    return out
 
 
-def _rule_match(building: Building, entry: dict) -> dict[str, float] | None:
+def _rule_match(building: Building, entry: dict, vocab: dict | None = None) -> dict[str, float] | None:
     match = entry.get("match")
     if not match:
         return None
     miss = float(entry.get("miss", 0.0))
-    return {r.id: 1.0 if _satisfies(r, match) else miss for r in building.rooms}
+    return {r.id: max(miss, _satisfies(r, match, vocab)) for r in building.rooms}
 
 
 def _resolve_floor(building: Building, value: str, floors_cfg: dict) -> int | None:
@@ -129,8 +155,8 @@ def _section_match(building: Building, section: str, key: str, vocab: dict) -> d
         return None
     entry = entries[k] or {}
     if section == "room_types":
-        return _room_type_match(building, k, entry)
-    return _rule_match(building, entry)
+        return _room_type_match(building, k, entry, vocab)
+    return _rule_match(building, entry, vocab)
 
 
 def _positive_match(building: Building, clue_type: str, value: str, vocab: dict) -> dict[str, float] | None:
@@ -157,7 +183,7 @@ def _positive_match(building: Building, clue_type: str, value: str, vocab: dict)
     if clue_type in ("room_type", "negative"):
         k = _norm(value)
         if any(r.room_type == k for r in building.rooms):
-            return _room_type_match(building, k, None)
+            return _room_type_match(building, k, None, vocab)
     if clue_type == "negative":  # e.g. "not on the 4th floor"
         return _floor_match(building, value, vocab.get("floors") or {})
     return None

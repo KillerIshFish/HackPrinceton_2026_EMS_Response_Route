@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, ListOrdered } from "lucide-react";
+import { Box, Check, ListOrdered } from "lucide-react";
 import type { Building, Posterior, SearchPlan as SearchPlanData, Stop } from "../types";
 import { mmss, pct, roomIndex } from "../lib";
 import { Panel } from "./Panel";
@@ -14,11 +14,24 @@ interface Props {
   /** true while any request is in flight */
   busy: boolean;
   onClear: (roomId: string) => void;
+  /** rooms that have a 3D scan; those stops get a button that opens it */
+  scannedRoomIds?: Set<string>;
+  onViewScan?: (roomId: string) => void;
 }
 
 const VISIBLE_STOPS = 8;
 
-export function SearchPlan({ building, plan, posterior, clearedRoomIds, clearingRoomId, busy, onClear }: Props) {
+export function SearchPlan({
+  building,
+  plan,
+  posterior,
+  clearedRoomIds,
+  clearingRoomId,
+  busy,
+  onClear,
+  scannedRoomIds,
+  onViewScan,
+}: Props) {
   const rooms = useMemo(() => roomIndex(building), [building]);
   const multiTeam = plan.teams.length > 1;
   const totalStops = plan.teams.reduce((n, t) => n + t.length, 0);
@@ -48,6 +61,8 @@ export function SearchPlan({ building, plan, posterior, clearedRoomIds, clearing
             clearingRoomId={clearingRoomId}
             busy={busy}
             onClear={onClear}
+            scannedRoomIds={scannedRoomIds}
+            onViewScan={onViewScan}
           />
         ))
       )}
@@ -84,6 +99,8 @@ function TeamList({
   clearingRoomId,
   busy,
   onClear,
+  scannedRoomIds,
+  onViewScan,
 }: {
   team: number;
   stops: Stop[];
@@ -92,6 +109,8 @@ function TeamList({
   clearingRoomId: string | null;
   busy: boolean;
   onClear: (roomId: string) => void;
+  scannedRoomIds?: Set<string>;
+  onViewScan?: (roomId: string) => void;
 }) {
   const [showAll, setShowAll] = useState(false);
   const visible = showAll ? stops : stops.slice(0, VISIBLE_STOPS);
@@ -142,6 +161,17 @@ function TeamList({
                       </span>
                     </div>
                   </div>
+                  {onViewScan && scannedRoomIds?.has(stop.room_id) ? (
+                    <button
+                      onClick={() => onViewScan(stop.room_id)}
+                      aria-label={`Show the 3D scan of ${stop.room_name}`}
+                      title="Show this room in the 3D scan"
+                      className="flex shrink-0 items-center gap-1 rounded border border-line-strong px-1.5 py-1 text-[11px] font-medium text-ink-dim hover:border-ink-dim hover:text-ink"
+                    >
+                      <Box size={12} aria-hidden />
+                      3D
+                    </button>
+                  ) : null}
                   <button
                     onClick={() => onClear(stop.room_id)}
                     disabled={busy}

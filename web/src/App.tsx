@@ -1,24 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Building2, ChevronRight, RotateCcw, TriangleAlert, Users } from "lucide-react";
+import { Building2, ChevronRight, RotateCcw, Sparkles, TriangleAlert, Users } from "lucide-react";
 import { api } from "./api";
-import type { Building, DemoState, HistoryEntry } from "./types";
+import type { Building, BuildingMeta, ClientConfig, DemoState, HistoryEntry, ParserMode } from "./types";
 import { mmss, mostProbableFloor, pct, roomIndex } from "./lib";
 import { FloorPlanHeatmap } from "./components/FloorPlanHeatmap";
 import { FloorProbBar } from "./components/FloorProbBar";
 import { TranscriptPanel } from "./components/TranscriptPanel";
 import { SearchPlan } from "./components/SearchPlan";
 import { AerialApproach } from "./components/AerialApproach";
+import { ScanViewer } from "./components/ScanViewer";
 
 const BACKEND_CMD = "uv run uvicorn api.server:app --reload --port 8000";
 const TEAM_OPTIONS = [1, 2];
 
-/** "step" | "reset" | "teams" | "clear:<room id>" while a request is in flight */
+/** "step" | "reset" | "teams" | "building" | "parser" | "say" | "clear:<room id>" while a request is in flight */
 type Busy = string | null;
 
 export default function App() {
-  const [building, setBuilding] = useState<Building | null>(null);
+  const [allBuildings, setAllBuildings] = useState<Building[]>([]);
   const [state, setState] = useState<DemoState | null>(null);
+  const [meta, setMeta] = useState<BuildingMeta | null>(null);
+  const [config, setConfig] = useState<ClientConfig | null>(null);
+  /** room whose 3D scan the dispatcher pinned; null = the viewer follows the posterior */
+  const [pinnedRoomId, setPinnedRoomId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -30,10 +35,10 @@ export default function App() {
     setLoading(true);
     setLoadError(null);
     try {
-      const [s, buildings] = await Promise.all([api.state(), api.buildings()]);
-      const b = buildings.find((x) => x.id === s.building_id) ?? buildings[0];
-      if (!b) throw new Error("Backend returned no buildings.");
-      setBuilding(b);
+      const [s, buildings, cfg] = await Promise.all([api.state(), api.buildings(), api.config()]);
+      if (buildings.length === 0) throw new Error("Backend returned no buildings.");
+      setAllBuildings(buildings);
+      setConfig(cfg);
       setState(s);
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : String(e));
@@ -59,6 +64,37 @@ export default function App() {
     }
   }, []);
 
+  const buildingId = state?.building_id ?? null;
+  const building = useMemo(
+    () => allBuildings.find((b) => b.id === buildingId) ?? null,
+    [allBuildings, buildingId],
+  );
+
+  // A building switch starts a new call: reload its metadata and drop per-building UI state.
+  useEffect(() => {
+    if (!buildingId) return;
+    let cancelled = false;
+    setMeta(null);
+    setPinnedRoomId(null);
+    setFollow(true);
+    api
+      .buildingMeta(buildingId)
+      .then((m) => {
+        if (!cancelled) setMeta(m);
+      })
+      .catch(() => {
+        /* metadata is optional: the console works without scans or imagery */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [buildingId]);
+
+  const scannedRoomIds = useMemo(
+    () => new Set(Object.entries(meta?.rooms ?? {}).filter(([, m]) => m.model_id).map(([id]) => id)),
+    [meta],
+  );
+
   // Follow the most probable floor whenever the posterior changes (unless the user pinned a floor).
   const topFloor = useMemo(
     () => (building && state ? mostProbableFloor(building, state.posterior) : null),
@@ -81,9 +117,32 @@ export default function App() {
         <div className="flex min-w-0 items-center gap-2.5">
           <Building2 size={18} className="shrink-0 text-ink-mute" aria-hidden />
           <div className="min-w-0">
-            <h1 className="truncate text-[15px] font-semibold leading-tight text-ink">{building.name}</h1>
+            <h1 className="truncate text-[15px] font-semibold leading-tight text-ink">
+              {state.buildings.length > 1 ? (
+                <select
+                  aria-label="Building"
+                  value={building.id}
+                  disabled={busy !== null}
+                  onChange={(e) => void run("building", () => api.setBuilding(e.target.value))}
+                  className="-ml-1 max-w-full cursor-pointer truncate rounded border border-transparent bg-bg px-1 py-0.5 text-[15px] font-semibold text-ink hover:border-line-strong focus:border-accent focus:outline-none"
+                >
+                  {state.buildings.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                      {b.real ? "" : " (synthetic)"}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                building.name
+              )}
+            </h1>
             <p className="text-[11px] leading-tight text-ink-mute">
-              Caller location - {building.floors.length} floors, {building.rooms.length} rooms modelled
+              {meta?.address ? `${meta.address} - ` : "Caller location - "}
+              {building.floors.length} floors, {building.rooms.length} rooms modelled
+              {meta?.room_sources
+                ? ` (${meta.room_sources.matterport ?? 0} scanned, ${meta.room_sources.costar ?? 0} from suite records, ${meta.room_sources.inferred ?? 0} inferred)`
+                : ""}
             </p>
           </div>
         </div>
@@ -97,6 +156,14 @@ export default function App() {
         </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          <ParserToggle
+            mode={state.parser_mode}
+            available={state.llm?.available ?? false}
+            calls={state.llm?.usage.calls ?? 0}
+            tokens={(state.llm?.usage.input_tokens ?? 0) + (state.llm?.usage.output_tokens ?? 0)}
+            disabled={busy !== null}
+            onChange={(mode) => void run("parser", () => api.setParser(mode))}
+          />
           <div className="flex items-center gap-1.5" role="group" aria-label="Search teams">
             <Users size={14} className="text-ink-mute" aria-hidden />
             <span className="text-xs text-ink-mute">Teams</span>
@@ -161,6 +228,9 @@ export default function App() {
             nextQuestion={state.next_question}
             turn={state.turn}
             totalTurns={state.total_turns}
+            parserMode={state.parser_mode}
+            busy={busy !== null}
+            onSay={(text) => void run("say", () => api.say(text))}
           />
         </div>
 
@@ -178,6 +248,8 @@ export default function App() {
                 setFloor(f);
               }}
               onToggleFollow={() => setFollow((v) => !v)}
+              roomMeta={meta?.rooms}
+              onSelectRoom={setPinnedRoomId}
             />
             <FloorProbBar
               building={building}
@@ -190,7 +262,17 @@ export default function App() {
               }}
             />
           </div>
-          <AerialApproach building={building} plan={state.plan} approach={state.approach} />
+          {meta && meta.matterport_models.length > 0 ? (
+            <ScanViewer
+              building={building}
+              meta={meta}
+              posterior={state.posterior}
+              sdkKey={config?.matterport_sdk_key ?? null}
+              pinnedRoomId={pinnedRoomId}
+              onPin={setPinnedRoomId}
+            />
+          ) : null}
+          <AerialApproach building={building} plan={state.plan} approach={state.approach} meta={meta} />
         </div>
 
         <div className="max-h-[80vh] min-h-0 xl:sticky xl:top-[60px] xl:h-[calc(100vh-72px)] xl:max-h-none">
@@ -202,6 +284,8 @@ export default function App() {
             clearingRoomId={clearingRoomId}
             busy={busy !== null}
             onClear={(roomId) => void run(`clear:${roomId}`, () => api.clearRoom(roomId))}
+            scannedRoomIds={scannedRoomIds}
+            onViewScan={setPinnedRoomId}
           />
         </div>
       </main>
@@ -210,6 +294,61 @@ export default function App() {
 }
 
 // ---------------------------------------------------------------------------
+
+function ParserToggle({
+  mode,
+  available,
+  calls,
+  tokens,
+  disabled,
+  onChange,
+}: {
+  mode: ParserMode;
+  available: boolean;
+  calls: number;
+  tokens: number;
+  disabled: boolean;
+  onChange: (mode: ParserMode) => void;
+}) {
+  const options: { key: ParserMode; label: string }[] = [
+    { key: "rules", label: "Rules" },
+    { key: "llm", label: "Claude Haiku" },
+  ];
+  return (
+    <div
+      className="flex items-center gap-1.5"
+      role="group"
+      aria-label="Clue parser"
+      title={
+        available
+          ? `Clue parser. Claude Haiku has made ${calls} request${calls === 1 ? "" : "s"} (${tokens.toLocaleString()} tokens) in total; repeated utterances are served from a local cache.`
+          : "Clue parser. Claude Haiku needs LLM_PROVIDER=anthropic and LLM_API_KEY in .env."
+      }
+    >
+      <Sparkles size={14} className="text-ink-mute" aria-hidden />
+      <span className="text-xs text-ink-mute">Parser</span>
+      <div className="flex overflow-hidden rounded border border-line">
+        {options.map((o) => {
+          const active = mode === o.key;
+          const off = disabled || (o.key === "llm" && !available);
+          return (
+            <button
+              key={o.key}
+              aria-pressed={active}
+              disabled={off}
+              onClick={() => !active && onChange(o.key)}
+              className={`border-l border-line px-2 py-1 text-xs first:border-l-0 disabled:cursor-not-allowed ${
+                active ? "bg-ink font-semibold text-bg" : "text-ink-dim hover:bg-raised hover:text-ink disabled:opacity-50"
+              }`}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function LoadScreen({ loading, error, onRetry }: { loading: boolean; error: string | null; onRetry: () => void }) {
   return (

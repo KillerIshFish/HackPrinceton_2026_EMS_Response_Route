@@ -122,6 +122,85 @@ export interface TranscriptTurn {
   text: string;
   phone_fix: PhoneFix | null;
   clues: Clue[];
+  /** which parser produced `clues` on a caller turn: "rules", "llm" or "rules (llm unavailable: ...)" */
+  parser?: string | null;
+  /** false for utterances typed in by the dispatcher */
+  scripted?: boolean;
+}
+
+export type ParserMode = "rules" | "llm";
+
+export interface BuildingSummary {
+  id: string;
+  name: string;
+  real: boolean;
+  floors: number;
+  rooms: number;
+}
+
+export interface LLMStatus {
+  available: boolean;
+  model: string;
+  usage: { calls?: number; input_tokens?: number; output_tokens?: number; cache_hits?: number; [k: string]: number | undefined };
+}
+
+/** GET /config */
+export interface ClientConfig {
+  matterport_sdk_key: string | null;
+  llm_available: boolean;
+  llm_model: string;
+  vexcel_available: boolean;
+}
+
+export interface SiteTiles {
+  layer: string;
+  zoom: number;
+  x_min: number;
+  x_max: number;
+  y_min: number;
+  y_max: number;
+  tile_px: number;
+  m_per_px: number;
+}
+
+export interface RoomMeta {
+  source: "matterport" | "costar" | "inferred";
+  suite?: string;
+  status?: string;
+  tenant?: string | null;
+  rentable_sf?: number;
+  model_id?: string;
+  sweep_id?: string | null;
+  windows_source?: string;
+  note?: string;
+}
+
+export interface MatterportModel {
+  model_id: string;
+  suite: string;
+  name: string;
+  floor: number | null;
+  created?: string;
+  sweeps?: number;
+  has_room_boundaries?: boolean;
+}
+
+/** GET /buildings/{id}/meta - provenance, scans and the aerial site annotation */
+export interface BuildingMeta {
+  building_id: string;
+  real: boolean;
+  name?: string;
+  address?: string;
+  center_latlng?: LatLng;
+  site: {
+    source?: string;
+    footprint_latlng: LatLng[];
+    tiles?: SiteTiles;
+  };
+  matterport_models: MatterportModel[];
+  room_sources?: Record<string, number>;
+  rooms: Record<string, RoomMeta>;
+  caveats: string[];
 }
 
 export interface Approach {
@@ -171,4 +250,7 @@ export interface DemoState {
   approach: Approach;
   next_question: NextQuestion | null;
   history: HistoryEntry[];
+  parser_mode: ParserMode;
+  llm: LLMStatus | null;
+  buildings: BuildingSummary[];
 }
