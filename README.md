@@ -299,7 +299,8 @@ What is not real, and says so in the model's notes:
 - Buildings of a multi-building property are placed on a grid; their real positions are
   not in the data.
 - A stamped interior is stretched to its slot, so room proportions follow the slot.
-- Only the side facing the street bearing is labelled; other sides have no view.
+- What a window looks at comes from OpenStreetMap, which has not mapped every car park;
+  where it shows nothing in front of the glass, only a street-facing side is labelled.
 
 **Placement on the map.** A property's coordinates are an address point, usually at the
 kerb, so a model centred on them lands on the street or the neighbours. The sidecar
@@ -315,7 +316,21 @@ on the parcel, newest vintage of the imagery layer in use, about a third of a se
   put on the map and staging is given as the address point;
 - leaves a scan where its own geolocation and yaw put it.
 
-OSM's public Overpass server can take a minute or refuse connections. The pipeline waits
+**Window views and the site map.** From each window a fan of rays is cast at the
+OpenStreetMap features around the building; the first thing most rays meet within 60 m
+sets `Room.window_facing` (`street`, `parking_lot`, `residential`, `adjacent_building`),
+which is what view clues are matched against (`ingest/unified/surroundings.py`). The same
+features, plus nearby named places, are drawn as a street map in the Approach panel
+(Aerial / Map switch). Properties with several buildings are skipped, because their
+positions on the ground are invented.
+
+**OpenStreetMap from disk.** The map data around every property in the kit is committed
+as `data/osm/site_pack.sqlite.gz` (36 MB) and is unpacked on first use, so lookups take a
+few milliseconds and nothing needs downloading. `docs/osm-site-map.md` explains how to
+bring this into another branch and how to rebuild the data.
+
+For an address that is not near a kit property, the public Overpass server is
+asked instead. That server can take a minute or refuse connections. The pipeline waits
 one second for it once the outline has placed the building (four without an outline) and
 carries on; when the answer arrives the sidecar is completed, the building is re-projected,
 and the web app picks the change up. Requests run one at a time, and after a failure none

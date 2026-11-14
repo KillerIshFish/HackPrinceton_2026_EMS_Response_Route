@@ -25,13 +25,20 @@ What it records
                       the address point (which usually sits on the street side);
                     * with no outline it is centred on the address point with its front
                       toward the street; with no street either, it is left unrotated.
+``surroundings``    what stands around the building, from the same OpenStreetMap answer:
+                    street centrelines, car parks and neighbouring buildings (houses told
+                    apart from the rest), with the modelled building's own outline flagged.
+                    ``project.to_building`` casts rays from the windows at these to decide
+                    what each room looks at (see ``ingest.unified.surroundings``)
 ``outlines``        what to draw on the aerial image: the real outline (``kind: building``)
                     and the model's own extent, one rectangle per block (``kind: model``)
 ``imagery``         centre, radius and zoom of the aerial window that covers all of it
 ``pending``         true while the OpenStreetMap request is still running
 
-Two network calls, made side by side: Vexcel ``property/extract`` and one OSM Overpass
-request, each carrying only the coordinates. Overpass can take a minute, and a call in
+Two lookups, made side by side: Vexcel ``property/extract`` and OpenStreetMap, each carrying
+only the coordinates. OpenStreetMap is read from a local index of the Los Angeles and Houston
+extracts when one has been built (``ingest.unified.osm_local``); elsewhere it is one request
+to the public Overpass server. Overpass can take a minute, and a call in
 progress cannot wait on it: ``build_context`` waits ``deadline_s`` seconds, then carries
 on with what it has. Whatever arrives later completes the sidecar, and ``on_late`` is
 called so the caller can re-project the building with the better placement. Overpass
@@ -51,13 +58,13 @@ from typing import Callable, Optional
 
 from ingest.georegister import latlng_to_local, local_to_latlng
 from ingest.unified.schema import BuildingModel
+from ingest.unified.surroundings import SURROUNDINGS_RADIUS_M, mark_own, surroundings_from_payload
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTEXT_DIR = REPO_ROOT / "data" / "processed" / "context"
 STREET_DEADLINE_S = 4.0
 NOT_A_FRONTAGE = ("motorway", "motorway_link", "trunk", "trunk_link")
 ROAD_RADIUS_M = 150.0
-BUILDING_RADIUS_M = 70.0
 BUILDING_MAX_DISTANCE_M = 45.0  # an outline further than this from the address point is another building
 BUILDING_MIN_AREA_M2 = 40.0
 OVERPASS_ATTEMPTS = 2
@@ -66,7 +73,7 @@ OVERPASS_COOLDOWN_S = 300.0
 _overpass_down = {"until": 0.0}
 VEXCEL_TIMEOUT_S = 8.0
 OSM_GRACE_S = 1.0
-CONTEXT_VERSION = 4  # bump when the sidecar's shape changes, so older files are rebuilt
+CONTEXT_VERSION = 5  # bump when the sidecar's shape changes, so older files are rebuilt
 IMAGERY_MARGIN_M = 25.0
 _overpass_gate = threading.Semaphore(1)
 # aerial window radius -> tile zoom, chosen so the mosaic stays about six tiles across
@@ -75,19 +82,30 @@ MIN_ZOOM = 17
 
 
 # ---------------------------------------------------------------------------
-# OpenStreetMap: roads and building outlines in one request
+# OpenStreetMap: roads, building outlines and car parks in one request
 # ---------------------------------------------------------------------------
 
 
 def fetch_site(lat: float, lon: float) -> dict:
-    """Raw Overpass response with the roads and buildings around a point."""
+    """The roads, buildings, car parks and residential land around a point, as Overpass elements.
+
+    Read from the local OpenStreetMap index when it covers the point (milliseconds; see
+    ``ingest.unified.osm_local``), otherwise asked of the public Overpass server.
+    """
     from ingest.mp3d.aerial import OVERPASS_URL, ROAD_CLASS_RANK, USER_AGENT
+    from ingest.unified import osm_local
+
+    local = osm_local.fetch_site(lat, lon, max(ROAD_RADIUS_M, SURROUNDINGS_RADIUS_M))
+    if local is not None:
+        return local
 
     classes = "|".join(ROAD_CLASS_RANK)
+    near = f"around:{SURROUNDINGS_RADIUS_M:.0f},{lat},{lon}"
     query = (f"[out:json][timeout:25];("
              f'way(around:{ROAD_RADIUS_M:.0f},{lat},{lon})["highway"~"^({classes})$"];'
-             f'way(around:{BUILDING_RADIUS_M:.0f},{lat},{lon})["building"];'
-             f'relation(around:{BUILDING_RADIUS_M:.0f},{lat},{lon})["building"];'
+             f'way({near})["building"];relation({near})["building"];'
+             f'way({near})["amenity"="parking"];relation({near})["amenity"="parking"];'
+             f'way({near})["landuse"="residential"];relation({near})["landuse"="residential"];'
              f");out geom tags;")
     body = urllib.parse.urlencode({"data": query}).encode()
     last: Optional[Exception] = None
@@ -346,8 +364,10 @@ def build_context(bm: BuildingModel, geolocation=None, network: bool = True, ref
             payload = fetch_site(lat, lon)
             street, error = street_from_payload(payload, lat, lon)
             outline = building_from_payload(payload, lat, lon, single)
+            around = surroundings_from_payload(payload, lat, lon)
             with lock:
                 state["street"], state["street_error"], state["osm"] = street, error, outline
+                state["surroundings"] = around
         except Exception as exc:  # noqa: BLE001
             with lock:
                 state["street_error"] = f"OpenStreetMap lookup failed: {str(exc)[:120]}"
@@ -455,6 +475,10 @@ def _assemble(bm: BuildingModel, geo, state: dict, pending: bool) -> dict:
                              "latlng": [to_latlng(place, x, y) for x, y in ((bx0, by0), (bx0, by1), (bx1, by1), (bx1, by0))]})
     context["outlines"] = outlines
     context["footprint_latlng"] = [to_latlng(place, x, y) for x, y in ((x0, y0), (x0, y1), (x1, y1), (x1, y0))] if geo else []
+    # what the windows look at; the OSM tracings of the modelled building itself are flagged so
+    # that no window "sees" its own wall. None until OpenStreetMap has answered.
+    middle = to_latlng(place, (x0 + x1) / 2, (y0 + y1) / 2) if geo else None
+    context["surroundings"] = mark_own(state.get("surroundings"), (outline or {}).get("polygons_latlng") or [], middle)
 
     # aerial window: centred on everything that will be drawn, wide enough to hold it
     if geo:

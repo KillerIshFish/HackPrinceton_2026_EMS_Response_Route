@@ -2,13 +2,29 @@ import { useMemo } from "react";
 import { api } from "../api";
 import type { Approach, Building, BuildingMeta, LatLng, SiteTiles } from "../types";
 import { latLngToTile } from "../lib";
+import { MAP_COLORS, SiteMapLayer } from "./SiteMapLayer";
 
 interface Props {
   building: Building;
   meta: BuildingMeta;
   tiles: SiteTiles;
   approach: Approach;
+  /** "map": the street map drawn from OpenStreetMap features instead of the aerial image */
+  mode?: "aerial" | "map";
+  /**
+   * false while route planning is off (an active threat, confirmed or only suggested): the
+   * site and the building outline only. No entrance, staging spot, approach line or address
+   * marker is drawn or named.
+   */
+  showApproach?: boolean;
 }
+
+/** recommended staging is green so that it is not read as the (amber) entrance or outline */
+export const STAGING_COLOR = "#4ade80";
+const STAGING_INK = "#052e16";
+
+/** how far around the building the street map reaches: a little past what a window is taken to see */
+const MAP_REACH_M = 75;
 
 type Box = [number, number, number, number]; // x0, y0, x1, y1 in mosaic pixels
 
@@ -33,7 +49,9 @@ function niceScale(viewMetres: number): number {
  * cannot drift apart whatever size or shape the panel is given. The view is a window on the
  * mosaic fitted to what is drawn, and every overlay size is a fraction of that window.
  */
-export function AerialSite({ building, meta, tiles, approach }: Props) {
+export function AerialSite({ building, meta, tiles, approach, mode = "aerial", showApproach = true }: Props) {
+  const surroundings = meta.site.surroundings ?? null;
+  const asMap = mode === "map" && !!surroundings;
   const W = (tiles.x_max - tiles.x_min + 1) * tiles.tile_px;
   const H = (tiles.y_max - tiles.y_min + 1) * tiles.tile_px;
 
@@ -61,9 +79,11 @@ export function AerialSite({ building, meta, tiles, approach }: Props) {
   // Where the layout's positions on the ground are invented (several buildings on one
   // property), entrances and staging are not drawn: only the address point is real.
   const placed = meta.site.layout_placed !== false;
-  const entranceList = useMemo(() => (placed ? building.entrances : []), [placed, building]);
-  const stagingList = useMemo(() => (placed ? building.staging_spots : []), [placed, building]);
+  const entranceList = useMemo(() => (placed && showApproach ? building.entrances : []), [placed, showApproach, building]);
+  const stagingList = useMemo(() => (placed && showApproach ? building.staging_spots : []), [placed, showApproach, building]);
   const address = !placed && meta.site.address_latlng ? px(meta.site.address_latlng) : null;
+  /** the address point frames the view either way; its marker is drawn only with the approach */
+  const addressMarker = showApproach ? address : null;
   const recEntrance = entranceList.find((e) => e.id === approach.entrance_id);
   const recStaging = stagingList.find((s) => s.id === approach.staging_id);
 
@@ -81,12 +101,17 @@ export function AerialSite({ building, meta, tiles, approach }: Props) {
     const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
     const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
     const extent = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+    if (asMap) {
+      // the map is drawn, not fetched, so it is not held to the image mosaic
+      const side = extent + (2 * MAP_REACH_M) / tiles.m_per_px;
+      return { x: cx - side / 2, y: cy - side / 2, w: side, h: side };
+    }
     // room around the building for the street and the neighbours, never more than the mosaic holds
     const side = Math.min(Math.max(extent * 1.7, extent + 30 / tiles.m_per_px), W, H);
     const x = Math.min(Math.max(cx - side / 2, 0), W - side);
     const y = Math.min(Math.max(cy - side / 2, 0), H - side);
     return { x, y, w: side, h: side };
-  }, [outlines, entranceList, stagingList, address, px, W, H, tiles.m_per_px]);
+  }, [outlines, entranceList, stagingList, address, px, W, H, tiles.m_per_px, asMap]);
 
   const tileList = useMemo(() => {
     const out: { key: string; src: string; x: number; y: number }[] = [];
@@ -161,7 +186,8 @@ export function AerialSite({ building, meta, tiles, approach }: Props) {
       taken.push(fit.box);
       labels.push({ key: m.e.id, x: fit.x, y: fit.y, anchor: fit.anchor, text, rec: m.rec });
     }
-    return { entrances, badge, labels };
+    // `taken` also keeps the street map's place names out from under these markers and names
+    return { entrances, badge, labels, taken };
   }, [entranceList, approach, recStaging, px, u, fontPx, view]);
 
   const scaleM = niceScale(view.w * tiles.m_per_px);
@@ -171,17 +197,37 @@ export function AerialSite({ building, meta, tiles, approach }: Props) {
 
   return (
     <div>
-      <div className="mx-auto max-h-[420px] overflow-hidden rounded-sm bg-bg" style={{ aspectRatio: `${view.w} / ${view.h}` }}>
+      {/* At xl the console fills the window and this panel scrolls inside a tab, so the view is
+          also held to the height the window leaves under the bars above it (up to about 500px
+          of them): the whole site is then in sight without scrolling the tab. Names on the
+          view scale with it, so it is not taken below 430px, where street names would drop
+          under about 8px; on a shorter window the tab scrolls instead. */}
+      <div
+        className="mx-auto max-h-[680px] overflow-hidden rounded-sm bg-bg xl:max-h-[clamp(430px,calc(100vh_-_500px),680px)]"
+        style={{ aspectRatio: `${view.w} / ${view.h}` }}
+      >
         <svg
           viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
           className="block h-full w-full"
           role="img"
-          aria-label={`Aerial image of ${meta.name ?? building.name} with entrances, staging spots and the recommended approach. North is up.`}
+          aria-label={`${asMap ? "Street map" : "Aerial image"} of ${meta.name ?? building.name} ${
+            !showApproach
+              ? "with the building outline only; route planning is off"
+              : placed
+                ? "with entrances, staging spots and the recommended approach"
+                : addressMarker
+                  ? "with the building outline and the address point of the property"
+                  : "with the building outline"
+          }. North is up.`}
         >
           <rect x={view.x} y={view.y} width={view.w} height={view.h} fill="#0e151d" />
-          {tileList.map((t) => (
-            <image key={t.key} href={t.src} x={t.x} y={t.y} width={tiles.tile_px + 0.5} height={tiles.tile_px + 0.5} preserveAspectRatio="none" />
-          ))}
+          {asMap && surroundings ? (
+            <SiteMapLayer surroundings={surroundings} px={px} view={view} u={u} mPerPx={tiles.m_per_px} fontPx={fontPx} avoid={layout.taken} />
+          ) : (
+            tileList.map((t) => (
+              <image key={t.key} href={t.src} x={t.x} y={t.y} width={tiles.tile_px + 0.5} height={tiles.tile_px + 0.5} preserveAspectRatio="none" />
+            ))
+          )}
 
           {outlines.map((o, i) => {
             const points = o.points.map((p) => p.join(",")).join(" ");
@@ -248,11 +294,11 @@ export function AerialSite({ building, meta, tiles, approach }: Props) {
                 width={layout.badge.w}
                 height={layout.badge.h}
                 rx={3 * u}
-                fill="#f2a93b"
+                fill={STAGING_COLOR}
                 stroke="#0b1016"
                 strokeWidth={1.5 * u}
               />
-              <text x={layout.badge.cx} y={layout.badge.cy + fontPx * 0.36} textAnchor="middle" fontSize={fontPx} fontWeight="700" fill="#1a1204">
+              <text x={layout.badge.cx} y={layout.badge.cy + fontPx * 0.36} textAnchor="middle" fontSize={fontPx} fontWeight="700" fill={STAGING_INK}>
                 STG
               </text>
             </g>
@@ -275,14 +321,14 @@ export function AerialSite({ building, meta, tiles, approach }: Props) {
             </text>
           ))}
 
-          {address ? (
+          {addressMarker ? (
             <g>
               <title>Address point of the property</title>
-              <circle cx={address[0]} cy={address[1]} r={9 * u} fill="#f2a93b" stroke="#0b1016" strokeWidth={2 * u} />
-              <circle cx={address[0]} cy={address[1]} r={3 * u} fill="#0b1016" />
+              <circle cx={addressMarker[0]} cy={addressMarker[1]} r={9 * u} fill="#f2a93b" stroke="#0b1016" strokeWidth={2 * u} />
+              <circle cx={addressMarker[0]} cy={addressMarker[1]} r={3 * u} fill="#0b1016" />
               <text
-                x={address[0] + 14 * u}
-                y={address[1] + fontPx * 0.36}
+                x={addressMarker[0] + 14 * u}
+                y={addressMarker[1] + fontPx * 0.36}
                 fontSize={fontPx}
                 fontWeight="700"
                 fill="#f2a93b"
@@ -314,9 +360,16 @@ export function AerialSite({ building, meta, tiles, approach }: Props) {
         </svg>
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-ink-mute">
-        <span className="flex items-center gap-1.5">
-          <span className="block h-2 w-4 bg-accent" aria-hidden /> {placed ? "Recommended entrance / staging" : "Address point"}
-        </span>
+        {showApproach ? (
+          <span className="flex items-center gap-1.5">
+            <span className="block h-2 w-4 bg-accent" aria-hidden /> {placed ? "Recommended entrance" : "Address point"}
+          </span>
+        ) : null}
+        {placed && recStaging ? (
+          <span className="flex items-center gap-1.5">
+            <span className="block h-2 w-4" style={{ background: STAGING_COLOR }} aria-hidden /> Recommended staging
+          </span>
+        ) : null}
         <span className="flex items-center gap-1.5">
           <span className="block h-2 w-4 border-2 border-accent" aria-hidden />
           {hasReal ? `Building outline (${real?.source ?? "surveyed"})` : generated ? "Generated layout extent" : "Building outline"}
@@ -329,14 +382,37 @@ export function AerialSite({ building, meta, tiles, approach }: Props) {
         {!placed ? (
           <span className="basis-full text-ink-dim">
             {meta.site.buildings && meta.site.buildings > 1 ? `${meta.site.buildings} buildings on this property. ` : ""}
-            Their positions are not in the data, so entrances and staging are not placed on the image: stage at the address point.
+            {showApproach
+              ? "Their positions are not in the data, so entrances and staging are not placed on the image: stage at the address point."
+              : "Their positions on the site are not in the data."}
           </span>
         ) : null}
+        {asMap ? (
+          <>
+            {(
+              [
+                [MAP_COLORS.road, "Street"],
+                [MAP_COLORS.parking, "Car park"],
+                [MAP_COLORS.residential, "House"],
+                [MAP_COLORS.building, "Other building"],
+              ] as const
+            ).map(([color, label]) => (
+              <span key={label} className="flex items-center gap-1.5">
+                <span className="block h-2 w-4" style={{ background: color }} aria-hidden /> {label}
+              </span>
+            ))}
+            {(surroundings?.places?.length ?? 0) > 0 ? (
+              <span className="flex items-center gap-1.5">
+                <span className="block h-2 w-2 rounded-full" style={{ background: MAP_COLORS.place }} aria-hidden /> Named place
+              </span>
+            ) : null}
+          </>
+        ) : null}
         <span className="ml-auto">
-          Imagery: Vexcel ·{" "}
+          {asMap ? "Map data © OpenStreetMap contributors" : "Imagery: Vexcel"} ·{" "}
           {placement
             ? placed
-              ? `placed by ${placement}${generated ? "; size and entrances are generated" : ""}`
+              ? `placed by ${placement}${generated ? (showApproach ? "; size and entrances are generated" : "; size is generated") : ""}`
               : placement
             : "positions annotated by hand, approximate"}
         </span>

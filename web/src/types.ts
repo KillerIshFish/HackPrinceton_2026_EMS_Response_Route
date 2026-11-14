@@ -189,6 +189,24 @@ export interface ClientConfig {
   vexcel_available: boolean;
 }
 
+/** one thing on the ground near the building, from OpenStreetMap */
+export interface SiteFeature {
+  class: "street" | "parking_lot" | "residential" | "adjacent_building";
+  shape: "line" | "area";
+  name: string;
+  /** true for the map's own tracing of the modelled building */
+  own: boolean;
+  latlng: LatLng[];
+}
+
+/** roads, car parks, neighbouring buildings and named places around the building */
+export interface SiteSurroundings {
+  source: string;
+  features: SiteFeature[];
+  places?: { name: string; kind: string; latlng: LatLng }[];
+  counts: Record<string, number>;
+}
+
 export interface SiteTiles {
   layer: string;
   zoom: number;
@@ -301,6 +319,8 @@ export interface BuildingMeta {
     buildings?: number;
     /** true while the OpenStreetMap lookup that refines the placement is still running */
     pending?: boolean;
+    /** what stands around the building; drawn as the site map and used for window views */
+    surroundings?: SiteSurroundings | null;
     tiles?: SiteTiles;
   };
   matterport_models: MatterportModel[];
