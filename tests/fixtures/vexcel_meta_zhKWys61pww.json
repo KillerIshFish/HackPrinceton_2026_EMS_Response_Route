@@ -1,0 +1,44 @@
+{
+ "oriented_collections": {
+  "features": [
+   {
+    "properties": {
+     "collection": "us-tx-houstonr2-2023",
+     "last-capture-date": "2026-01-29T20:29:30",
+     "product-type": "oblique-south"
+    }
+   },
+   {
+    "properties": {
+     "collection": "us-tx-houstonr2-2021",
+     "last-capture-date": "2023-01-12T18:37:26",
+     "product-type": "oblique-north"
+    }
+   }
+  ]
+ },
+ "property": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      [
+       [
+        [
+         -95.4157266,
+         29.8102434
+        ]
+       ]
+      ]
+     ],
+     "type": "MultiPolygon"
+    },
+    "properties": {
+     "metadata.collection": "us-tx-houstonr2-2023",
+     "request-information.inside-parcel": true,
+     "structure.count": 1
+    }
+   }
+  ]
+ }
+}
