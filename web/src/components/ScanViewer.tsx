@@ -244,6 +244,8 @@ export function ScanViewer({ building, meta, posterior, sdkKey, pinnedRoomId, on
     : null;
   const p = roomId ? (posterior.room_probs[roomId] ?? 0) : 0;
   const modeLabel = mode === "dollhouse" ? "dollhouse" : "floor plan";
+  /** a generated building's scans are of unit types, not of the individual rooms */
+  const unitTypeScans = meta.kind === "generated";
   /** an overview mode the scan's owner switched off in Matterport (the viewer refuses it) */
   const modeOff = (key: ViewMode) =>
     (key === "dollhouse" && model?.dollhouse_enabled === false) || (key === "floorplan" && model?.floorplan_enabled === false);
@@ -350,7 +352,9 @@ export function ScanViewer({ building, meta, posterior, sdkKey, pinnedRoomId, on
         </span>
         {rm?.tenant ? <span>Tenant: {rm.tenant}</span> : rm?.status ? <span>Suite {rm.status}</span> : null}
         <span className="ml-auto text-[11px] text-ink-mute">
-          {scanned.length} of {building.rooms.length} rooms are scanned
+          {unitTypeScans
+            ? `${scanned.length} of ${building.rooms.length} units have a scan of their unit type`
+            : `${scanned.length} of ${building.rooms.length} rooms are scanned`}
           {steer === "ready"
             ? mode !== "inside"
               ? inMode
@@ -359,7 +363,9 @@ export function ScanViewer({ building, meta, posterior, sdkKey, pinnedRoomId, on
                   ? ` - the viewer did not switch to the ${modeLabel} view`
                   : ` - switching to the ${modeLabel} view…`
               : !sweepId
-                ? " - no scan position for this room"
+                ? unitTypeScans
+                  ? " - showing the scan of this unit type"
+                  : " - no scan position for this room"
                 : inRoom
                   ? " - viewer is in this room"
                   : gaveUp

@@ -18,6 +18,9 @@ const SITE_MARGIN_M = 6; // context drawn around the outermost feature
 const BAND_M = 14; // minimum depth of the parking-lot / street bands
 
 /** Site view (Vexcel aerial imagery when available, otherwise a schematic) + approach recommendation. */
+/** entrances listed by walking time; the rest are summarised */
+const MAX_LISTED_ENTRANCES = 8;
+
 export function AerialApproach({ building, plan, approach, meta }: Props) {
   const tiles = meta?.site.tiles ?? null;
   const geo = useMemo(() => {
@@ -57,6 +60,8 @@ export function AerialApproach({ building, plan, approach, meta }: Props) {
   ];
   const barMax = Math.max(1, ...bars.map((b) => b.value));
 
+  /** a property whose buildings could not be placed on the map: only the address point is real */
+  const unplaced = meta?.site.layout_placed === false;
   const otherEntrances = Object.entries(approach.entrance_expected_travel_s).sort((a, b) => a[1] - b[1]);
 
   return (
@@ -199,13 +204,16 @@ export function AerialApproach({ building, plan, approach, meta }: Props) {
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[13px]">
           <dt className="text-ink-mute">Stage at</dt>
           <dd className="text-ink">
-            <span className="font-medium">{approach.staging_name}</span>
+            <span className="font-medium">{unplaced ? "The address point" : approach.staging_name}</span>
             <span className="num ml-2 text-[11px] text-ink-dim">
               {approach.staging_latlng[0].toFixed(5)}, {approach.staging_latlng[1].toFixed(5)}
             </span>
           </dd>
           <dt className="text-ink-mute">Enter via</dt>
-          <dd className="font-medium text-accent">{approach.entrance_name}</dd>
+          <dd className="font-medium text-accent">
+            {approach.entrance_name}
+            {unplaced ? <span className="ml-2 text-[11px] font-normal text-ink-mute">its position on the site is not known</span> : null}
+          </dd>
           <dt className="text-ink-mute">Go up</dt>
           <dd className="text-ink">
             {approach.stairwell_name ? (
@@ -221,7 +229,7 @@ export function AerialApproach({ building, plan, approach, meta }: Props) {
             <>
               <dt className="text-ink-mute">Entrances</dt>
               <dd className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-ink-dim">
-                {otherEntrances.map(([id, s]) => {
+                {otherEntrances.slice(0, MAX_LISTED_ENTRANCES).map(([id, s]) => {
                   const name = building.entrances.find((e) => e.id === id)?.name ?? id;
                   return (
                     <span key={id} className={id === approach.entrance_id ? "text-ink" : ""} title="Probability-weighted walking time from this entrance">
@@ -229,6 +237,9 @@ export function AerialApproach({ building, plan, approach, meta }: Props) {
                     </span>
                   );
                 })}
+                {otherEntrances.length > MAX_LISTED_ENTRANCES ? (
+                  <span className="text-ink-mute">and {otherEntrances.length - MAX_LISTED_ENTRANCES} more, slower</span>
+                ) : null}
               </dd>
             </>
           ) : null}

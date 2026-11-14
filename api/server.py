@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 from typing import Any, Optional
 
 from dotenv import load_dotenv
@@ -475,15 +476,37 @@ def _site_tiles(meta: dict) -> Optional[dict]:
     )
 
 
+_tile_windows: dict = {"at": 0.0, "windows": []}
+TILE_WINDOW_TTL_S = 5.0
+
+
+def _tile_allowed(layer: str, z: int, x: int, y: int) -> bool:
+    """True when the tile lies in some known building's site window.
+
+    A panel asks for dozens of tiles at once, so the windows are read from the building
+    metadata once and reused for a few seconds rather than once per tile.
+    """
+    now = time.monotonic()
+    if now - _tile_windows["at"] > TILE_WINDOW_TTL_S:
+        windows = []
+        for b in list_buildings():
+            t = _site_tiles(load_meta(b.id))
+            if t:
+                windows.append(t)
+        _tile_windows["at"], _tile_windows["windows"] = now, windows
+    hit = any(t["layer"] == layer and t["zoom"] == z and t["x_min"] <= x <= t["x_max"] and t["y_min"] <= y <= t["y_max"]
+              for t in _tile_windows["windows"])
+    if not hit and now - _tile_windows["at"] > 0.5:
+        # a building generated a moment ago is not in the cached list yet: look again once
+        _tile_windows["at"] = 0.0
+        return _tile_allowed(layer, z, x, y)
+    return hit
+
+
 @app.get("/vexcel/tile/{layer}/{z}/{x}/{y}")
 def vexcel_tile(layer: str, z: int, x: int, y: int) -> Response:
     """One aerial tile (JPEG). Only tiles inside a known building's site window are served."""
-    allowed = False
-    for b in list_buildings():
-        t = _site_tiles(load_meta(b.id))
-        if t and t["layer"] == layer and t["zoom"] == z and t["x_min"] <= x <= t["x_max"] and t["y_min"] <= y <= t["y_max"]:
-            allowed = True
-            break
+    allowed = _tile_allowed(layer, z, x, y)
     if not allowed:
         raise HTTPException(status_code=404, detail="Tile is outside every building's site window")
     try:

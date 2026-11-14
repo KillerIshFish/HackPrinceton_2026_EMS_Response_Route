@@ -219,3 +219,137 @@ def test_every_sampled_property_builds_offline() -> None:
         b = to_building(bm)
         assert b.rooms and b.entrances, pid
         assert nx.is_connected(build_graph(b)), pid
+
+
+# ---------------------------------------------------------------------------
+# Site context: where the model sits on the map (no network: the sources are faked)
+# ---------------------------------------------------------------------------
+
+
+def _rect_latlng(lat: float, lng: float, length: float, width: float, axis_deg: float) -> list[list[float]]:
+    """A length x width rectangle centred on (lat, lng), long side at ``axis_deg`` from east."""
+    from ingest.georegister import local_to_latlng
+
+    corners = [(-length / 2, -width / 2), (length / 2, -width / 2), (length / 2, width / 2), (-length / 2, width / 2)]
+    return [list(local_to_latlng(x, y, (lat, lng), axis_deg)) for x, y in corners]
+
+
+def test_oriented_box_and_vexcel_structure_choice() -> None:
+    from ingest.georegister import latlng_to_local
+    from ingest.unified.context import oriented_box, structures_from_property
+
+    ring = _rect_latlng(34.0, -118.0, 60.0, 20.0, 30.0)
+    box = oriented_box([latlng_to_local(la, lo, (34.0, -118.0)) for la, lo in ring])
+    assert abs(box["length_m"] - 60.0) < 0.1 and abs(box["width_m"] - 20.0) < 0.1 and abs(box["axis_deg"] - 30.0) < 0.5
+
+    def wkt(points) -> str:
+        return "MULTIPOLYGON (((" + ", ".join(f"{lo} {la}" for la, lo in points + points[:1]) + ")))"
+
+    shed = _rect_latlng(34.0003, -118.0, 6.0, 4.0, 0.0)
+    old = _rect_latlng(34.0, -118.0, 30.0, 20.0, 0.0)
+    data = {"features": [
+        {"properties": {"metadata.layer-name": "urban", "metadata.ortho-date-estimate": "2021-01-01",
+                        "structures": [{"footprint.wkt": wkt(old)}]}},
+        {"properties": {"metadata.layer-name": "urban", "metadata.ortho-date-estimate": "2025-06-01",
+                        "structures": [{"footprint.wkt": wkt(ring)}, {"footprint.wkt": wkt(shed)}]}},
+        {"properties": {"metadata.layer-name": "urban-r", "metadata.ortho-date-estimate": "2026-01-01",
+                        "structures": [{"footprint.wkt": wkt(old)}]}},
+    ]}
+    out = structures_from_property(data, 34.0, -118.0)
+    # newest vintage of the layer the tiles come from, and the structure the address point is in
+    assert out["source"] == "Vexcel" and out["match"] == "contains the address point"
+    assert abs(out["length_m"] - 60.0) < 0.5 and abs(out["axis_deg"] - 30.0) < 1.0
+    assert structures_from_property({"features": []}, 34.0, -118.0) is None
+
+
+def test_generated_building_is_placed_on_the_real_outline(tmp_path, monkeypatch) -> None:
+    import threading
+    import time
+
+    from ingest.georegister import latlng_to_local
+    from ingest.unified import context as ctx_mod
+
+    monkeypatch.setattr(ctx_mod, "CONTEXT_DIR", tmp_path)
+    address = (34.0, -118.0)
+    centre = (34.0002, -118.0003)  # the building's middle is not the address point
+    ring = _rect_latlng(centre[0], centre[1], 50.0, 18.0, 40.0)
+    outline = ctx_mod._outline("Vexcel", [ctx_mod._measure([latlng_to_local(la, lo, address) for la, lo in ring])],
+                               "contains the address point", *address)
+    release = threading.Event()
+
+    def slow_roads(lat, lon):
+        release.wait(5.0)
+        return {"elements": []}
+
+    monkeypatch.setattr(ctx_mod, "fetch_vexcel_outline", lambda lat, lon, single=True: outline)
+    monkeypatch.setattr(ctx_mod, "fetch_site", slow_roads)
+    bm = build_property_model(_facts())
+    late: list[dict] = []
+    started = time.perf_counter()
+    ctx = ctx_mod.build_context(bm, address, deadline_s=1.5, on_late=late.append)
+    assert time.perf_counter() - started < 2.5, "a slow street lookup does not hold the call up"
+    assert ctx["pending"] is True and ctx["placement_source"].startswith("the Vexcel building outline")
+    assert ctx["anchor_latlng"] == outline["centre_latlng"] and ctx["layout_placed"] is True
+    # the layout is turned along the real outline and fitted to its box
+    assert min(abs(ctx["yaw_deg"] - a) for a in (40.0, -140.0)) < 1.0
+    x0, y0, x1, y1 = (min(p[i] for s in bm.spaces for p in s.polygon) if f == "min" else
+                      max(p[i] for s in bm.spaces for p in s.polygon) for f, i in (("min", 0), ("min", 1), ("max", 0), ("max", 1)))
+    assert abs(ctx["fit_scale"][0] * (x1 - x0) - 50.0) < 0.6 and abs(ctx["fit_scale"][1] * (y1 - y0) - 18.0) < 0.6
+    assert [o["kind"] for o in ctx["outlines"]] == ["building"], "fitted: the real outline is the only one drawn"
+
+    b = to_building(bm, ctx)
+    for e in b.entrances:  # every entrance lies on the real building's box, not out in the street
+        east, north = latlng_to_local(e["latlng"][0], e["latlng"][1], centre, 40.0)
+        assert abs(east) <= 25.5 and abs(north) <= 9.5, e["name"]
+    for s in b.staging_spots:  # and staging is a true 7 m outside it, whatever the fit scale
+        east, north = latlng_to_local(s["latlng"][0], s["latlng"][1], centre, 40.0)
+        assert 15.0 < abs(north) < 17.5
+
+    release.set()  # the street lookup returns late: the sidecar is completed and the caller told
+    for _ in range(50):
+        if late:
+            break
+        time.sleep(0.05)
+    assert late and late[-1]["pending"] is False
+
+
+def test_multi_building_property_is_not_drawn_at_invented_positions(tmp_path, monkeypatch) -> None:
+    from ingest.unified import context as ctx_mod
+
+    monkeypatch.setattr(ctx_mod, "CONTEXT_DIR", tmp_path)
+    facts = _facts(num_buildings=3, style="garden", stories=2, has_elevator=False)
+    for i, u in enumerate(facts["units"]):
+        u["building"] = "ABC"[i % 3]
+        u["number"] = f"{1 + i % 2}{i:02d}"
+    bm = build_property_model(facts)
+    assert bm.stats["blocks"] == 3
+    ctx = ctx_mod.build_context(bm, (34.0, -118.0), network=False)
+    assert ctx["layout_placed"] is False and ctx["outlines"] == []
+    b = to_building(bm, ctx)
+    assert {tuple(e["latlng"]) for e in b.entrances} == {(34.0, -118.0)}, "only the address point is real"
+    assert {tuple(s["latlng"]) for s in b.staging_spots} == {(34.0, -118.0)}
+
+
+def test_unit_numbers_beyond_the_recorded_storeys_are_trusted() -> None:
+    units = [{"id": str(i), "number": f"{floor}{n:02d}", "building": "", "type": "A", "beds": 1, "baths": 1,
+              "area_m2": 60.0, "scans": []} for i, (floor, n) in enumerate((f, n) for f in range(2, 7) for n in range(1, 7))]
+    roster = build_roster(_facts(stories=5, units=units))
+    assert roster["scheme"] == "floor_hundreds" and roster["stories"] == 6
+    assert {s["floor"] for s in roster["slots"]} == {2, 3, 4, 5, 6} and all(s["floor_source"] == "number" for s in roster["slots"])
+
+
+def test_search_plan_stays_fast_for_a_large_building() -> None:
+    import time
+
+    from planning.search_order import plan_search
+
+    units = [{"id": str(i), "number": f"{floor}{n:02d}", "building": "", "type": "A", "beds": 1, "baths": 1,
+              "area_m2": 60.0, "scans": []} for i, (floor, n) in enumerate((f, n) for f in range(1, 10) for n in range(1, 61))]
+    b = to_building(build_property_model(_facts(stories=9, units=units, total_units=len(units))))
+    assert len(b.rooms) > 500
+    probs = {r.id: 1.0 / len(b.rooms) for r in b.rooms}
+    plan_search(b, probs, 0.0)  # first call builds the graph and the travel table
+    started = time.perf_counter()
+    plan = plan_search(b, probs, 0.0)
+    assert time.perf_counter() - started < 3.0
+    assert plan.teams[0] and plan.expected_time_to_find_s > 0

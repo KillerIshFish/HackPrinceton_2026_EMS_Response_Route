@@ -79,6 +79,11 @@ function sideFacing(rooms: Room[], north: boolean, midY: number): string | null 
   return best;
 }
 
+/** floors beyond this are chosen from a menu instead of a row of tabs */
+const MAX_FLOOR_TABS = 8;
+const BADGE_R = 7.5;
+const BADGE_R_NEXT = 9;
+
 export function FloorPlanHeatmap({
   building,
   posterior,
@@ -135,6 +140,30 @@ export function FloorPlanHeatmap({
   }, [plan]);
   const multiTeam = plan.teams.length > 1;
 
+  // Where each stop badge goes on this floor. A badge sits in its room's top-right corner
+  // when the room is big enough to hold it, otherwise on the room's centre. Badges are
+  // placed in stop order and one that would cover an earlier badge is left out (the stop is
+  // still in the search plan list), so a floor of small rooms never turns into a pile of discs.
+  const badges = useMemo(() => {
+    const placed: { roomId: string; x: number; y: number; r: number; centred: boolean }[] = [];
+    const onFloor = rooms
+      .map((room) => ({ room, mark: stopMarks.get(room.id) }))
+      .filter((m): m is { room: Room; mark: StopMark } => !!m.mark)
+      .sort((a, b) => a.mark.index - b.mark.index || a.mark.team - b.mark.team);
+    for (const { room, mark } of onFloor) {
+      const b = boundsOf(room.polygon);
+      const w = (b.maxX - b.minX) * S;
+      const h = (b.maxY - b.minY) * S;
+      const r = mark.index === 0 ? BADGE_R_NEXT : BADGE_R;
+      const roomy = w >= 4 * r && h >= 4 * r;
+      const x = roomy ? (b.maxX - bounds.minX) * S + PAD_X - r - 2 : ((b.minX + b.maxX) / 2 - bounds.minX) * S + PAD_X;
+      const y = roomy ? (bounds.maxY - b.maxY) * S + PAD_Y + r + 2 : (bounds.maxY - (b.minY + b.maxY) / 2) * S + PAD_Y;
+      if (placed.some((p) => Math.hypot(p.x - x, p.y - y) < p.r + r + 1.5)) continue;
+      placed.push({ roomId: room.id, x, y, r, centred: !roomy });
+    }
+    return new Map(placed.map((p) => [p.roomId, p]));
+  }, [rooms, stopMarks, S, bounds]);
+
   const midY = (bounds.minY + bounds.maxY) / 2;
   const northFacing = sideFacing(building.rooms, true, midY);
   const southFacing = sideFacing(building.rooms, false, midY);
@@ -163,7 +192,25 @@ export function FloorPlanHeatmap({
       actions={
         <>
           <span className="num text-xs text-ink-dim">P(floor) {pct(floorP)}</span>
-          <div className="flex overflow-hidden rounded border border-line" role="tablist" aria-label="Floor">
+          {floorsTopDown.length > MAX_FLOOR_TABS ? (
+            <select
+              aria-label="Floor"
+              value={floor}
+              onChange={(e) => onSelectFloor(Number(e.target.value))}
+              className="num rounded border border-line bg-bg px-1.5 py-1 text-xs text-ink"
+            >
+              {floorsTopDown.map((f) => (
+                <option key={f} value={f}>
+                  Floor {labels.get(f) ?? f}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          <div
+            className={`overflow-hidden rounded border border-line ${floorsTopDown.length > MAX_FLOOR_TABS ? "hidden" : "flex"}`}
+            role="tablist"
+            aria-label="Floor"
+          >
             {floorsTopDown.map((f) => {
               const active = f === floor;
               return (
@@ -311,14 +358,17 @@ export function FloorPlanHeatmap({
             const pctFits = w >= 30 && h >= 14 && p >= 0.001;
             const shownName = h >= (pctFits ? 30 : 14) ? fitName(room.name, w) : null;
             const nameFits = shownName !== null;
-            const mark = stopMarks.get(room.id);
+            const badge = badges.get(room.id);
+            const mark = badge ? stopMarks.get(room.id) : undefined;
             const isNext = mark?.index === 0;
-            const mx = X(b.maxX) - 11;
-            const my = Y(b.maxY) + 11;
+            const mx = badge?.x ?? 0;
+            const my = badge?.y ?? 0;
+            // a badge centred on a small room takes the place of that room's text
+            const textHidden = !!badge?.centred && !cleared.has(room.id);
             const markLabel = mark ? `${multiTeam ? String.fromCharCode(65 + mark.team) : ""}${mark.index + 1}` : "";
             return (
               <g key={room.id} pointerEvents="none">
-                {nameFits ? (
+                {nameFits && !textHidden ? (
                   <text
                     x={cx}
                     y={pctFits ? cy - 3 : cy + 3.5}
@@ -331,7 +381,7 @@ export function FloorPlanHeatmap({
                     {shownName}
                   </text>
                 ) : null}
-                {pctFits ? (
+                {pctFits && !textHidden ? (
                   <text
                     x={cx}
                     y={nameFits ? cy + 12 : cy + 4}
@@ -346,11 +396,11 @@ export function FloorPlanHeatmap({
                 ) : null}
                 {mark && !isCleared ? (
                   <g>
-                    {isNext ? <circle cx={mx} cy={my} r={9} fill="#f2a93b" className="next-stop-ring" /> : null}
+                    {isNext ? <circle cx={mx} cy={my} r={BADGE_R_NEXT} fill="#f2a93b" className="next-stop-ring" /> : null}
                     <circle
                       cx={mx}
                       cy={my}
-                      r={isNext ? 9 : 7.5}
+                      r={isNext ? BADGE_R_NEXT : BADGE_R}
                       fill={isNext ? "#f2a93b" : "#0b1016"}
                       stroke={isNext ? "#0b1016" : "#f2a93b"}
                       strokeWidth={1.5}

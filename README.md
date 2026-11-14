@@ -87,7 +87,7 @@ Things to try in the console:
 Other commands:
 
 ```bash
-uv run pytest                                    # 132 tests, no network (some skip without data/)
+uv run pytest                                    # 137 tests, no network (some skip without data/)
 uv run python -m ingest.unified "165 N Hoover St" # generate a building from an address, live
 uv run python -m eval.run_eval --n 200 --seed 0  # simulated-caller metrics table (synthetic building)
 uv run python -m ingest.inventory                # which raw data folders are populated
@@ -264,7 +264,7 @@ and opened. `http://localhost:5173/?building=prop-4405016` opens one directly.
 | Floor stack and roster | Storeys, storey height, and every unit or tenant on a floor (`roster.py`). Unit numbers are decoded by scheme: "304" is floor 3, "7156" floor 7, "01-0317" building 1 floor 3 | 1 ms |
 | Unit-type scans | Scans listed for a unit type are checked with Track A's `preflight()` and, when buildable, fetched as a `Model3D` (`stamp.py`). Cached after the first call | 0.2-0.5 s per new scan |
 | Archetype layout | Corridor bar, garden walk-up, central core, bays, or a bare floor stack (`layout.py`); scanned interiors stamped into every unit of their type, a generic bed/bath layout elsewhere | 2-100 ms |
-| Site context | Street bearing from OSM, placement on the map, imagery window (`context.py`). A sidecar file, never part of the model. Waits at most 4 s for OSM | up to 4 s |
+| Site context | Where the model sits on the map (`context.py`): the real building outline from Vexcel's property data, the street from OSM, the aerial window. A sidecar file, never part of the model | about 1 s |
 | Projection | `core.schema.Building` for the posterior and the search plan, and the 3D viewer payload (`project.py`) | 5 ms |
 
 Everything meets in one schema, `BuildingModel` (`schema.py`): levels, spaces, walls with
@@ -301,9 +301,36 @@ What is not real, and says so in the model's notes:
 - A stamped interior is stretched to its slot, so room proportions follow the slot.
 - Only the side facing the street bearing is labelled; other sides have no view.
 
+**Placement on the map.** A property's coordinates are an address point, usually at the
+kerb, so a model centred on them lands on the street or the neighbours. The sidecar
+therefore looks up the real building outline (Vexcel `property/extract`: the structures
+on the parcel, newest vintage of the imagery layer in use, about a third of a second) and:
+
+- centres a generated building on that outline, turns its long side along the outline's
+  long side, and fits its extent to the outline's box, so entrances land on the building.
+  Which of the two long sides is the front comes from the street bearing (OSM), or, until
+  that arrives, from which side the address point is on;
+- for a property with several buildings, draws only the address point and the real
+  outline there: the grid the buildings are generated on is invented, so none of it is
+  put on the map and staging is given as the address point;
+- leaves a scan where its own geolocation and yaw put it.
+
+OSM's public Overpass server can take a minute or refuse connections. The pipeline waits
+one second for it once the outline has placed the building (four without an outline) and
+carries on; when the answer arrives the sidecar is completed, the building is re-projected,
+and the web app picks the change up. Requests run one at a time, and after a failure none
+is sent for five minutes.
+
 **3D viewer.** The "3D model" panel draws the `BuildingModel` of whichever building is
 open, coloured by the posterior, with the next stop marked. Cutaway shows the selected
-floor and those below it. Double-click a room to select it.
+floor and those below it. Double-click a room to select it. The camera frames whatever
+is on show, whatever the panel's shape and however long, flat or tall the building is;
+"Reset view" frames it again after the camera has been moved.
+
+**Aerial view.** Imagery and overlay are drawn in one coordinate system, so the outline
+cannot drift off the picture. The view is fitted to the building, labels are placed so
+they do not cover each other, and a site with many entrances names only the recommended
+one on the image.
 
 ## Repo layout and ownership
 

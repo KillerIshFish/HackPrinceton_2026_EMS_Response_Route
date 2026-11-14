@@ -248,8 +248,21 @@ export interface BuildingMeta {
   address?: string;
   center_latlng?: LatLng;
   site: {
+    /** "generated" | "scan" for buildings made at call time; absent for hand-annotated sites */
     source?: string;
     footprint_latlng: LatLng[];
+    /** what to outline on the aerial: the real building (OpenStreetMap) and the model's own extent */
+    outlines?: { kind: string; source?: string; latlng: LatLng[] }[];
+    /** what fixed the model's position and orientation on the map, in words */
+    placement_source?: string | null;
+    /** false when the layout's positions on the map are invented (several buildings on one property):
+     *  only the address point and the real outline there are drawn */
+    layout_placed?: boolean;
+    address_latlng?: LatLng | null;
+    /** number of buildings on the property */
+    buildings?: number;
+    /** true while the OpenStreetMap lookup that refines the placement is still running */
+    pending?: boolean;
     tiles?: SiteTiles;
   };
   matterport_models: MatterportModel[];

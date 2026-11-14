@@ -119,6 +119,35 @@ export default function App() {
     };
   }, [buildingId]);
 
+  // A generated building's position on the map is refined when the OpenStreetMap lookup
+  // returns (it can take a minute). While that is pending, ask for the metadata again and,
+  // once it has settled, reload the buildings so entrances and staging carry the new position.
+  const sitePending = meta?.building_id === buildingId && meta?.site.pending === true;
+  useEffect(() => {
+    if (!sitePending || !buildingId) return;
+    let cancelled = false;
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      tries += 1;
+      if (tries > 30) window.clearInterval(timer);
+      api
+        .buildingMeta(buildingId)
+        .then(async (m) => {
+          if (cancelled || m.site.pending) return;
+          window.clearInterval(timer);
+          const buildings = await api.buildings();
+          if (cancelled) return;
+          setAllBuildings(buildings);
+          setMeta(m);
+        })
+        .catch(() => undefined);
+    }, 6000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [sitePending, buildingId]);
+
   const scannedRoomIds = useMemo(
     () => new Set(Object.entries(meta?.rooms ?? {}).filter(([, m]) => m.model_id).map(([id]) => id)),
     [meta],
