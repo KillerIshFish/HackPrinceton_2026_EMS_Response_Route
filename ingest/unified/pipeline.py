@@ -149,10 +149,15 @@ def _meta(bm: BuildingModel, building, context: Optional[dict], facts: Optional[
                  "layout_placed": (context or {}).get("layout_placed", True),
                  "address_latlng": (context or {}).get("geolocation"),
                  "buildings": int(bm.stats.get("blocks") or 1),
-                 "pending": bool((context or {}).get("pending"))},
+                 "pending": bool((context or {}).get("pending")),
+                 # what is drawn on the site map: roads, car parks, neighbouring buildings, named places
+                 "surroundings": (context or {}).get("surroundings")},
         "matterport_models": models, "room_sources": dict(sources), "rooms": rooms,
         "model": {"tier": bm.tier, "archetype": bm.archetype, "stats": bm.stats, "scans": scans,
-                  "street": (context or {}).get("street")},
+                  "street": (context or {}).get("street"),
+                  "surroundings": {k: ((context or {}).get("surroundings") or {}).get(k)
+                                   for k in ("source", "counts", "own_buildings")}
+                  if (context or {}).get("surroundings") else None},
         "caveats": list(bm.notes) + _fit_caveat(context),
     }
 

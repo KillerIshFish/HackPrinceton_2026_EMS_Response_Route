@@ -1,10 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Ban, Footprints, MoveVertical, Navigation, TriangleAlert } from "lucide-react";
-import { api } from "../api";
-import type { Approach, Building, BuildingMeta, LatLng, Policy, SearchPlan, SiteTiles, XY } from "../types";
-import { buildingBounds, latLngToTile, mmss, titleCase } from "../lib";
+import type { Approach, Building, BuildingMeta, Policy, SearchPlan, XY } from "../types";
+import { buildingBounds, mmss, titleCase } from "../lib";
 import { Panel } from "./Panel";
-import { AerialSite } from "./AerialSite";
+import { AerialSite, STAGING_COLOR } from "./AerialSite";
 
 interface Props {
   building: Building;
@@ -32,6 +31,9 @@ export function AerialApproach({ building, plan, approach, meta, policy }: Props
   const tiles = meta?.site.tiles ?? null;
   /** false: nothing below may draw or name an entrance, staging spot, stairs or route */
   const routeOn = policy.route_enabled;
+  const hasMap = !!tiles && (meta?.site.surroundings?.features.length ?? 0) > 0;
+  const [siteView, setSiteView] = useState<"aerial" | "map">("aerial");
+  const mode = hasMap ? siteView : "aerial";
   const geo = useMemo(() => {
     const fp = buildingBounds(building);
     const pts: XY[] = routeOn
@@ -79,21 +81,35 @@ export function AerialApproach({ building, plan, approach, meta, policy }: Props
 
   return (
     <Panel
-      title="Approach"
+      title="Site and approach"
       icon={<Navigation size={15} aria-hidden />}
-      actions={<span className="text-[11px] text-ink-mute">{tiles ? "Vexcel aerial imagery" : "Schematic site plan - no aerial imagery for this building"}</span>}
-      bodyClassName="grid gap-0 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]"
+      actions={
+        hasMap ? (
+          <div className="flex overflow-hidden rounded-sm border border-line text-[11px]" role="group" aria-label="Site view">
+            {(["aerial", "map"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                aria-pressed={mode === v}
+                onClick={() => setSiteView(v)}
+                className={`px-2 py-0.5 ${mode === v ? "bg-accent font-semibold text-[#1a1204]" : "text-ink-dim hover:text-ink"}`}
+              >
+                {v === "aerial" ? "Aerial" : "Map"}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span className="text-[11px] text-ink-mute">{tiles ? "Vexcel aerial imagery" : "Schematic site plan - no aerial imagery for this building"}</span>
+        )
+      }
+      bodyClassName="grid gap-0"
     >
       {/* site schematic */}
-      <div className="border-b border-line p-2 lg:border-b-0 lg:border-r">
+      <div className="border-b border-line p-2">
         {tiles && meta ? (
-          routeOn ? (
-            <AerialSite building={building} meta={meta} tiles={tiles} approach={approach} />
-          ) : (
-            <AerialOutline building={building} meta={meta} tiles={tiles} />
-          )
+          <AerialSite building={building} meta={meta} tiles={tiles} approach={approach} mode={mode} showApproach={routeOn} />
         ) : (<>
-        <svg viewBox={`0 0 ${W} ${H}`} className="mx-auto block h-auto max-h-[340px] w-full" role="img" aria-label={routeOn ? "Schematic site plan: parking lot to the north, street to the south, entrances and staging spots" : "Schematic site plan: building outline only, route planning is off"}>
+        <svg viewBox={`0 0 ${W} ${H}`} className="mx-auto block h-auto max-h-[340px] w-full xl:max-h-[clamp(300px,calc(100vh_-_500px),340px)]" role="img" aria-label={routeOn ? "Schematic site plan: parking lot to the north, street to the south, entrances and staging spots" : "Schematic site plan: building outline only, route planning is off"}>
           {/* ground */}
           <rect width={W} height={H} fill="#0e151d" />
           {/* parking lot (north) */}
@@ -164,11 +180,11 @@ export function AerialApproach({ building, plan, approach, meta, policy }: Props
                   width={18}
                   height={12}
                   rx={2}
-                  fill={rec ? "#f2a93b" : "#0e151d"}
-                  stroke={rec ? "#f2a93b" : "#62758a"}
+                  fill={rec ? STAGING_COLOR : "#0e151d"}
+                  stroke={rec ? STAGING_COLOR : "#62758a"}
                   strokeWidth={1.3}
                 />
-                <text x={cx} y={cy + 3.5} textAnchor="middle" fontSize="8.5" fontWeight="700" fill={rec ? "#1a1204" : "#a7b6c5"}>
+                <text x={cx} y={cy + 3.5} textAnchor="middle" fontSize="8.5" fontWeight="700" fill={rec ? "#052e16" : "#a7b6c5"}>
                   STG
                 </text>
               </g>
@@ -211,7 +227,10 @@ export function AerialApproach({ building, plan, approach, meta, policy }: Props
           {routeOn ? (
             <>
               <span className="flex items-center gap-1.5">
-                <span className="block h-2 w-4 bg-accent" aria-hidden /> Recommended entrance / staging
+                <span className="block h-2 w-4 bg-accent" aria-hidden /> Recommended entrance
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="block h-2 w-4" style={{ background: STAGING_COLOR }} aria-hidden /> Recommended staging
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="block h-2 w-4 bg-[#62758a]" aria-hidden /> Other entrance
@@ -230,8 +249,8 @@ export function AerialApproach({ building, plan, approach, meta, policy }: Props
       {!routeOn ? (
         <RouteOff boardShown={policy.show_incident_board} />
       ) : (
-      <div className="flex flex-col gap-3 p-3">
-        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[13px]">
+      <div className="grid gap-3 p-3 md:grid-cols-2">
+        <dl className="grid grid-cols-[auto_1fr] content-start gap-x-3 gap-y-1.5 text-[13px]">
           <dt className="text-ink-mute">Stage at</dt>
           <dd className="text-ink">
             <span className="font-medium">{unplaced ? "The address point" : approach.staging_name}</span>
@@ -316,7 +335,7 @@ export function AerialApproach({ building, plan, approach, meta, policy }: Props
           ) : null}
         </dl>
 
-        <div className="border-t border-line pt-3">
+        <div className="border-t border-line pt-3 md:border-l md:border-t-0 md:pl-3 md:pt-0">
           <div className="mb-2 flex items-baseline justify-between">
             <span className="eyebrow">Expected time to find, E[T]</span>
             <span className={`num text-xs font-semibold ${saved > 0.005 ? "text-prob" : "text-ink-mute"}`}>
@@ -369,88 +388,14 @@ function RouteOff({ boardShown }: { boardShown: boolean }) {
         Route planning is off for this incident
       </p>
       <p className="text-ink-dim">
-        No entrance, staging spot, stairs or path is suggested. The image shows the site and the building outline as
-        information.
+        No entrance, staging spot, stairs or path is suggested. The view above shows the site and the building outline
+        as information.
       </p>
       <p className="text-ink-dim">
         {boardShown
           ? "Caller reports are on the incident board, for relay to unified command."
           : "An active threat has been suggested from the call. Confirm or dismiss it in the situation bar."}
       </p>
-    </div>
-  );
-}
-
-/**
- * The aerial image with the building outline and nothing else: the route-off counterpart of
- * AerialSite, which always draws entrances and staging spots.
- */
-function AerialOutline({ building, meta, tiles }: { building: Building; meta: BuildingMeta; tiles: SiteTiles }) {
-  const px = ([lat, lng]: LatLng): [number, number] => {
-    const [tx, ty] = latLngToTile(lat, lng, tiles.zoom);
-    return [(tx - tiles.x_min) * tiles.tile_px, (ty - tiles.y_min) * tiles.tile_px];
-  };
-  const W = (tiles.x_max - tiles.x_min + 1) * tiles.tile_px;
-  const H = (tiles.y_max - tiles.y_min + 1) * tiles.tile_px;
-  const given = meta.site.outlines ?? [];
-  const outlines = (given.length > 0 ? given : [{ kind: "annotated", latlng: meta.site.footprint_latlng }])
-    .filter((o) => o.latlng.length >= 3)
-    .map((o) => ({ kind: o.kind, points: o.latlng.map(px) }));
-  const pts = [...outlines.flatMap((o) => o.points), ...(meta.site.address_latlng ? [px(meta.site.address_latlng)] : [])];
-  let view = { x: 0, y: 0, w: W, h: H };
-  if (pts.length > 0) {
-    const xs = pts.map((p) => p[0]);
-    const ys = pts.map((p) => p[1]);
-    const extent = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
-    const side = Math.min(Math.max(extent * 1.7, extent + 30 / tiles.m_per_px), W, H);
-    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
-    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-    view = { x: Math.min(Math.max(cx - side / 2, 0), W - side), y: Math.min(Math.max(cy - side / 2, 0), H - side), w: side, h: side };
-  }
-  const tilesInView: { key: string; src: string; x: number; y: number }[] = [];
-  for (let ty = tiles.y_min; ty <= tiles.y_max; ty++)
-    for (let tx = tiles.x_min; tx <= tiles.x_max; tx++) {
-      const x = (tx - tiles.x_min) * tiles.tile_px;
-      const y = (ty - tiles.y_min) * tiles.tile_px;
-      if (x + tiles.tile_px < view.x || x > view.x + view.w || y + tiles.tile_px < view.y || y > view.y + view.h) continue;
-      tilesInView.push({ key: `${tx}-${ty}`, src: api.tileUrl(tiles.layer, tiles.zoom, tx, ty), x, y });
-    }
-  const u = view.w / 560;
-  return (
-    <div>
-      <div className="mx-auto max-h-[420px] overflow-hidden rounded-sm bg-bg" style={{ aspectRatio: `${view.w} / ${view.h}` }}>
-        <svg
-          viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
-          className="block h-full w-full"
-          role="img"
-          aria-label={`Aerial image of ${meta.name ?? building.name} with the building outline only. Route planning is off. North is up.`}
-        >
-          <rect x={view.x} y={view.y} width={view.w} height={view.h} fill="#0e151d" />
-          {tilesInView.map((t) => (
-            <image key={t.key} href={t.src} x={t.x} y={t.y} width={tiles.tile_px + 0.5} height={tiles.tile_px + 0.5} preserveAspectRatio="none" />
-          ))}
-          {outlines.map((o, i) => (
-            <polygon
-              key={i}
-              points={o.points.map((p) => p.join(",")).join(" ")}
-              fill="none"
-              stroke="#e6edf3"
-              strokeWidth={(o.kind === "model" ? 1.6 : 3) * u}
-              strokeDasharray={o.kind === "model" ? `${7 * u} ${5 * u}` : undefined}
-              strokeLinejoin="round"
-            />
-          ))}
-          <text x={view.x + view.w - 26 * u} y={view.y + 30 * u} textAnchor="middle" fontSize={13 * u} fontWeight="700" fill="#e6edf3" stroke="#0b1016" strokeWidth={3 * u} paintOrder="stroke">
-            N
-          </text>
-        </svg>
-      </div>
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-ink-mute">
-        <span className="flex items-center gap-1.5">
-          <span className="block h-2 w-4 border-2 border-ink" aria-hidden /> Building outline only
-        </span>
-        <span className="ml-auto">Imagery: Vexcel</span>
-      </div>
     </div>
   );
 }
