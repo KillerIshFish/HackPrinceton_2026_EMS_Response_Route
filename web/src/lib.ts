@@ -137,6 +137,19 @@ export function roomIndex(building: Building): Map<string, Room> {
   return new Map(building.rooms.map((r) => [r.id, r]));
 }
 
+// ---------------------------------------------------------------------------
+// Web-Mercator tile maths (mirrors ingest/vexcel.py) for the aerial overlay
+// ---------------------------------------------------------------------------
+
+/** Fractional tile column / row of a WGS84 point at `zoom`. */
+export function latLngToTile(lat: number, lng: number, zoom: number): [number, number] {
+  const n = 2 ** zoom;
+  const x = ((lng + 180) / 360) * n;
+  const latR = (lat * Math.PI) / 180;
+  const y = ((1 - Math.asinh(Math.tan(latR)) / Math.PI) / 2) * n;
+  return [x, y];
+}
+
 /** Expected phone height on a floor: finished floor + 1.2 m (held phone). */
 export const PHONE_HEIGHT_M = 1.2;
 /** +/-3 m is the 80% z-axis bound. */

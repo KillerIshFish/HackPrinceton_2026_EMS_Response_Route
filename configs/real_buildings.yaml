@@ -1,0 +1,89 @@
+# Real buildings assembled by `uv run python -m ingest.real_building <id>`.
+#
+# Each entry names the CoStar property (suites, tenants, storeys, Matterport scan
+# ids) and adds what no dataset supplies: the site annotation and the schematic
+# floor plate. Everything under `site:` was read off Vexcel ortho imagery by hand
+# and is approximate (a few metres), not surveyed.
+version: 1
+
+buildings:
+  - id: bundy-olympic
+    costar_property_id: 246948
+    name: Bundy Olympic
+    use_type: office
+
+    # Storeys with no rentable floor in CoStar. RBA (115,632 sf) is exactly six
+    # typical floors, and the aerial shows the garage wrapping the tower base, so
+    # storeys 2 and 3 are modelled as parking levels.
+    parking_floors: [2, 3]
+
+    # Matterport model -> suite. CoStar's attachment caption for Gq5yHCcffyL says
+    # "Suite 400", the scan's own name says "Suite 630"; the scan's name wins.
+    matterport_suites:
+      nrVMX7grm3H: "101"
+      MocRC6tyWqy: "420"
+      gvXRMqdgt8U: "520"
+      htrzwTzmueN: "620"
+      Gq5yHCcffyL: "630"
+      cuJmzqr2kD3: "650"
+      RPCw2QpnW8p: "850"
+      tv7pX1SC884: "860"
+
+    site:
+      source: "Vexcel ortho, layer urban, collection us-ca-losangeles_rf07-2026, zoom 21"
+      center_latlng: [34.0322954, -118.4522354]   # centroid of the roof outline
+      imagery: {layer: urban, zoom: 20, radius_m: 95}
+      # Tower roof outline, clockwise from the south-west tip. 1,777 m2 against
+      # CoStar's 1,790 m2 typical floor.
+      footprint_latlng:
+        - [34.0320676, -118.4526754]
+        - [34.0324566, -118.4522831]
+        - [34.0324843, -118.4522295]
+        - [34.0325177, -118.4520082]
+        - [34.0325205, -118.4519345]
+        - [34.0323454, -118.4518875]
+        - [34.0323010, -118.4519881]
+        - [34.0321120, -118.4522496]
+        - [34.0320787, -118.4525581]
+      # What each long side of the tower looks at.
+      facing:
+        north_row: street        # north-west facade: forecourt, then Olympic Blvd
+        south_row: parking_lot   # south-east facade: own parking deck and the neighbouring garage roof
+      entrances:
+        - id: ent-olympic
+          name: Main entrance (Olympic Blvd)
+          latlng: [34.0323788, -118.4523616]
+          facing: street
+          opens_into: lobby
+        - id: ent-garage
+          name: Garage-side entrance
+          latlng: [34.0320759, -118.4525849]
+          facing: parking_lot
+          opens_into: south_corridor_west
+      staging_spots:
+        - id: stage-olympic
+          name: Olympic Blvd forecourt
+          latlng: [34.0324499, -118.4524642]
+          kind: street
+          near_entrance_id: ent-olympic
+        - id: stage-garage
+          name: Garage driveway off Bundy Dr
+          latlng: [34.0321176, -118.4527291]
+          kind: parking_lot
+          near_entrance_id: ent-garage
+
+    # Schematic floor plate used for the floor-plan view and the walking graph.
+    # A rectangle with the footprint's area, rotated to sit along the tower's long
+    # axis. Where a suite sits along the corridor is NOT in any dataset: suites are
+    # placed in suite-number order, first along the street side, then back along
+    # the parking side.
+    plate:
+      length_m: 80.0
+      rotation_deg: 43.0          # local +x axis, counter-clockwise from east
+      bands_m:                    # depths south -> north, 22.4 m in total
+        south_row: 7.5
+        south_corridor: 1.8
+        core: 3.8
+        north_corridor: 1.8
+        north_row: 7.5
+      lobby_sf: 1600              # ground-floor lobby carved out of unlisted floor-1 area

@@ -1,21 +1,25 @@
 import { useMemo } from "react";
 import { Navigation } from "lucide-react";
-import type { Approach, Building, SearchPlan, XY } from "../types";
+import type { Approach, Building, BuildingMeta, SearchPlan, XY } from "../types";
 import { buildingBounds, mmss, titleCase } from "../lib";
 import { Panel } from "./Panel";
+import { AerialSite } from "./AerialSite";
 
 interface Props {
   building: Building;
   plan: SearchPlan;
   approach: Approach;
+  /** provenance + site annotation; aerial imagery is shown when it carries a tile window */
+  meta: BuildingMeta | null;
 }
 
 const S = 6; // svg units per metre
 const SITE_MARGIN_M = 6; // context drawn around the outermost feature
 const BAND_M = 14; // minimum depth of the parking-lot / street bands
 
-/** Schematic site plan + approach recommendation. Stands in for the Vexcel aerial layer. */
-export function AerialApproach({ building, plan, approach }: Props) {
+/** Site view (Vexcel aerial imagery when available, otherwise a schematic) + approach recommendation. */
+export function AerialApproach({ building, plan, approach, meta }: Props) {
+  const tiles = meta?.site.tiles ?? null;
   const geo = useMemo(() => {
     const fp = buildingBounds(building);
     const pts: XY[] = [
@@ -59,11 +63,12 @@ export function AerialApproach({ building, plan, approach }: Props) {
     <Panel
       title="Approach"
       icon={<Navigation size={15} aria-hidden />}
-      actions={<span className="text-[11px] text-ink-mute">Schematic site plan - aerial imagery not loaded</span>}
+      actions={<span className="text-[11px] text-ink-mute">{tiles ? "Vexcel aerial imagery" : "Schematic site plan - no aerial imagery for this building"}</span>}
       bodyClassName="grid gap-0 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]"
     >
       {/* site schematic */}
       <div className="border-b border-line p-2 lg:border-b-0 lg:border-r">
+        {tiles && meta ? <AerialSite building={building} meta={meta} tiles={tiles} approach={approach} /> : (<>
         <svg viewBox={`0 0 ${W} ${H}`} className="mx-auto block h-auto max-h-[340px] w-full" role="img" aria-label="Schematic site plan: parking lot to the north, street to the south, entrances and staging spots">
           {/* ground */}
           <rect width={W} height={H} fill="#0e151d" />
@@ -186,6 +191,7 @@ export function AerialApproach({ building, plan, approach }: Props) {
             <span className="block h-2 w-4 bg-[#62758a]" aria-hidden /> Other entrance
           </span>
         </div>
+        </>)}
       </div>
 
       {/* recommendation + E[T] comparison */}

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { Layers, LocateFixed } from "lucide-react";
-import type { Building, Posterior, Room, SearchPlan } from "../types";
+import type { Building, Posterior, Room, RoomMeta, SearchPlan } from "../types";
 import {
   RAMP_CSS_GRADIENT,
   boundsOf,
@@ -23,9 +23,20 @@ interface Props {
   follow: boolean;
   onSelectFloor: (floor: number) => void;
   onToggleFollow: () => void;
+  /** where each room's data comes from (real buildings); shown in the tooltip */
+  roomMeta?: Record<string, RoomMeta>;
+  /** clicking a room that has a 3D scan opens it */
+  onSelectRoom?: (roomId: string) => void;
 }
 
-const S = 14; // svg units per metre (viewBox ~700 wide, so text renders near 1:1)
+const SOURCE_LABEL: Record<RoomMeta["source"], string> = {
+  matterport: "Matterport scan (click to view)",
+  costar: "CoStar suite record - interior not scanned",
+  inferred: "Inferred - not in any dataset",
+};
+
+const S_MAX = 14; // svg units per metre for a ~48 m plate
+const VIEW_W = 700; // target viewBox width, so 10px label text renders near 1:1 for any plate size
 const PAD_X = 10;
 const PAD_Y = 24; // room for the N / S side labels
 const CHAR_W = 5.3; // approx glyph advance at 10px
@@ -73,6 +84,8 @@ export function FloorPlanHeatmap({
   follow,
   onSelectFloor,
   onToggleFollow,
+  roomMeta,
+  onSelectRoom,
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<Hover | null>(null);
@@ -88,6 +101,7 @@ export function FloorPlanHeatmap({
     [building, floor],
   );
 
+  const S = Math.min(S_MAX, (VIEW_W - PAD_X * 2) / Math.max(1, bounds.maxX - bounds.minX));
   const W = (bounds.maxX - bounds.minX) * S + PAD_X * 2;
   const H = (bounds.maxY - bounds.minY) * S + PAD_Y * 2;
   const X = (x: number) => (x - bounds.minX) * S + PAD_X;
@@ -217,6 +231,12 @@ export function FloorPlanHeatmap({
                 onMouseMove={(e) => placeHover(room.id, e.clientX, e.clientY)}
                 onFocus={(e) => focusHover(room, e.currentTarget)}
                 onBlur={() => setHover(null)}
+                onClick={() => {
+                  if (roomMeta?.[room.id]?.model_id) onSelectRoom?.(room.id);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && roomMeta?.[room.id]?.model_id) onSelectRoom?.(room.id);
+                }}
               />
             );
           })}
@@ -326,6 +346,7 @@ export function FloorPlanHeatmap({
             mark={stopMarks.get(hovered.id)}
             multiTeam={multiTeam}
             hover={hover}
+            meta={roomMeta?.[hovered.id]}
           />
         ) : null}
       </div>
@@ -374,6 +395,7 @@ function RoomTooltip({
   mark,
   multiTeam,
   hover,
+  meta,
 }: {
   room: Room;
   p: number;
@@ -383,6 +405,7 @@ function RoomTooltip({
   mark: StopMark | undefined;
   multiTeam: boolean;
   hover: Hover;
+  meta?: RoomMeta;
 }) {
   const flip = hover.x > hover.boxW / 2;
   const features: string[] = [];
@@ -411,7 +434,9 @@ function RoomTooltip({
         {features.map((f) => (
           <li key={f}>{f}</li>
         ))}
+        {meta?.tenant ? <li>Tenant: {meta.tenant}</li> : meta?.status === "available" ? <li>Vacant, marketed for lease</li> : null}
       </ul>
+      {meta ? <div className="mt-1.5 border-t border-line pt-1.5 text-[11px] text-ink-mute">{SOURCE_LABEL[meta.source]}</div> : null}
       {inCredible || isCleared || mark ? (
         <div className="mt-1.5 flex flex-wrap gap-1.5 border-t border-line pt-1.5 text-[11px]">
           {mark && !isCleared ? (

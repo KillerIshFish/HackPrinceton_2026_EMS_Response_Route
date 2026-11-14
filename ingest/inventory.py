@@ -76,7 +76,7 @@ def check_field_coverage(name: str) -> dict[str, float]:
 
 
 def main() -> None:
-    print("Dataset inventory (v0 runs entirely on the synthetic building)\n")
+    print("Dataset inventory (raw data and API caches under data/raw/)\n")
     for name, entry in inventory_report().items():
         if not entry["exists"]:
             status = "MISSING"

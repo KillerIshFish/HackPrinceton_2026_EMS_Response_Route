@@ -47,10 +47,30 @@ room_types:
     synonyms: [server room, data closet, it room, it closet]
   mechanical:
     synonyms: [mechanical room, boiler room, utility room, electrical room]
+  parking:
+    # Locative phrases only: "I can see the parking garage" is a view, not a room.
+    synonyms: [in the parking garage, in the parking structure, in the garage, in a parking garage,
+               on the parking level, on the parking deck, parking level]
+
+# Rooms that stand for something bigger than one room. Real buildings have tenant
+# suites that were never scanned: the model knows the suite's floor, area and
+# tenant, but not its interior. A clue about an interior room type ("I'm in a
+# closet") matches such a room partially, by how likely a suite is to contain one.
+composite_room_types:
+  suite:
+    contains:
+      office: 0.9
+      open_office: 0.8
+      conference: 0.6
+      reception: 0.6
+      break_room: 0.5
+      storage: 0.5
+      corridor: 0.4
+      server_room: 0.3
 
 views:
   parking_lot:
-    synonyms: [parking lot, car park, parking, parked cars, the lot]
+    synonyms: [parking lot, car park, parking, parked cars, the lot, parking structure, parking garage, parking deck]
     match: {window_facing: parking_lot}
   street:
     synonyms: [street, road, traffic, sidewalk, bus stop, intersection]
