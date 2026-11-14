@@ -39,20 +39,32 @@ def _bounds(bm: BuildingModel) -> tuple[float, float, float, float]:
 
 
 def placement(bm: BuildingModel, context: Optional[dict] = None) -> dict:
-    """How local metres map to the ground: ``{"origin_latlng", "yaw_deg", "centre"}``."""
+    """How local metres map to the ground: ``{"origin_latlng", "yaw_deg", "centre", "scale"}``.
+
+    ``scale`` (x, y) stretches a generated layout about its centre so that its extent matches
+    the real building's outline box; it is (1, 1) unless the sidecar supplies a fit. It only
+    affects where things are drawn on the map: the model's own metres are not changed.
+    """
     x0, y0, x1, y1 = _bounds(bm)
-    geo = (context or {}).get("geolocation") or bm.geolocation
-    yaw = (context or {}).get("yaw_deg")
     scan = bm.archetype in ("whole_scan", "scan_clusters")
+    # the sidecar's anchor (the real building's centre, when OpenStreetMap has its outline)
+    # beats the bare address point
+    geo = (None if scan else (context or {}).get("anchor_latlng")) or (context or {}).get("geolocation") or bm.geolocation
+    yaw = (context or {}).get("yaw_deg")
     return {"origin_latlng": list(geo) if geo else None, "yaw_deg": float(bm.yaw_deg if yaw is None else yaw),
             # a scan's own origin is what its geolocation refers to; a generated building is centred on the address
-            "centre": (0.0, 0.0) if scan else ((x0 + x1) / 2, (y0 + y1) / 2)}
+            "centre": (0.0, 0.0) if scan else ((x0 + x1) / 2, (y0 + y1) / 2),
+            "scale": (1.0, 1.0) if scan else tuple((context or {}).get("fit_scale") or (1.0, 1.0))}
 
 
-def to_latlng(place: dict, x: float, y: float) -> list[float]:
+def to_latlng(place: dict, x: float, y: float, offset_m: tuple = (0.0, 0.0)) -> list[float]:
+    """Model point -> (lat, lng). ``offset_m`` is added afterwards in true metres along the model's
+    axes (used for points defined by a real distance, such as a staging spot 7 m outside a door)."""
     if not place["origin_latlng"]:
         return [0.0, 0.0]
-    lat, lng = local_to_latlng(x - place["centre"][0], y - place["centre"][1], place["origin_latlng"], place["yaw_deg"])
+    sx, sy = place.get("scale") or (1.0, 1.0)
+    lat, lng = local_to_latlng((x - place["centre"][0]) * sx + offset_m[0], (y - place["centre"][1]) * sy + offset_m[1],
+                               place["origin_latlng"], place["yaw_deg"])
     return [round(lat, 7), round(lng, 7)]
 
 
@@ -150,16 +162,25 @@ def to_building(bm: BuildingModel, context: Optional[dict] = None) -> Building:
 
     entrances, staging = [], []
     found = list(bm.entrances)
+    # where the layout's positions on the map are invented (a multi-building property), every
+    # entrance and staging spot carries the address point: the one location that is real
+    address = (context or {}).get("geolocation") if (context or {}).get("layout_placed") is False else None
+
+    def ground(x: float, y: float, offset_m: tuple = (0.0, 0.0)) -> list[float]:
+        return [round(float(address[0]), 7), round(float(address[1]), 7)] if address else to_latlng(place, x, y, offset_m)
+
     for i, e in enumerate(found, start=1):
         rid = root.get(e.space_id)
         if rid not in by_id:
             continue
         entrances.append({"id": e.id, "name": e.name, "room_id": rid, "xy": [e.xy[0], e.xy[1]],
-                          "latlng": to_latlng(place, *e.xy), "facing": "street"})
+                          "latlng": ground(*e.xy), "facing": "street"})
         sx, sy = e.xy[0] + e.outward[0] * STAGING_OFFSET_M, e.xy[1] + e.outward[1] * STAGING_OFFSET_M
         if all(math.dist((sx, sy), s["xy"]) > 10.0 for s in staging):
-            staging.append({"id": f"stage-{len(staging) + 1}", "name": f"Outside {e.name.lower()}",
-                            "xy": [round(sx, 2), round(sy, 2)], "latlng": to_latlng(place, sx, sy),
+            staging.append({"id": f"stage-{len(staging) + 1}", "name": f"Outside {e.name[:1].lower()}{e.name[1:]}",
+                            "xy": [round(sx, 2), round(sy, 2)],
+                            "latlng": ground(e.xy[0], e.xy[1], (e.outward[0] * STAGING_OFFSET_M,
+                                                                e.outward[1] * STAGING_OFFSET_M)),
                             "kind": "street", "near_entrance_id": e.id})
     if not entrances and top:
         # no door to the outside in the data: assume the largest room on the lowest level

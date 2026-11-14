@@ -29,6 +29,7 @@ from typing import Optional
 DEFAULT_STOREY_M = {"apartment": 3.0, "hotel": 3.2, "office": 4.0, "retail": 4.5, "industrial": 7.0,
                     "flex": 5.0, "healthcare": 4.2, "mixed_use": 3.6, "other": 3.5}
 SCHEME_MIN_SHARE = 0.85
+STOREY_TOLERANCE = 2  # unit numbers may name a floor this far above the recorded storey count
 SCHEMES = ("floor_hundreds", "floor_first_digit", "building_floor", "building_hundreds", "sequential")
 
 _PREFIXED = re.compile(r"([A-Za-z0-9]+)\s*[-–]\s*0*(\d+)\s*[A-Za-z]?$")
@@ -86,6 +87,15 @@ def infer_scheme(numbers: list[int], stories: int, num_buildings: int) -> str:
         return "floor_hundreds"
     if top <= 9 and share("floor_first_digit") >= SCHEME_MIN_SHARE:
         return "floor_first_digit"
+    # Door numbers that run a floor or two past the recorded storey count ("2xx" to "6xx" in a
+    # building listed with five storeys: a lobby or parking level the record does not count).
+    # The numbers are what is painted on the doors, so they are trusted over the count.
+    top += STOREY_TOLERANCE
+    if share("floor_hundreds") >= SCHEME_MIN_SHARE:
+        return "floor_hundreds"
+    if top <= 9 and share("floor_first_digit") >= SCHEME_MIN_SHARE:
+        return "floor_first_digit"
+    top -= STOREY_TOLERANCE
     if num_buildings > 1 and share("building_floor") >= SCHEME_MIN_SHARE:
         return "building_floor"
     if num_buildings > 1 and sum(n >= 100 for n in numbers) / len(numbers) >= SCHEME_MIN_SHARE:
@@ -123,6 +133,10 @@ def build_roster(facts: dict, scheme_override: Optional[str] = None) -> dict:
             numbers, stories or 1, int(facts.get("num_buildings") or 1))
         named = sum(1 for u in units if u.get("building") and u["building"].upper() != "N/A") / len(units)
         seen: Counter = Counter()
+        if scheme in ("floor_hundreds", "floor_first_digit") and stories:
+            # the highest floor the numbers name, when it is within tolerance of the record
+            named_floors = [f for f in (_decode(n, scheme)[1] for n in numbers) if f and f <= stories + STOREY_TOLERANCE]
+            stories = max(stories, max(named_floors, default=stories))
         for u, (prefix, number, label) in zip(units, parsed):
             building, floor = _decode(number, scheme) if number is not None else ("", None)
             if named >= SCHEME_MIN_SHARE:
@@ -183,6 +197,7 @@ def build_roster(facts: dict, scheme_override: Optional[str] = None) -> dict:
             "tenants": sum(s["kind"] == "tenant" for s in slots), "blocks": len(by_block) or 1,
             "floor_from_number": sources.get("number", 0), "floor_from_record": sources.get("record", 0),
             "floor_spread": sources.get("spread", 0), "floor_clamped": sources.get("clamped", 0),
+            "storeys_recorded": int(facts.get("stories") or 0),
             "scanned_unit_types": len({(s["type"], tuple(s["scans"])) for s in slots if s["scans"]}),
             "units_with_scan": sum(1 for s in slots if s["scans"]),
         },

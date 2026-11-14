@@ -445,6 +445,10 @@ def build_layout(facts: dict, roster: dict, interior: Optional[InteriorFn] = Non
     if roster["stats"].get("floor_spread"):
         notes.append(f"{roster['stats']['floor_spread']} unit(s) have no floor in their number; "
                      "they are spread evenly over the floors.")
+    recorded = roster["stats"].get("storeys_recorded") or 0
+    if recorded and stories > recorded:
+        notes.append(f"Unit numbers name floors up to {stories}; the record lists {recorded} storeys. "
+                     "The numbers on the doors are used.")
     if len(plans) > 1:
         notes.append(f"{len(plans)} buildings are placed on a grid; their real positions on the site are not in the data.")
     if not with_interiors and use in ("apartment", "hotel"):

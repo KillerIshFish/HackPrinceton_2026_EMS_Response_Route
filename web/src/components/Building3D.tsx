@@ -76,6 +76,46 @@ function pushBox(out: number[], a: [number, number], b: [number, number], t0: nu
   }
 }
 
+/** Direction from the model toward the camera: a three-quarter view from above the front-left corner. */
+const VIEW_DIR = new THREE.Vector3(-0.5, 0.62, 0.86).normalize();
+
+/**
+ * Put the camera where the whole box is in frame with a small margin, whatever the canvas
+ * aspect ratio and however long, flat or tall the box is. The distance is found by bisection
+ * on the projected corners, so nothing is cropped and nothing is left tiny in a corner.
+ */
+function fitCamera(camera: THREE.PerspectiveCamera, controls: OrbitControls, box: THREE.Box3, dir: THREE.Vector3 = VIEW_DIR) {
+  const centre = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const reach = Math.max(size.length(), 1);
+  const corners: THREE.Vector3[] = [];
+  for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) corners.push(new THREE.Vector3(x, y, z));
+  const margin = 0.9;
+  const place = (d: number) => {
+    camera.position.copy(centre).addScaledVector(dir, d);
+    camera.near = Math.max(d / 500, 0.05);
+    camera.far = d * 40 + reach * 4;
+    camera.lookAt(centre);
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld(true);
+  };
+  let lo = reach * 0.05;
+  let hi = reach * 40;
+  for (let i = 0; i < 28; i++) {
+    const mid = (lo + hi) / 2;
+    place(mid);
+    const fits = corners.every((c) => {
+      const p = c.clone().project(camera);
+      return Math.abs(p.x) <= margin && Math.abs(p.y) <= margin && p.z < 1;
+    });
+    if (fits) hi = mid;
+    else lo = mid;
+  }
+  place(hi);
+  controls.target.copy(centre);
+  controls.update();
+}
+
 function buildLevels(payload: Model3DPayload): LevelMeshes[] {
   const parents = new Set(payload.spaces.map((s) => s.par).filter((p): p is string => !!p));
   const out: LevelMeshes[] = [];
@@ -160,7 +200,11 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
     levels: LevelMeshes[];
     marker: THREE.Mesh;
     render: () => void;
+    /** frame the given levels; skipped once the dispatcher has moved the camera, unless forced */
+    fit: (visible: (index: number) => boolean, force?: boolean) => void;
   } | null>(null);
+  /** which levels the view currently shows, kept for the resize handler and the reset button */
+  const visibleRef = useRef<(index: number) => boolean>(() => true);
   const rooms = useMemo(() => roomIndex(building), [building]);
 
   useEffect(() => {
@@ -193,11 +237,35 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
     const cy = (b.y0 + b.y1) / 2;
     const span = Math.max(b.x1 - b.x0, b.y1 - b.y0, b.z1, 8);
     const camera = new THREE.PerspectiveCamera(38, 1, span / 200, span * 20);
-    camera.position.set(cx - span * 0.55, b.z1 + span * 0.75, -cy + span * 0.95);
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(cx, b.z1 * 0.3, -cy);
     controls.maxPolarAngle = Math.PI / 2 - 0.02;
-    controls.update();
+    let userMoved = false;
+    controls.addEventListener("start", () => {
+      userMoved = true;
+    });
+    // extent of each level in scene coordinates, so the camera can frame just the levels on show
+    const levelBox = new Map<number, THREE.Box3>();
+    for (const lv of payload.levels) {
+      const box = new THREE.Box3();
+      for (const s of payload.spaces) {
+        if (s.l !== lv.i) continue;
+        for (const p of s.p) {
+          box.expandByPoint(new THREE.Vector3(...v3(p[0], p[1], lv.z0)));
+          box.expandByPoint(new THREE.Vector3(...v3(p[0], p[1], lv.z0 + lv.h)));
+        }
+      }
+      if (!box.isEmpty()) levelBox.set(lv.i, box);
+    }
+    const fit = (visible: (index: number) => boolean, force = false) => {
+      if (userMoved && !force) return;
+      if (force) userMoved = false;
+      const box = new THREE.Box3();
+      for (const [index, lb] of levelBox) if (visible(index)) box.union(lb);
+      if (box.isEmpty()) for (const lb of levelBox.values()) box.union(lb);
+      if (box.isEmpty()) return;
+      fitCamera(camera, controls, box);
+      render();
+    };
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(span * 4, span * 4),
       new THREE.MeshBasicMaterial({ color: 0x0b1118 }),
@@ -231,13 +299,14 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      fit(visibleRef.current); // a panel that changes shape re-frames the model (until the camera is moved by hand)
       render();
     };
     const observer = new ResizeObserver(resize);
     observer.observe(mount);
     controls.addEventListener("change", render);
     resize();
-    three.current = { renderer, scene, camera, controls, levels, marker, render };
+    three.current = { renderer, scene, camera, controls, levels, marker, render, fit };
     mount.dataset.ready = "true";
     return () => {
       three.current = null;
@@ -262,8 +331,10 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
   useEffect(() => {
     const t = three.current;
     if (!t) return;
+    const visible = (index: number) => (mode === "all" ? true : mode === "floor" ? index === shown : index <= shown);
+    visibleRef.current = visible;
     for (const lv of t.levels) {
-      lv.group.visible = mode === "all" ? true : mode === "floor" ? lv.index === shown : lv.index <= shown;
+      lv.group.visible = visible(lv.index);
       const focus = lv.index === shown;
       for (const m of lv.wallMaterials) {
         const base = m.userData.base as number;
@@ -271,6 +342,7 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
         m.depthWrite = focus;
       }
     }
+    t.fit(visible);
     t.render();
   }, [payload, mode, shown]);
 
@@ -353,6 +425,13 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
               </select>
             </label>
           ) : null}
+          <button
+            onClick={() => three.current?.fit(visibleRef.current, true)}
+            title="Frame the whole model again"
+            className="rounded border border-line px-2 py-1 text-xs text-ink-dim hover:bg-raised hover:text-ink"
+          >
+            Reset view
+          </button>
           <div className="flex overflow-hidden rounded border border-line" role="group" aria-label="3D view">
             {VIEW_MODES.map((m) => (
               <button

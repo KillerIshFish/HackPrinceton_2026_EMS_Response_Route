@@ -44,6 +44,8 @@ MIN_SEARCH_S = 10.0
 P_DETECT = 0.9
 
 _OPT_BUDGET_S = 0.25  # wall-clock cap on local search per plan_search call
+_LARGE_ROUTE = 200       # routes longer than this use windowed moves (see _improve_route)
+_LARGE_ROUTE_SPAN = 30
 _EPS = 1e-9
 
 
@@ -145,9 +147,33 @@ def select_candidates(
     return out
 
 
+# Travel times never change for a building, and a call replans many times. Keep the rows
+# already computed for the building being planned (one building at a time, matched by identity).
+_travel_cache: dict = {"graph": None, "rows": {}}
+
+
+_graph_cache: dict = {"building": None, "graph": None}
+
+
+def _graph_for(building: Building) -> nx.Graph:
+    """The building's room graph, rebuilt only when a different building object is planned."""
+    if _graph_cache["building"] is not building:
+        _graph_cache["building"], _graph_cache["graph"] = building, build_graph(building)
+    return _graph_cache["graph"]
+
+
 def pairwise_travel(G: nx.Graph, nodes: Sequence[str]) -> dict[str, dict[str, float]]:
     """travel[a][b] seconds for every a in ``nodes`` (b = any graph node)."""
-    return {n: travel_times_from(G, n) for n in dict.fromkeys(nodes) if n in G}
+    if _travel_cache["graph"] is not G:
+        _travel_cache["graph"], _travel_cache["rows"] = G, {}
+    rows = _travel_cache["rows"]
+    out = {}
+    for n in dict.fromkeys(nodes):
+        if n in G:
+            if n not in rows:
+                rows[n] = travel_times_from(G, n)
+            out[n] = rows[n]
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -245,12 +271,20 @@ def _improve_route(order: Sequence[int], T, s, p, start: int, deadline: float) -
         return c
 
     refresh()
+    # A full sweep is O(n^3). Past _LARGE_ROUTE stops, moves are limited to a window of
+    # _LARGE_ROUTE_SPAN positions and the time budget is checked inside the sweep, so a
+    # building with hundreds of rooms still plans in a fraction of a second. Short routes
+    # are searched exactly as before.
+    large = n > _LARGE_ROUTE
+    span = _LARGE_ROUTE_SPAN if large else n
     improved = True
     while improved and time.perf_counter() < deadline:
         improved = False
         # --- 2-opt: reverse order[i..j] ---------------------------------
         for i in range(n - 1):
-            for j in range(i + 1, n):
+            if large and time.perf_counter() >= deadline:
+                break
+            for j in range(i + 1, min(n, i + 1 + span)):
                 window = order[i : j + 1][::-1]
                 c = window_cost(i, j, window)
                 if c < best - _EPS:
@@ -260,7 +294,9 @@ def _improve_route(order: Sequence[int], T, s, p, start: int, deadline: float) -
                     improved = True
         # --- or-opt: move the room at i to position j ---------------------
         for i in range(n):
-            for j in range(n):
+            if large and time.perf_counter() >= deadline:
+                break
+            for j in range(max(0, i - span), min(n, i + 1 + span)):
                 if i == j:
                     continue
                 if i < j:
@@ -350,7 +386,7 @@ def plan_search(
     <= both baselines.
     """
     n_teams = max(1, int(n_teams))
-    G = build_graph(building)
+    G = _graph_for(building)
     rooms = {r.id: r for r in building.rooms}
 
     # ---- entrance + staging ------------------------------------------------

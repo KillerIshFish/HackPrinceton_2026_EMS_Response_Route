@@ -12,6 +12,10 @@ interface Props {
 }
 
 /** Elevator-style vertical stack: top floor at the top, one cell per floor. */
+/** more floors than this: one-line rows; more than DENSE_SCROLL: the list scrolls */
+const DENSE_FROM = 8;
+const DENSE_SCROLL = 16;
+
 export function FloorProbBar({ building, posterior, phoneFix, selectedFloor, onSelectFloor }: Props) {
   const labels = floorLabelMap(building);
   const floors = [...building.floors].sort((a, b) => b - a);
@@ -31,9 +35,17 @@ export function FloorProbBar({ building, posterior, phoneFix, selectedFloor, onS
 
   const maxFloorP = Math.max(0, ...floors.map((f) => posterior.p_floor[labels.get(f) ?? String(f)] ?? 0));
 
+  // A tall building gets one-line rows, and past DENSE_SCROLL floors the list scrolls
+  // instead of stretching whatever it sits next to.
+  const dense = floors.length > DENSE_FROM;
+  const scrolls = floors.length > DENSE_SCROLL;
+
   return (
-    <Panel title="Floor" icon={<ArrowUpDown size={15} aria-hidden />} bodyClassName="flex flex-col p-2">
-      <ol className="flex flex-1 flex-col gap-1" aria-label="Probability by floor, top floor first">
+    <Panel title="Floor" icon={<ArrowUpDown size={15} aria-hidden />} bodyClassName="flex min-h-0 flex-col p-2">
+      <ol
+        className={`flex flex-1 flex-col ${dense ? "gap-0.5" : "gap-1"} ${scrolls ? "max-h-[340px] overflow-y-auto pr-1" : ""}`}
+        aria-label="Probability by floor, top floor first"
+      >
         {floors.map((f) => {
           const label = labels.get(f) ?? String(f);
           const p = posterior.p_floor[label] ?? 0;
@@ -41,12 +53,25 @@ export function FloorProbBar({ building, posterior, phoneFix, selectedFloor, onS
           const isTop = p > 0 && p === maxFloorP;
           const band = inBand.has(f);
           return (
-            <li key={f} className="flex flex-1">
+            <li key={f} className={`flex ${scrolls ? "shrink-0" : "flex-1"}`}>
               <button
+                ref={
+                  selected && scrolls
+                    ? (el) => {
+                        // keep the selected floor visible by scrolling the list only, never the page
+                        const list = el?.closest("ol");
+                        if (!el || !list) return;
+                        const top = el.offsetTop - list.offsetTop;
+                        if (top < list.scrollTop) list.scrollTop = top;
+                        else if (top + el.offsetHeight > list.scrollTop + list.clientHeight)
+                          list.scrollTop = top + el.offsetHeight - list.clientHeight;
+                      }
+                    : undefined
+                }
                 onClick={() => onSelectFloor(f)}
                 aria-pressed={selected}
                 aria-label={`Floor ${label}, probability ${pct(p)}${band ? ", inside phone z-axis band" : ""}`}
-                className={`relative flex min-h-14 w-full items-stretch overflow-hidden rounded border text-left ${
+                className={`relative flex ${dense ? "min-h-7" : "min-h-14"} w-full items-stretch overflow-hidden rounded border text-left ${
                   selected ? "border-ink bg-raised" : "border-line hover:border-line-strong hover:bg-raised/60"
                 }`}
               >
@@ -56,19 +81,23 @@ export function FloorProbBar({ building, posterior, phoneFix, selectedFloor, onS
                   aria-hidden
                 />
                 <span className="flex w-9 shrink-0 items-center justify-center border-r border-line">
-                  <span className={`num text-lg font-semibold ${isTop ? "text-ink" : "text-ink-dim"}`}>{label}</span>
+                  <span className={`num ${dense ? "text-[13px]" : "text-lg"} font-semibold ${isTop ? "text-ink" : "text-ink-dim"}`}>{label}</span>
                 </span>
-                <span className="relative flex min-w-0 flex-1 flex-col justify-center gap-1 px-2 py-1.5">
+                <span
+                  className={`relative flex min-w-0 flex-1 ${
+                    dense ? "flex-row-reverse items-center gap-2 px-2" : "flex-col justify-center gap-1 px-2 py-1.5"
+                  }`}
+                >
                   <span className="flex items-baseline justify-between gap-1">
                     <span className={`num text-[13px] font-semibold ${isTop ? "text-ink" : "text-ink-dim"}`}>{pct(p)}</span>
                     {nearest === f && z !== null ? (
                       <span className="flex items-center gap-1 text-[10px] font-medium text-accent" title={`Barometric z-axis fix: ${z.toFixed(1)} m above ground datum`}>
                         <Smartphone size={10} aria-hidden />
-                        <span className="num">{z.toFixed(1)} m</span>
+                        {dense ? null : <span className="num">{z.toFixed(1)} m</span>}
                       </span>
                     ) : null}
                   </span>
-                  <span className="block h-1.5 overflow-hidden rounded-full bg-line" aria-hidden>
+                  <span className={`block h-1.5 overflow-hidden rounded-full bg-line ${dense ? "min-w-0 flex-1" : ""}`} aria-hidden>
                     <span
                       className="block h-full rounded-full bg-prob transition-[width] duration-300"
                       style={{ width: `${Math.min(100, p * 100)}%`, opacity: isTop ? 1 : 0.65 }}

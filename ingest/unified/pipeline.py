@@ -141,13 +141,32 @@ def _meta(bm: BuildingModel, building, context: Optional[dict], facts: Optional[
         "kind": "generated" if bm.archetype not in ("whole_scan", "scan_clusters") else "scan_model",
         "center_latlng": (context or {}).get("centre_latlng") or (list(bm.geolocation) if bm.geolocation else None),
         "georeference": {"rotation_deg": (context or {}).get("yaw_deg", bm.yaw_deg)},
-        "site": {"source": "generated", "imagery": (context or {}).get("imagery") or {},
-                 "footprint_latlng": (context or {}).get("footprint_latlng") or []},
+        "site": {"source": "scan" if bm.archetype in ("whole_scan", "scan_clusters") else "generated",
+                 "imagery": (context or {}).get("imagery") or {},
+                 "footprint_latlng": (context or {}).get("footprint_latlng") or [],
+                 "outlines": (context or {}).get("outlines") or [],
+                 "placement_source": (context or {}).get("placement_source"),
+                 "layout_placed": (context or {}).get("layout_placed", True),
+                 "address_latlng": (context or {}).get("geolocation"),
+                 "buildings": int(bm.stats.get("blocks") or 1),
+                 "pending": bool((context or {}).get("pending"))},
         "matterport_models": models, "room_sources": dict(sources), "rooms": rooms,
         "model": {"tier": bm.tier, "archetype": bm.archetype, "stats": bm.stats, "scans": scans,
                   "street": (context or {}).get("street")},
-        "caveats": list(bm.notes),
+        "caveats": list(bm.notes) + _fit_caveat(context),
     }
+
+
+def _fit_caveat(context: Optional[dict]) -> list[str]:
+    """Say so when the generated layout and the real building differ a lot in size."""
+    fit = (context or {}).get("fit_scale")
+    if not fit:
+        return []
+    worst = max(max(fit), 1.0 / max(min(fit), 1e-6))
+    if worst < 1.3:
+        return []
+    return [f"The generated layout and the real building differ in size (the layout is drawn at {fit[0]:.2f}x by "
+            f"{fit[1]:.2f}x to fit the building's outline); walking distances inside it are approximate."]
 
 
 def _write(bm: BuildingModel, context: Optional[dict], facts: Optional[dict], scans: dict) -> dict:
@@ -191,8 +210,10 @@ def generate_scan(model_id: str, context: bool = True, offline: bool = False, re
     else:
         raise RuntimeError(f"Matterport model {model_id}: {status}; nothing to build from")
     stages.mark("model", f"{bm.tier}: {len(bm.spaces)} rooms, {len(bm.walls)} walls")
-    ctx = build_context(bm, network=context and not offline, refresh=refresh_context)
-    stages.mark("site context", (ctx.get("street") or {}).get("name") or ctx.get("street_error") or "no street")
+    ctx = build_context(bm, network=context and not offline, refresh=refresh_context,
+                        on_late=lambda late: _write(bm, late, None, {model_id: status}))
+    stages.mark("site context", f"placed by {ctx.get('placement_source')}"
+                                + ("; street lookup still running" if ctx.get("pending") else ""))
     counts = _write(bm, ctx, None, {model_id: status})
     stages.mark("project + write", f"{counts['rooms']} rooms, {counts['edges']} links")
     return _report(bm, stages, {model_id: status}, ctx)
@@ -224,8 +245,12 @@ def generate(query: str, stamp: bool = True, context: bool = True, offline: bool
     bm = build_property_model(facts, models)
     stages.mark("roster + layout", f"{bm.archetype}: {len(bm.spaces)} spaces, {len(bm.walls)} walls, "
                                    f"{bm.stats['units_with_stamped_interior']} units stamped")
-    ctx = build_context(bm, facts.get("latlng"), network=context and not offline, refresh=refresh_context)
-    stages.mark("site context", (ctx.get("street") or {}).get("name") or ctx.get("street_error") or "offline")
+    # if OpenStreetMap answers after the deadline, the building is re-projected with the better placement
+    ctx = build_context(bm, facts.get("latlng"), network=context and not offline, refresh=refresh_context,
+                        on_late=lambda late: _write(bm, late, facts, statuses))
+    stages.mark("site context", f"placed by {ctx.get('placement_source')}"
+                                + (f"; street: {ctx['street']['name']}" if ctx.get("street") and ctx["street"].get("name") else "")
+                                + ("; street lookup still running" if ctx.get("pending") else ""))
     counts = _write(bm, ctx, facts, statuses)
     stages.mark("project + write", f"{counts['rooms']} rooms, {counts['edges']} links")
     report = _report(bm, stages, statuses, ctx)
