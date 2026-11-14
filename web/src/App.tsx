@@ -334,6 +334,7 @@ export default function App() {
               }}
             />
           </div>
+          <AerialApproach building={building} plan={state.plan} approach={state.approach} meta={meta} />
           <Building3D
             building={building}
             posterior={state.posterior}
@@ -355,7 +356,6 @@ export default function App() {
               onPin={setPinnedRoomId}
             />
           ) : null}
-          <AerialApproach building={building} plan={state.plan} approach={state.approach} meta={meta} />
         </div>
 
         <div className="max-h-[80vh] min-h-0 xl:sticky xl:top-[60px] xl:h-[calc(100vh-72px)] xl:max-h-none">

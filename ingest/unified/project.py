@@ -10,6 +10,11 @@
 Position on the map and what each side faces come from the optional ``SiteContext``
 sidecar. Without it the building still projects; it just has no views and its
 entrances carry the property's own coordinates.
+
+``Room.window_facing`` is what the room's windows look at: rays cast from each window at
+the sidecar's ``surroundings`` (roads, car parks, neighbouring buildings; see
+``ingest.unified.surroundings``). Where the map shows nothing in front of the glass, a
+window turned toward the street still counts as facing it.
 """
 
 from __future__ import annotations
@@ -18,9 +23,10 @@ import math
 from typing import Optional
 
 from core.schema import Building, Room
-from ingest.georegister import local_to_latlng
+from ingest.georegister import latlng_to_local, local_to_latlng
 from ingest.mp3d.walls import solid_panels
 from ingest.unified.schema import BuildingModel
+from ingest.unified.surroundings import facing_for_windows, local_features
 
 ROOM_TYPE_BY_KIND = {"unit": "unit", "tenant": "suite", "floor": "suite", "corridor": "corridor", "stair": "stairwell",
                      "elevator": "elevator", "lobby": "lobby", "walkway": "walkway", "parking": "parking",
@@ -92,8 +98,14 @@ def to_building(bm: BuildingModel, context: Optional[dict] = None) -> Building:
     street = ((context or {}).get("street") or {}).get("bearing_deg")
     multi_block = len({s.block for s in top if s.block}) > 1
 
-    # windows: which rooms have one, and which way the glass faces
+    # what stands around the building, in metres around the model's origin on the map; unused
+    # when the layout's place on the map is invented (several buildings on a grid)
+    map_origin = place["origin_latlng"] if (context or {}).get("layout_placed", True) else None
+    around = local_features((context or {}).get("surroundings"), map_origin) if map_origin else []
+
+    # windows: which rooms have one, which way the glass faces, and where it is on the map
     window_dirs: dict[str, list[float]] = {}
+    window_rays: dict[str, list[tuple[float, float, float]]] = {}
     for w in bm.walls:
         if not any(o.kind == "window" for o in w.openings):
             continue
@@ -108,7 +120,11 @@ def to_building(bm: BuildingModel, context: Optional[dict] = None) -> Building:
             nx, ny = -ey / n, ex / n
             if (mx + nx - c[0]) ** 2 + (my + ny - c[1]) ** 2 < (mx - nx - c[0]) ** 2 + (my - ny - c[1]) ** 2:
                 nx, ny = -nx, -ny
-            window_dirs.setdefault(rid, []).append(_compass(nx, ny, place["yaw_deg"]))
+            bearing = _compass(nx, ny, place["yaw_deg"])
+            window_dirs.setdefault(rid, []).append(bearing)
+            if around:
+                east, north = latlng_to_local(*to_latlng(place, mx, my), map_origin)
+                window_rays.setdefault(rid, []).append((east, north, bearing))
 
     vertical = {"stair": [s for s in top if s.kind == "stair"], "elevator": [s for s in top if s.kind == "elevator"]}
     linked: dict[str, set[str]] = {}
@@ -130,8 +146,8 @@ def to_building(bm: BuildingModel, context: Optional[dict] = None) -> Building:
     rooms = []
     for s in top:
         dirs = window_dirs.get(s.id) or []
-        facing = None
-        if dirs and street is not None and any(_gap(d, street) < FACING_TOLERANCE_DEG for d in dirs):
+        facing = facing_for_windows(window_rays.get(s.id) or [], around) if around else None
+        if facing is None and dirs and street is not None and any(_gap(d, street) < FACING_TOLERANCE_DEG for d in dirs):
             facing = "street"
         name = f"Unit {s.label}" if s.kind == "unit" else s.label
         if multi_block and s.block and s.kind != "unit":
