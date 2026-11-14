@@ -7,6 +7,8 @@
 data/**
 !data/**/
 !data/**/.gitkeep
+# OpenStreetMap around the kit's properties (ODbL, small enough to commit): see docs/osm-site-map.md
+!data/osm/site_pack.sqlite.gz
 
 # Python
 __pycache__/

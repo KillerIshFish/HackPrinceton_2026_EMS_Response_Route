@@ -1,9 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Navigation } from "lucide-react";
 import type { Approach, Building, BuildingMeta, SearchPlan, XY } from "../types";
 import { buildingBounds, mmss, titleCase } from "../lib";
 import { Panel } from "./Panel";
-import { AerialSite } from "./AerialSite";
+import { AerialSite, STAGING_COLOR } from "./AerialSite";
 
 interface Props {
   building: Building;
@@ -23,6 +23,9 @@ const MAX_LISTED_ENTRANCES = 8;
 
 export function AerialApproach({ building, plan, approach, meta }: Props) {
   const tiles = meta?.site.tiles ?? null;
+  const hasMap = !!tiles && (meta?.site.surroundings?.features.length ?? 0) > 0;
+  const [siteView, setSiteView] = useState<"aerial" | "map">("aerial");
+  const mode = hasMap ? siteView : "aerial";
   const geo = useMemo(() => {
     const fp = buildingBounds(building);
     const pts: XY[] = [
@@ -66,14 +69,32 @@ export function AerialApproach({ building, plan, approach, meta }: Props) {
 
   return (
     <Panel
-      title="Approach"
+      title="Site and approach"
       icon={<Navigation size={15} aria-hidden />}
-      actions={<span className="text-[11px] text-ink-mute">{tiles ? "Vexcel aerial imagery" : "Schematic site plan - no aerial imagery for this building"}</span>}
-      bodyClassName="grid gap-0 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]"
+      actions={
+        hasMap ? (
+          <div className="flex overflow-hidden rounded-sm border border-line text-[11px]" role="group" aria-label="Site view">
+            {(["aerial", "map"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                aria-pressed={mode === v}
+                onClick={() => setSiteView(v)}
+                className={`px-2 py-0.5 ${mode === v ? "bg-accent font-semibold text-[#1a1204]" : "text-ink-dim hover:text-ink"}`}
+              >
+                {v === "aerial" ? "Aerial" : "Map"}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span className="text-[11px] text-ink-mute">{tiles ? "Vexcel aerial imagery" : "Schematic site plan - no aerial imagery for this building"}</span>
+        )
+      }
+      bodyClassName="grid gap-0"
     >
       {/* site schematic */}
-      <div className="border-b border-line p-2 lg:border-b-0 lg:border-r">
-        {tiles && meta ? <AerialSite building={building} meta={meta} tiles={tiles} approach={approach} /> : (<>
+      <div className="border-b border-line p-2">
+        {tiles && meta ? <AerialSite building={building} meta={meta} tiles={tiles} approach={approach} mode={mode} /> : (<>
         <svg viewBox={`0 0 ${W} ${H}`} className="mx-auto block h-auto max-h-[340px] w-full" role="img" aria-label="Schematic site plan: parking lot to the north, street to the south, entrances and staging spots">
           {/* ground */}
           <rect width={W} height={H} fill="#0e151d" />
@@ -145,11 +166,11 @@ export function AerialApproach({ building, plan, approach, meta }: Props) {
                   width={18}
                   height={12}
                   rx={2}
-                  fill={rec ? "#f2a93b" : "#0e151d"}
-                  stroke={rec ? "#f2a93b" : "#62758a"}
+                  fill={rec ? STAGING_COLOR : "#0e151d"}
+                  stroke={rec ? STAGING_COLOR : "#62758a"}
                   strokeWidth={1.3}
                 />
-                <text x={cx} y={cy + 3.5} textAnchor="middle" fontSize="8.5" fontWeight="700" fill={rec ? "#1a1204" : "#a7b6c5"}>
+                <text x={cx} y={cy + 3.5} textAnchor="middle" fontSize="8.5" fontWeight="700" fill={rec ? "#052e16" : "#a7b6c5"}>
                   STG
                 </text>
               </g>
@@ -190,7 +211,10 @@ export function AerialApproach({ building, plan, approach, meta }: Props) {
         </svg>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-ink-mute">
           <span className="flex items-center gap-1.5">
-            <span className="block h-2 w-4 bg-accent" aria-hidden /> Recommended entrance / staging
+            <span className="block h-2 w-4 bg-accent" aria-hidden /> Recommended entrance
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="block h-2 w-4" style={{ background: STAGING_COLOR }} aria-hidden /> Recommended staging
           </span>
           <span className="flex items-center gap-1.5">
             <span className="block h-2 w-4 bg-[#62758a]" aria-hidden /> Other entrance
@@ -200,8 +224,8 @@ export function AerialApproach({ building, plan, approach, meta }: Props) {
       </div>
 
       {/* recommendation + E[T] comparison */}
-      <div className="flex flex-col gap-3 p-3">
-        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[13px]">
+      <div className="grid gap-3 p-3 md:grid-cols-2">
+        <dl className="grid grid-cols-[auto_1fr] content-start gap-x-3 gap-y-1.5 text-[13px]">
           <dt className="text-ink-mute">Stage at</dt>
           <dd className="text-ink">
             <span className="font-medium">{unplaced ? "The address point" : approach.staging_name}</span>
@@ -245,7 +269,7 @@ export function AerialApproach({ building, plan, approach, meta }: Props) {
           ) : null}
         </dl>
 
-        <div className="border-t border-line pt-3">
+        <div className="border-t border-line pt-3 md:border-l md:border-t-0 md:pl-3 md:pt-0">
           <div className="mb-2 flex items-baseline justify-between">
             <span className="eyebrow">Expected time to find, E[T]</span>
             <span className={`num text-xs font-semibold ${saved > 0.005 ? "text-prob" : "text-ink-mute"}`}>
