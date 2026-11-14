@@ -27,7 +27,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["api", "core", "eval", "ingest", "ingest.mp3d", "parser", "planning", "sim"]
+packages = ["api", "core", "eval", "ingest", "ingest.mp3d", "ingest.unified", "parser", "planning", "sim"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

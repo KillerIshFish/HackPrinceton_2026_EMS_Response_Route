@@ -154,12 +154,45 @@ def washington_call_script() -> list[dict]:
     )
 
 
-def demo_script_for(building_id: str) -> list[dict]:
-    """The scripted demo call that belongs to a building (synthetic script by default)."""
+_ORDINALS = {1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth", 6: "sixth", 7: "seventh",
+             8: "eighth", 9: "ninth", 10: "tenth"}
+
+
+def generic_call_script(building) -> list[dict]:
+    """A short call for a building generated at call time: address, a height fix, the floor.
+
+    There is no scripted ground truth for such a building, so the "caller" is put in a
+    unit picked deterministically (two thirds of the way through the unit list) and only
+    says which floor they are on. Everything else is typed in by the dispatcher.
+    """
+    rows: list[tuple[str, str, str, PhoneFix | None]] = [(
+        "Call connected", "system",
+        f"911 call connected. Dispatchable address: {building.name}. "
+        "No device location yet - showing the building prior.", None,
+    )]
+    units = sorted((r for r in building.rooms if r.room_type in ("unit", "suite", "office", "room")), key=lambda r: r.id)
+    if units and len(building.floors) > 1:
+        room = units[(2 * len(units)) // 3]
+        z = round(float(building.floor_heights_m.get(room.floor, 0.0)) + 1.2, 1)
+        rows.append(("Phone z-axis fix", "system",
+                     f"Device barometric z-axis fix received: {z} m above ground (±3 m). "
+                     "No usable horizontal fix indoors.", PhoneFix(z_m=z)))
+        said = f"the {_ORDINALS[room.floor]} floor" if room.floor in _ORDINALS else f"floor {room.floor}"
+        rows.append(("Caller: floor", "caller", f"I'm on {said}", None))
+    return _turns(rows)
+
+
+def demo_script_for(building_id: str, building=None) -> list[dict]:
+    """The scripted demo call that belongs to a building (synthetic script by default).
+
+    A building generated at call time (``prop-...`` / ``mp-...``) gets ``generic_call_script``.
+    """
     if building_id == BUNDY_BUILDING_ID:
         return bundy_olympic_call_script()
     if building_id == WASHINGTON_BUILDING_ID:
         return washington_call_script()
+    if building is not None and building_id.startswith(("prop-", "mp-")):
+        return generic_call_script(building)
     return demo_call_script()
 
 

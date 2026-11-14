@@ -200,6 +200,46 @@ export interface MatterportModel {
   floorplan_enabled?: boolean | null;
 }
 
+/** GET /lookup - one property matching an address, a name or an id */
+export interface PropertyHit {
+  property_id: number;
+  name: string;
+  address: string;
+  city: string | null;
+  state: string | null;
+  stories: number | null;
+  units: number | null;
+}
+
+/** POST /buildings/generate - what the pipeline built and how long each stage took */
+export interface GenerateReport {
+  building_id: string;
+  name: string;
+  tier: string;
+  archetype: string;
+  total_ms: number;
+  stages: { stage: string; ms: number; detail: string }[];
+  notes: string[];
+}
+
+/** GET /buildings/{id}/model3d - the unified building model, ready to draw */
+export interface Model3DPayload {
+  id: string;
+  name: string;
+  tier: string;
+  archetype: string;
+  /** where the geometry came from, in words */
+  source?: string;
+  notes: string[];
+  levels: { i: number; label: string; z0: number; h: number }[];
+  /** l level, k kind, n label, f fidelity, p polygon, par parent space, r the app room it counts toward */
+  spaces: { id: string; l: number; k: string; n: string; f: string; p: [number, number][]; par: string | null; r: string }[];
+  /** p solid panels and g window glass as [t0, t1, z0, z1]; t is a fraction along a-b */
+  walls: { l: number; a: [number, number]; b: [number, number]; th: number; x: boolean; f: string; p: [number, number, number, number][]; g: [number, number, number, number][] }[];
+  bounds: { x0: number; y0: number; x1: number; y1: number; z1: number };
+  counts: { spaces: number; walls: number; fidelity: Record<string, number> };
+}
+
 /** GET /buildings/{id}/meta - provenance, scans and the aerial site annotation */
 export interface BuildingMeta {
   building_id: string;

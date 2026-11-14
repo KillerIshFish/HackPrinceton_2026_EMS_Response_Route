@@ -234,7 +234,8 @@ class VexcelClient:
                 "Missing VEXCEL_API_KEY. Set it in .env (see .env.example). "
                 "The key is sent as the X-API-KEY header."
             )
-        self.api_key = api_key
+        # a key pasted into .env across a wrapped line carries stray whitespace; the API rejects it
+        self.api_key = "".join(api_key.split())
         self.base = base.rstrip("/")
         self.timeout_s = timeout_s
 
