@@ -347,6 +347,17 @@ cannot drift off the picture. The view is fitted to the building, labels are pla
 they do not cover each other, and a site with many entrances names only the recommended
 one on the image.
 
+## Onboarding site (`landing/`)
+
+A static page (plain HTML, no build step) that explains the project and how to use the
+console. Open `landing/index.html` in a browser to see it locally.
+
+To host it on Vercel: **Add New → Project**, import this repo, set **Root Directory** to
+`landing`, leave the framework preset as **Other** and the build command empty, then
+**Deploy**. Every push to `main` that touches the repo redeploys it. Once the console
+itself is hosted, set `APP_URL` near the bottom of `landing/index.html` so the
+"Launch the console" button opens it.
+
 ## Repo layout and ownership
 
 Each folder is meant to be owned by one person so work does not collide.
