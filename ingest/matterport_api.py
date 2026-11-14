@@ -36,6 +36,7 @@ query Model($id: ID!) {
       translation { x y z }
     }
     publication { published url address }
+    options { dollhouseEnabled floorplanEnabled }
     floors {
       id label sequence
       dimensions(units: metric) { areaFloor areaFloorIndoor }
@@ -61,6 +62,10 @@ query Model($id: ID!) {
   }
 }
 """
+
+
+# Which of the viewer's overview modes the scan's owner allows (they can switch the dollhouse off).
+OPTIONS_QUERY = "query Options($id: ID!) { model(id: $id) { options { dollhouseEnabled floorplanEnabled } } }"
 
 
 class MatterportError(RuntimeError):
@@ -109,7 +114,14 @@ def fetch_model(model_id: str, refresh: bool = False) -> dict:
     """One scan as a dict (the ``model`` object of ``MODEL_QUERY``), cached on disk."""
     path = data_dir() / f"{model_id}.json"
     if path.is_file() and not refresh:
-        return json.loads(path.read_text(encoding="utf-8"))
+        model = json.loads(path.read_text(encoding="utf-8"))
+        if "options" not in model:  # cached before the viewer options were part of the query
+            try:
+                model["options"] = (graphql(OPTIONS_QUERY, {"id": model_id}).get("model") or {}).get("options")
+                path.write_text(json.dumps(model, indent=1), encoding="utf-8")
+            except MatterportError:
+                pass  # offline: the viewer options stay unknown
+        return model
     model = graphql(MODEL_QUERY, {"id": model_id}).get("model")
     if not model:
         raise MatterportError(f"Model '{model_id}' not found or not visible to this API token")
@@ -118,7 +130,68 @@ def fetch_model(model_id: str, refresh: bool = False) -> dict:
     return model
 
 
+FLOORPLAN_QUERY = """
+query Floorplans($id: ID!) {
+  model(id: $id) {
+    assets {
+      floorplans(formats: ["png"]) { url format flags width height resolution origin { x y } floor { id } }
+    }
+  }
+}
+"""
+
+
+def floorplan_dir() -> Path:
+    return data_dir() / "floorplans"
+
+
+def fetch_floorplans(model_id: str, refresh: bool = False) -> dict[str, dict]:
+    """Matterport's top-down plan image of every floor of a scan, cached on disk.
+
+    Returns ``{floor_id: {"file", "width", "height", "resolution", "origin": [x, y]}}``
+    (empty when the scan has no plan images). ``file`` is the PNG's name inside
+    ``floorplan_dir()``. ``resolution`` is pixels per metre and ``origin`` is the
+    model-space (x, y) of the image's lower-left corner, so a model point
+    ``(x, y)`` sits at pixel
+    ``((x - origin_x) * resolution, height - (y - origin_y) * resolution)``.
+    Each image is the photogrammetric plan with a transparent background, in the
+    largest size on offer.
+    """
+    folder = floorplan_dir()
+    index_path = folder / f"{model_id}.index.json"
+    if index_path.is_file() and not refresh:
+        index = json.loads(index_path.read_text(encoding="utf-8"))
+        if all((folder / entry["file"]).is_file() for entry in index.values()):
+            return index
+    plans = ((graphql(FLOORPLAN_QUERY, {"id": model_id}).get("model") or {}).get("assets") or {}).get("floorplans") or []
+    best: dict[str, dict] = {}
+    for p in plans:
+        floor_id = (p.get("floor") or {}).get("id")
+        if not (floor_id and p.get("url") and p.get("width") and p.get("resolution") and p.get("origin")):
+            continue
+        if set(p.get("flags") or []) != {"photogramy", "alpha"}:
+            continue
+        if floor_id not in best or p["width"] > best[floor_id]["width"]:
+            best[floor_id] = p
+    folder.mkdir(parents=True, exist_ok=True)
+    index: dict[str, dict] = {}
+    for floor_id, p in best.items():
+        name = f"{model_id}_{floor_id}.png"
+        req = urllib.request.Request(p["url"], headers={"User-Agent": "caller-location-predictor/0.1"})
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                (folder / name).write_bytes(resp.read())
+        except urllib.error.URLError as exc:
+            raise MatterportError(f"Could not download a floor plan image of {model_id}: {exc}") from exc
+        index[floor_id] = {"file": name, "width": p["width"], "height": p["height"], "resolution": p["resolution"],
+                           "origin": [p["origin"]["x"], p["origin"]["y"]]}
+    index_path.write_text(json.dumps(index, indent=1), encoding="utf-8")
+    return index
+
+
 if __name__ == "__main__":
     for mid in sys.argv[1:]:
         m = fetch_model(mid)
-        print(f"{mid}  {m.get('name')!r}  rooms={len(m.get('rooms') or [])}  sweeps={len(m.get('locations') or [])}")
+        plans = fetch_floorplans(mid)
+        print(f"{mid}  {m.get('name')!r}  floors={len(m.get('floors') or [])}  rooms={len(m.get('rooms') or [])}  "
+              f"sweeps={len(m.get('locations') or [])}  plan images={len(plans)}")

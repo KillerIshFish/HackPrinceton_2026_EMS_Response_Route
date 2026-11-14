@@ -165,8 +165,17 @@ def _suite_from_name(name: str | None) -> Optional[str]:
 
 
 def build_real_building(building_id: str, refresh: bool = False) -> tuple[Building, dict]:
-    """Assemble ``(Building, meta)`` for one entry of ``configs/real_buildings.yaml``."""
+    """Assemble ``(Building, meta)`` for one entry of ``configs/real_buildings.yaml``.
+
+    ``kind: full_scan`` entries (one Matterport scan covers the whole building)
+    are built by ``ingest.scan_building``; the rest of this function assembles a
+    building from CoStar suites plus scans of individual suites.
+    """
     cfg = building_config(building_id)
+    if cfg.get("kind") == "full_scan":
+        from ingest.scan_building import build_scan_building
+
+        return build_scan_building(cfg, refresh=refresh)
     prop = costar.load_property(int(cfg["costar_property_id"]), refresh=refresh)
     site = cfg["site"]
     plate = cfg["plate"]
@@ -497,7 +506,9 @@ def build_real_building(building_id: str, refresh: bool = False) -> tuple[Buildi
             {"model_id": model["id"], "suite": suite, "name": (model.get("name") or "").strip(),
              "floor": int(suite[:-2]) if suite[:-2].isdigit() else None,
              "created": model.get("created"), "sweeps": len(model.get("locations") or []),
-             "has_room_boundaries": any(((r.get("boundary") or {}).get("edges")) for r in model.get("rooms") or [])}
+             "has_room_boundaries": any(((r.get("boundary") or {}).get("edges")) for r in model.get("rooms") or []),
+             "dollhouse_enabled": (model.get("options") or {}).get("dollhouseEnabled"),
+             "floorplan_enabled": (model.get("options") or {}).get("floorplanEnabled")}
             for suite, model in sorted(scans.items())
         ],
         "room_sources": counts,

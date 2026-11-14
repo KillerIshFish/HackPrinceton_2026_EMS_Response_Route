@@ -124,4 +124,12 @@ def recommend_approach(
                     result["stairwell_id"] = room.id
                     result["stairwell_name"] = room.name
                     break
+            else:
+                # Open stairs (a flight inside a room, no stairwell room): name the room it starts in.
+                for u, v in zip(path, path[1:]):
+                    if G[u][v].get("kind") == "stairs" and u in rooms and v in rooms:
+                        lower = min((rooms[u], rooms[v]), key=lambda r: r.floor)
+                        result["stairwell_id"] = lower.id
+                        result["stairwell_name"] = f"Stairs in {lower.name}"
+                        break
     return result

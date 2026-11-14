@@ -10,6 +10,8 @@ Driven entirely by configs/clue_vocab.yaml:
 * floor: m = 1 on the stated floor, `adjacent_floor_match` on floors +/-1, else 0.
   Value is a floor label ("4"), an ordinal word, or "top" / "ground".
 * negative: value is "<section>:<key>" or a bare key; always scored as 1 - m.
+* route: value is a key of `routes` ("stairs_up_right"); m comes from the turns on the
+  walk from where that anchor arrives to each room (core/route_clues.py).
 
 Polarity is applied here (polarity False -> 1 - m). Unknown values are
 uninformative: every room gets 1.0.
@@ -22,6 +24,7 @@ from pathlib import Path
 
 import yaml
 
+from core.route_clues import route_match
 from core.schema import Building, Clue, Room
 
 VOCAB_PATH = Path(__file__).resolve().parents[1] / "configs" / "clue_vocab.yaml"
@@ -34,9 +37,10 @@ TYPE_TO_SECTION = {
     "sound": "sounds",
     "smell": "smells",
     "floor": "floors",
+    "route": "routes",
 }
 # Order used to resolve a bare key (negative clues, or a key filed under another section).
-SECTION_SEARCH_ORDER = ("room_types", "views", "landmarks", "sounds", "smells")
+SECTION_SEARCH_ORDER = ("room_types", "views", "landmarks", "sounds", "smells", "routes")
 _SECTION_ALIASES = {
     **{s: s for s in SECTION_SEARCH_ORDER},
     **TYPE_TO_SECTION,
@@ -156,6 +160,8 @@ def _section_match(building: Building, section: str, key: str, vocab: dict) -> d
     entry = entries[k] or {}
     if section == "room_types":
         return _room_type_match(building, k, entry, vocab)
+    if section == "routes":
+        return route_match(building, str(entry.get("anchor", "")), str(entry.get("turn", "")))
     return _rule_match(building, entry, vocab)
 
 

@@ -102,10 +102,64 @@ def bundy_olympic_call_script() -> list[dict]:
     )
 
 
+WASHINGTON_BUILDING_ID = "washington-5285"
+WASHINGTON_TRUE_ROOM_ID = "f2-r35"  # "Office 9": a rear office on the second floor
+
+
+def washington_call_script() -> list[dict]:
+    """Demo call for 5285 W Washington Blvd, the building with a whole-building scan.
+
+    The caller is in a second-floor office at the back, overlooking the houses
+    behind. The second floor is only 3.0 m above the first, so the z-axis fix
+    (accurate to +/-3 m) cannot separate the two floors by itself; what the
+    caller says has to.
+    """
+    return _turns(
+        [
+            (
+                "Call connected",
+                "system",
+                "911 call connected. Dispatchable address: 5285 W Washington Blvd, Los Angeles. "
+                "No device location yet - showing the building prior.",
+                None,
+            ),
+            (
+                "Phone z-axis fix",
+                "system",
+                "Device barometric z-axis fix received: 4.4 m above ground (±3 m). "
+                "The floors are 3 m apart, so this leans to the second floor but cannot rule out the first.",
+                PhoneFix(z_m=4.4),
+            ),
+            (
+                "Caller: room and floor",
+                "caller",
+                "I'm on the second floor in an office, I locked the door",
+                None,
+            ),
+            (
+                # A route clue: the building has two stairs, and the offices are on the
+                # right of one and on the left of the other.
+                "Caller: route",
+                "caller",
+                "I came up the stairs and turned right to get to this room",
+                None,
+            ),
+            (
+                "Caller: view",
+                "caller",
+                "I can see houses and a backyard out the window",
+                None,
+            ),
+        ]
+    )
+
+
 def demo_script_for(building_id: str) -> list[dict]:
     """The scripted demo call that belongs to a building (synthetic script by default)."""
     if building_id == BUNDY_BUILDING_ID:
         return bundy_olympic_call_script()
+    if building_id == WASHINGTON_BUILDING_ID:
+        return washington_call_script()
     return demo_call_script()
 
 

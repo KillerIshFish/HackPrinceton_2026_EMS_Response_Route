@@ -35,12 +35,13 @@ from typing import Any, Optional
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from core.fusion import posterior_probs
 from core.schema import Building, Clue, PhoneFix, Posterior, SearchPlan
 from core.uncertainty import summarize
-from ingest import vexcel
+from ingest import matterport_api, vexcel
 from ingest.matterport import list_buildings, load_building
 from ingest.real_building import load_meta
 from parser.extract import LLM_MODEL, extract_clues_with_source, llm_usage
@@ -367,6 +368,24 @@ def get_building_meta(building_id: str) -> dict[str, Any]:
     if tiles:
         meta.setdefault("site", {})["tiles"] = tiles
     return meta
+
+
+@app.get("/buildings/{building_id}/floorplan/{floor}")
+def get_floorplan(building_id: str, floor: int) -> FileResponse:
+    """Matterport's plan image of one floor (PNG, transparent background).
+
+    Only buildings built from a whole-building scan have these; their placement
+    (``origin``, ``resolution``) is in ``meta["floorplans"][floor]``.
+    """
+    try:
+        load_building(building_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Unknown building '{building_id}'")
+    entry = (load_meta(building_id).get("floorplans") or {}).get(str(floor))
+    path = matterport_api.floorplan_dir() / entry["file"] if entry else None
+    if path is None or not path.is_file():
+        raise HTTPException(status_code=404, detail=f"No plan image for floor {floor} of '{building_id}'")
+    return FileResponse(path, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
 
 
 def _site_tiles(meta: dict) -> Optional[dict]:

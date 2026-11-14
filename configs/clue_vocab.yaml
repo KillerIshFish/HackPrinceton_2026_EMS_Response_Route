@@ -44,7 +44,14 @@ room_types:
   storage:
     synonyms: [storage room, supply closet, supply room, closet, janitor closet, storage]
   server_room:
-    synonyms: [server room, data closet, it room, it closet]
+    synonyms: [server room, data closet, it room, it closet, control room]
+  warehouse:
+    synonyms: [warehouse, loading dock, stockroom, stock room, storeroom]
+  common_area:
+    synonyms: [lounge, common area, common room, common space, break area, seating area]
+    also: [open_office]
+  rooftop:
+    synonyms: [on the roof, rooftop, roof deck, roof terrace]
   mechanical:
     synonyms: [mechanical room, boiler room, utility room, electrical room]
   parking:
@@ -67,6 +74,15 @@ composite_room_types:
       storage: 0.5
       corridor: 0.4
       server_room: 0.3
+  # A scanned room that carries no label and no recognised class.
+  room:
+    contains:
+      office: 0.6
+      storage: 0.4
+      conference: 0.3
+      open_office: 0.3
+      break_room: 0.2
+      server_room: 0.2
 
 views:
   parking_lot:
@@ -75,6 +91,12 @@ views:
   street:
     synonyms: [street, road, traffic, sidewalk, bus stop, intersection]
     match: {window_facing: street}
+  residential:
+    synonyms: [houses, a house, backyard, back yard, backyards, garden, someone's yard, a yard, fence]
+    match: {window_facing: residential}
+  adjacent_building:
+    synonyms: [another building, building next door, next door, brick wall, a wall outside, alley, alleyway]
+    match: {window_facing: adjacent_building}
 
 landmarks:
   window:
@@ -125,6 +147,61 @@ smells:
     match: {room_type: [restroom, storage]}
     miss: 0.2
 
+# Route clues: how the caller got to where they are. `anchor` is the thing they passed
+# (stairs_up / stairs_down / elevator / entrance), `turn` what they did next. Scored by
+# core/route_clues.py from the building's door and stair geometry. Synonyms are example
+# phrasings for the LLM prompt; the rule parser builds these from an anchor word plus a
+# turn phrase in the same sentence.
+routes:
+  stairs_up_left:
+    anchor: stairs_up
+    turn: left
+    synonyms: [turned left after coming up the stairs, left at the top of the stairs]
+  stairs_up_right:
+    anchor: stairs_up
+    turn: right
+    synonyms: [turned right after coming up the stairs, right at the top of the stairs]
+  stairs_up_straight:
+    anchor: stairs_up
+    turn: straight
+    synonyms: [went straight after coming up the stairs, straight ahead from the top of the stairs]
+  stairs_down_left:
+    anchor: stairs_down
+    turn: left
+    synonyms: [went down the stairs and turned left, left at the bottom of the stairs]
+  stairs_down_right:
+    anchor: stairs_down
+    turn: right
+    synonyms: [went down the stairs and turned right, right at the bottom of the stairs]
+  stairs_down_straight:
+    anchor: stairs_down
+    turn: straight
+    synonyms: [went down the stairs and kept going straight]
+  elevator_left:
+    anchor: elevator
+    turn: left
+    synonyms: [got off the elevator and turned left, left out of the elevator]
+  elevator_right:
+    anchor: elevator
+    turn: right
+    synonyms: [got off the elevator and turned right, right out of the elevator]
+  elevator_straight:
+    anchor: elevator
+    turn: straight
+    synonyms: [got off the elevator and went straight ahead]
+  entrance_left:
+    anchor: entrance
+    turn: left
+    synonyms: [came in the front door and turned left, left from the entrance]
+  entrance_right:
+    anchor: entrance
+    turn: right
+    synonyms: [came in the front door and turned right, right from the entrance]
+  entrance_straight:
+    anchor: entrance
+    turn: straight
+    synonyms: [came in the front door and went straight back]
+
 floors:
   # Words -> floor index. Clue.value is the floor label as a string ("4").
   ordinals: {first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6,
@@ -147,3 +224,4 @@ default_confidence:
   sound: 0.6
   smell: 0.5
   negative: 0.7
+  route: 0.7

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { Layers, LocateFixed } from "lucide-react";
-import type { Building, Posterior, Room, RoomMeta, SearchPlan } from "../types";
+import type { Building, FloorPlanImage, Posterior, Room, RoomMeta, SearchPlan } from "../types";
 import {
   RAMP_CSS_GRADIENT,
   boundsOf,
@@ -27,6 +27,10 @@ interface Props {
   roomMeta?: Record<string, RoomMeta>;
   /** clicking a room that has a 3D scan opens it */
   onSelectRoom?: (roomId: string) => void;
+  /** Matterport's plan image of this floor, drawn under the heatmap (whole-building scans) */
+  planImage?: (FloorPlanImage & { href: string }) | null;
+  /** counter-clockwise angle of the plan's +x axis from east; 0 means north is up */
+  rotationDeg?: number;
 }
 
 const SOURCE_LABEL: Record<RoomMeta["source"], string> = {
@@ -86,7 +90,10 @@ export function FloorPlanHeatmap({
   onToggleFollow,
   roomMeta,
   onSelectRoom,
+  planImage,
+  rotationDeg = 0,
 }: Props) {
+  const rotated = Math.abs(rotationDeg) > 0.5;
   const wrapRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<Hover | null>(null);
 
@@ -207,11 +214,38 @@ export function FloorPlanHeatmap({
 
           {/* side labels */}
           <text x={W / 2} y={PAD_Y - 9} textAnchor="middle" fontSize="9.5" fontWeight="600" letterSpacing="1.1" fill="#8394a6">
-            N{northFacing ? ` - ${titleCase(northFacing).toUpperCase()} SIDE` : ""}
+            {rotated ? "" : "N"}
+            {northFacing ? `${rotated ? "" : " - "}${titleCase(northFacing).toUpperCase()} SIDE` : ""}
           </text>
           <text x={W / 2} y={H - PAD_Y + 16} textAnchor="middle" fontSize="9.5" fontWeight="600" letterSpacing="1.1" fill="#8394a6">
-            S{southFacing ? ` - ${titleCase(southFacing).toUpperCase()} SIDE` : ""}
+            {rotated ? "" : "S"}
+            {southFacing ? `${rotated ? "" : " - "}${titleCase(southFacing).toUpperCase()} SIDE` : ""}
           </text>
+
+          {/* the plan is not north-up: show where north is */}
+          {rotated ? (
+            <g transform={`translate(${W - 20}, 12)`} aria-hidden>
+              <g transform={`rotate(${rotationDeg})`}>
+                <path d="M 0 -8 L 4.5 6 L 0 3 L -4.5 6 Z" fill="#8394a6" />
+              </g>
+              <text x={-10} y={3.5} textAnchor="end" fontSize="9.5" fontWeight="600" fill="#8394a6">
+                N
+              </text>
+            </g>
+          ) : null}
+
+          {/* Matterport's plan image of the floor, in the same coordinates as the rooms */}
+          {planImage ? (
+            <image
+              href={planImage.href}
+              x={X(planImage.origin[0])}
+              y={Y(planImage.origin[1] + planImage.height / planImage.resolution)}
+              width={(planImage.width / planImage.resolution) * S}
+              height={(planImage.height / planImage.resolution) * S}
+              preserveAspectRatio="none"
+              pointerEvents="none"
+            />
+          ) : null}
 
           {/* room fills */}
           {rooms.map((room) => {
@@ -223,8 +257,10 @@ export function FloorPlanHeatmap({
                 key={room.id}
                 points={pts}
                 fill={rampColor(t)}
-                stroke="#0b1016"
-                strokeWidth={1.5}
+                fillOpacity={planImage ? 0.42 + 0.4 * t : 1}
+                stroke={planImage ? "#e6edf3" : "#0b1016"}
+                strokeOpacity={planImage ? 0.55 : 1}
+                strokeWidth={planImage ? 1 : 1.5}
                 className="room-shape cursor-crosshair outline-none"
                 tabIndex={0}
                 aria-label={`${room.name}, ${titleCase(room.room_type)}, probability ${pct(p)}`}
@@ -365,6 +401,7 @@ export function FloorPlanHeatmap({
           <span className="num">{pct(maxP)}</span>
           <span className="text-ink-mute">P(room), sqrt scale to current max - mid tick {pct(maxP / 4)}</span>
         </div>
+        {planImage ? <div className="text-ink-mute">Floor plan: Matterport scan, rooms traced from its walls</div> : null}
         <div className="flex items-center gap-1.5">
           <span className="block h-3 w-4 rounded-[2px] border-2 border-[#f1fbe3]" aria-hidden />
           90% credible set

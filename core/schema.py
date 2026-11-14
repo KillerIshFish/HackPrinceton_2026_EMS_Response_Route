@@ -22,6 +22,11 @@ Building.edges[i]::
      "length_m": float,          # walking distance between the two centroids
      "floors": int}              # abs floor delta (0 unless stairs/elevator)
 
+    Optional keys (read by core/route_clues.py; absent = fall back to room outlines):
+     "xy": [x, y]                          # door / corridor edge: where the opening is
+     "top_xy": [x, y], "heading": [dx, dy]            # stairs: arrival point and travel direction going up
+     "bottom_xy": [x, y], "bottom_heading": [dx, dy]  # stairs: the same going down
+
 Building.entrances[i]::
 
     {"id": str, "name": str, "room_id": str,     # room the door opens into
@@ -40,7 +45,9 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-ClueType = Literal["room_type", "floor", "landmark", "view", "sound", "smell", "negative"]
+# "route" was added after the freeze (additive): how the caller reached the room, e.g.
+# "turned right after coming up the stairs". Values are keys of `routes` in clue_vocab.yaml.
+ClueType = Literal["room_type", "floor", "landmark", "view", "sound", "smell", "negative", "route"]
 
 
 class Room(BaseModel):

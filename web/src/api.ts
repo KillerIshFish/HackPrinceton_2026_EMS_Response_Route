@@ -49,6 +49,8 @@ export const api = {
   buildings: () => request<Building[]>("/buildings"),
   building: (id: string) => request<Building>(`/buildings/${encodeURIComponent(id)}`),
   buildingMeta: (id: string) => request<BuildingMeta>(`/buildings/${encodeURIComponent(id)}/meta`),
+  /** URL of Matterport's plan image for one floor (whole-building scans only) */
+  floorplanUrl: (id: string, floor: number) => `${BASE}/buildings/${encodeURIComponent(id)}/floorplan/${floor}`,
   /** URL of one aerial tile, served (and cached) by the backend so the Vexcel key stays there */
   tileUrl: (layer: string, z: number, x: number, y: number) => `${BASE}/vexcel/tile/${layer}/${z}/${x}/${y}`,
   setBuilding: (id: string) => post<DemoState>(`/calls/demo/building?id=${encodeURIComponent(id)}`),
