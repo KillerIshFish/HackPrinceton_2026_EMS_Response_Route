@@ -1,0 +1,99 @@
+# Caller personas for simulation (sim/sample_caller.py::truthful_clues) and, later,
+# for LLM-generated call transcripts.
+#
+#   clue_rate           P(a true attribute of the room is actually mentioned)
+#   error_rate          P(a mentioned clue is wrong: floor off by one, wrong view side)
+#   hedge_rate          P(a mentioned clue is hedged -> confidence multiplied by hedge_factor)
+#   hedge_factor        confidence multiplier for hedged clues
+#   negative_rate       P(the caller volunteers an absence, e.g. "there's no window")
+#   knows_floor         P(the caller can name their floor at all)
+#   max_clues           cap on clues per call
+#   style / quirks      free text for the LLM transcript generator (unused by the v0 rules)
+version: 1
+
+default: calm_employee
+
+personas:
+  calm_employee:
+    description: Works in the building, oriented, answers questions directly.
+    clue_rate: 0.85
+    error_rate: 0.03
+    hedge_rate: 0.10
+    hedge_factor: 0.7
+    negative_rate: 0.40
+    knows_floor: 0.95
+    max_clues: 5
+    style: Clear full sentences, uses building jargon ("the north bullpen", "by the copier").
+    quirks: [uses tenant or team names, gives room numbers the model may not know]
+
+  panicked:
+    description: Frightened, fragmented speech, repeats themselves, hard to redirect.
+    clue_rate: 0.55
+    error_rate: 0.10
+    hedge_rate: 0.35
+    hedge_factor: 0.7
+    negative_rate: 0.15
+    knows_floor: 0.70
+    max_clues: 3
+    style: Short bursts, interrupts, answers a different question than the one asked.
+    quirks: [repeats "please hurry", misstates the floor, mixes up left and right]
+
+  elderly:
+    description: Visitor unfamiliar with the building, slow and polite, hard of hearing.
+    clue_rate: 0.60
+    error_rate: 0.12
+    hedge_rate: 0.45
+    hedge_factor: 0.7
+    negative_rate: 0.25
+    knows_floor: 0.50
+    max_clues: 4
+    style: Long-winded, describes what they see rather than naming the room type.
+    quirks: [says "washroom" or "lavatory", counts the ground floor as floor zero, asks dispatcher to repeat]
+
+  injured:
+    description: In pain or short of breath, minimal words, may fade out.
+    clue_rate: 0.40
+    error_rate: 0.08
+    hedge_rate: 0.25
+    hedge_factor: 0.7
+    negative_rate: 0.05
+    knows_floor: 0.75
+    max_clues: 2
+    style: One- to three-word answers, long pauses, yes/no only when prompted.
+    quirks: [trails off mid-sentence, cannot move to look out a window]
+
+  hiding_whisper:
+    description: Hiding from a threat, whispering, cannot move or speak freely.
+    clue_rate: 0.45
+    error_rate: 0.05
+    hedge_rate: 0.15
+    hedge_factor: 0.7
+    negative_rate: 0.30
+    knows_floor: 0.85
+    max_clues: 3
+    style: Whispered fragments, prefers yes/no, reports sounds more than sights.
+    quirks: [reports sounds like footsteps or the elevator, goes silent for long stretches]
+
+  child:
+    description: Child calling for a parent or themselves; concrete, literal descriptions.
+    clue_rate: 0.50
+    error_rate: 0.15
+    hedge_rate: 0.20
+    hedge_factor: 0.7
+    negative_rate: 0.10
+    knows_floor: 0.35
+    max_clues: 3
+    style: Describes colours and objects ("there's a big table", "I see cars"), not room names.
+    quirks: [says "potty" for restroom, cannot name the floor, describes what they see out the window]
+
+  bystander:
+    description: Calling about someone else they found; mobile, can go look for landmarks.
+    clue_rate: 0.80
+    error_rate: 0.05
+    hedge_rate: 0.15
+    hedge_factor: 0.7
+    negative_rate: 0.35
+    knows_floor: 0.90
+    max_clues: 5
+    style: Cooperative, narrates as they walk, will read signs aloud when asked.
+    quirks: [location changes mid-call if they go to meet responders]

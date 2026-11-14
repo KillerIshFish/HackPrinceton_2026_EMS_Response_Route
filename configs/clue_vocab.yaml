@@ -1,0 +1,129 @@
+# Controlled clue vocabulary - shared by parser/extract.py (synonyms -> Clue)
+# and core/clue_likelihood.py (Clue -> match vector over rooms).
+#
+# Each entry:
+#   synonyms: phrases the caller might say (lower-case, matched case-insensitively)
+#   match:    Room-field conditions. ALL keys must hold; a list value means any-of.
+#             m(r) = 1.0 when the room satisfies `match`, else `miss` (default 0.0).
+#
+# Clue.type -> section:
+#   room_type -> room_types   (match is implicit: Room.room_type == key or in `also`)
+#   view      -> views
+#   landmark  -> landmarks
+#   sound     -> sounds
+#   smell     -> smells
+#   floor     -> floors       (Clue.value is a floor label like "4", or "top"/"ground")
+#   negative  -> Clue.value is "<section>:<key>" or a bare key from any section;
+#                always scored as polarity = false.
+version: 1
+
+room_types:
+  restroom:
+    synonyms: [bathroom, restroom, rest room, toilet, washroom, lavatory, "men's room", "mens room", "ladies room", "women's room", stall]
+  office:
+    synonyms: [my office, private office, an office, office]
+  open_office:
+    synonyms: [cubicle, cubicles, open office, bullpen, my desk, desks]
+    also: [office]
+  conference:
+    synonyms: [conference room, meeting room, boardroom, board room]
+  break_room:
+    synonyms: [break room, breakroom, kitchen, kitchenette, lunch room, lunchroom, cafeteria, pantry]
+  lobby:
+    synonyms: [lobby, front desk, reception, atrium, main entrance]
+    also: [reception]
+  reception:
+    synonyms: [reception area, waiting area, waiting room]
+    also: [lobby]
+  corridor:
+    synonyms: [hallway, corridor, hall]
+  stairwell:
+    synonyms: [stairwell, stairway, staircase, on the stairs, in the stairs]
+  elevator:
+    synonyms: [in the elevator, inside the elevator, stuck in the elevator, elevator car]
+  storage:
+    synonyms: [storage room, supply closet, supply room, closet, janitor closet, storage]
+  server_room:
+    synonyms: [server room, data closet, it room, it closet]
+  mechanical:
+    synonyms: [mechanical room, boiler room, utility room, electrical room]
+
+views:
+  parking_lot:
+    synonyms: [parking lot, car park, parking, parked cars, the lot]
+    match: {window_facing: parking_lot}
+  street:
+    synonyms: [street, road, traffic, sidewalk, bus stop, intersection]
+    match: {window_facing: street}
+
+landmarks:
+  window:
+    synonyms: [window, windows]
+    match: {has_windows: true}
+  elevator:
+    synonyms: [elevator, elevators, lift]
+    match: {near_elevator: true}
+  stairs:
+    synonyms: [stairs, stairwell door, staircase, exit stairs, fire stairs]
+    match: {near_stairs: true}
+  vending_machine:
+    synonyms: [vending machine, soda machine, snack machine]
+    match: {room_type: [break_room]}
+  printer:
+    synonyms: [printer, copier, copy machine]
+    match: {room_type: [open_office, storage]}
+  reception_desk:
+    synonyms: [reception desk, security desk]
+    match: {room_type: [lobby, reception]}
+  sink:
+    synonyms: [sink, sinks]
+    match: {room_type: [restroom, break_room]}
+
+sounds:
+  elevator_ding:
+    synonyms: [elevator ding, elevator bell, hear the elevator, elevator dinging]
+    match: {near_elevator: true}
+  traffic_noise:
+    synonyms: [hear traffic, hear cars, hear sirens outside, car horns]
+    match: {window_facing: street}
+    miss: 0.3
+  machinery_hum:
+    synonyms: [humming, loud fans, machinery, server fans, loud hum]
+    match: {room_type: [server_room, mechanical]}
+    miss: 0.1
+  footsteps_stairs:
+    synonyms: [footsteps on stairs, people on the stairs, hear the stairwell]
+    match: {near_stairs: true}
+
+smells:
+  coffee:
+    synonyms: [smell coffee, smells like coffee, smell food, smell popcorn]
+    match: {room_type: [break_room]}
+    miss: 0.2
+  cleaning_chemicals:
+    synonyms: [smell bleach, smells like bleach, cleaning supplies, smell chemicals]
+    match: {room_type: [restroom, storage]}
+    miss: 0.2
+
+floors:
+  # Words -> floor index. Clue.value is the floor label as a string ("4").
+  ordinals: {first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6,
+             1st: 1, 2nd: 2, 3rd: 3, 4th: 4, 5th: 5, 6th: 6}
+  relative:
+    top: [top floor, highest floor, the roof level]
+    ground: [ground floor, ground level, street level, main floor]
+  adjacent_floor_match: 0.25   # callers miscount floors: partial credit for +/-1
+
+# Cues that flip polarity when they precede a matched phrase in the same clause.
+negation_cues: ["no ", "not ", "don't see", "do not see", "can't see", "cannot see",
+                "there's no", "there is no", "there are no", "without", "isn't", "aren't"]
+
+# Parser confidence defaults per clue type (the LLM parser will emit its own).
+default_confidence:
+  room_type: 1.0
+  floor: 0.8
+  view: 0.9
+  landmark: 0.8
+  sound: 0.6
+  smell: 0.5
+  negative: 0.7

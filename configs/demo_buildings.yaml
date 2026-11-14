@@ -1,0 +1,136 @@
+# Synthetic demo buildings for v0 (no licensed data needed).
+# ingest/matterport.py::generate_synthetic_office() turns the FIRST entry into a
+# core.schema.Building. Everything here is tunable without touching code.
+#
+# Plan (local metres, x = east, y = north), identical band grid on every floor:
+#
+#   y 15..22  NORTH ROW      windows face the PARKING LOT
+#   y 13..15  north corridor (3 segments: west / mid / east)
+#   y  9..13  CORE BAND      stairs, cross-corridor links, restroom, elevator, closets
+#   y  7..9   south corridor (3 segments)
+#   y  0..7   SOUTH ROW      windows face the STREET
+#
+# Row rooms are listed west -> east with a `width` (m); widths must sum to the
+# footprint width. Core rooms give an explicit x range and which corridor their
+# door opens onto. room_type values must be keys of configs/clue_vocab.yaml room_types.
+version: 1
+
+buildings:
+  - id: ptc-100
+    name: 100 Princeton Tech Center
+    use_type: office
+    origin_latlng: [40.3573, -74.6672]   # lat/lng of local (0, 0) = SW corner
+    rotation_deg: 0.0                    # CCW rotation of local +x from true east
+    footprint_m: {width: 44.0, depth: 22.0}
+    floors: [1, 2, 3, 4]
+    floor_heights_m: {1: 0.0, 2: 4.0, 3: 8.0, 4: 12.0}
+
+    bands:                               # [y_min, y_max]
+      south_row: [0.0, 7.0]
+      south_corridor: [7.0, 9.0]
+      core: [9.0, 13.0]
+      north_corridor: [13.0, 15.0]
+      north_row: [15.0, 22.0]
+    facing: {north_row: parking_lot, south_row: street}
+    corridor_segments:                   # [x_min, x_max, slug suffix]
+      - [0.0, 14.0, west]
+      - [14.0, 30.0, mid]
+      - [30.0, 44.0, east]
+
+    near_radius_m: 8.0                   # near_elevator / near_stairs threshold
+    stair_run_m: 8.0                     # walking length of one stair flight pair
+    # elevator edge length = floor-to-floor height
+
+    # Core rooms present on every floor. door: north | south (corridor side),
+    # or the slug of another core room on the same floor.
+    core_fixed:
+      - {slug: stair-west, name: "Stair A (West)", type: stairwell, x: [0.0, 6.0], door: corridor-link-w}
+      - {slug: corridor-link-w, name: "Cross Corridor West", type: corridor, x: [6.0, 8.0]}
+      - {slug: restroom-core, name: "Restroom (Core)", type: restroom, x: [13.5, 21.0], door: north}
+      - {slug: elevator, name: "Elevator", type: elevator, x: [21.0, 25.0], door: south}
+      - {slug: corridor-link-e, name: "Cross Corridor East", type: corridor, x: [36.0, 38.0]}
+      - {slug: stair-east, name: "Stair B (East)", type: stairwell, x: [38.0, 44.0], door: corridor-link-e}
+
+    floor_programs:
+      1:
+        north_row:
+          - {slug: storage-mail, name: "Mail Room & Receiving", type: storage, width: 7.0, windows: false}
+          - {slug: office-101, name: "Office 101", type: office, width: 6.0}
+          - {slug: office-102, name: "Office 102", type: office, width: 6.0}
+          - {slug: corridor-rear, name: "Rear Vestibule", type: corridor, width: 3.0, windows: false}
+          - {slug: conference-b, name: "Training Room 1B", type: conference, width: 9.0}
+          - {slug: open-office-n, name: "Leasing Office", type: open_office, width: 13.0, occupancy: 0.7}
+        south_row:
+          - {slug: conference-a, name: "Conference Room 1A", type: conference, width: 8.0}
+          - {slug: reception, name: "Reception & Waiting", type: reception, width: 8.0}
+          - {slug: lobby, name: "Main Lobby", type: lobby, width: 12.0}
+          - {slug: office-security, name: "Security Office", type: office, width: 5.0}
+          - {slug: break-room, name: "Cafe / Break Room", type: break_room, width: 11.0}
+        core:
+          - {slug: storage-janitor, name: "Janitor Closet 1", type: storage, x: [8.0, 13.5], door: south}
+          - {slug: mechanical, name: "Main Mechanical & Electrical", type: mechanical, x: [25.0, 36.0], door: north}
+        extra_edges:
+          - [reception, lobby]           # reception is open to the lobby
+
+      2:
+        north_row:
+          - {slug: open-office-n1, name: "Open Office 2 North-West", type: open_office, width: 14.0}
+          - {slug: open-office-n2, name: "Open Office 2 North-Centre", type: open_office, width: 14.0}
+          - {slug: break-room, name: "Break Room 2", type: break_room, width: 7.0}
+          - {slug: conference-n, name: "Conference Room 2N", type: conference, width: 9.0}
+        south_row:
+          - {slug: office-201, name: "Office 201", type: office, width: 6.0}
+          - {slug: office-202, name: "Office 202", type: office, width: 6.0, occupancy: 0.6}
+          - {slug: open-office-s1, name: "Open Office 2 South-Centre", type: open_office, width: 14.0}
+          - {slug: open-office-s2, name: "Open Office 2 South-East", type: open_office, width: 12.0}
+          - {slug: conference-s, name: "Conference Room 2S", type: conference, width: 6.0}
+        core:
+          - {slug: storage-supply, name: "Supply & Copy Room 2", type: storage, x: [8.0, 13.5], door: south}
+          - {slug: server-room, name: "Server Room / MDF", type: server_room, x: [25.0, 30.5], door: north}
+          - {slug: storage-janitor, name: "Janitor Closet 2", type: storage, x: [30.5, 36.0], door: south}
+
+      3:
+        north_row:
+          - {slug: suite-vacant, name: "Suite 310 (vacant)", type: office, width: 16.0, occupancy: 0.3}
+          - {slug: open-office-n1, name: "Open Office 3 North", type: open_office, width: 14.0}
+          - {slug: break-room, name: "Break Room 3", type: break_room, width: 6.0}
+          - {slug: conference-n, name: "Conference Room 3N", type: conference, width: 8.0}
+        south_row:
+          - {slug: office-301, name: "Office 301", type: office, width: 5.0}
+          - {slug: office-302, name: "Office 302", type: office, width: 5.0}
+          - {slug: open-office-s1, name: "Open Office 3 South-Centre", type: open_office, width: 14.0}
+          - {slug: open-office-s2, name: "Open Office 3 South-East", type: open_office, width: 14.0}
+          - {slug: office-303, name: "Office 303", type: office, width: 6.0}
+        core:
+          - {slug: storage-supply, name: "Supply & Copy Room 3", type: storage, x: [8.0, 13.5], door: south}
+          - {slug: mechanical, name: "Electrical Room 3", type: mechanical, x: [25.0, 30.5], door: north}
+          - {slug: storage-janitor, name: "Janitor Closet 3", type: storage, x: [30.5, 36.0], door: south}
+
+      4:
+        north_row:
+          - {slug: suite-vacant, name: "Suite 420 (vacant)", type: office, width: 14.7, occupancy: 0.3}
+          - {slug: office-405, name: "Executive Office 405", type: office, width: 4.0}
+          - {slug: boardroom, name: "Boardroom", type: conference, width: 8.0}
+          - {slug: break-room, name: "Executive Lounge", type: break_room, width: 5.0}
+          # The demo target: the ONLY restroom in the building with a window (parking-lot side).
+          - {slug: restroom-north, name: "Restroom (North, window)", type: restroom, width: 4.3}
+          - {slug: storage-records, name: "Records Room", type: storage, width: 4.0, windows: false}
+          - {slug: office-406, name: "Executive Office 406", type: office, width: 4.0}
+        south_row:
+          - {slug: office-401, name: "Executive Office 401", type: office, width: 8.0}
+          - {slug: office-402, name: "Executive Office 402", type: office, width: 5.0}
+          - {slug: reception, name: "Executive Reception", type: reception, width: 8.0}
+          - {slug: open-office-s, name: "Executive Assistants", type: open_office, width: 12.0}
+          - {slug: office-403, name: "Executive Office 403", type: office, width: 5.0}
+          - {slug: office-404, name: "Executive Office 404", type: office, width: 6.0}
+        core:
+          - {slug: storage-supply, name: "Supply & Copy Room 4", type: storage, x: [8.0, 13.5], door: south}
+          - {slug: mechanical, name: "Rooftop Mechanical Access", type: mechanical, x: [25.0, 36.0], door: north}
+
+    entrances:
+      - {id: ent-main, name: "Main Entrance (Street)", room: f1-lobby, xy: [22.0, 0.0], facing: street}
+      - {id: ent-rear, name: "Rear Entrance (Parking Lot)", room: f1-corridor-rear, xy: [20.5, 22.0], facing: parking_lot}
+
+    staging_spots:
+      - {id: stg-street, name: "Street Curb Staging", xy: [22.0, -12.0], kind: street, near_entrance_id: ent-main}
+      - {id: stg-lot, name: "Parking Lot Staging", xy: [20.5, 36.0], kind: parking_lot, near_entrance_id: ent-rear}

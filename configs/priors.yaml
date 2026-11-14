@@ -1,0 +1,87 @@
+# Room prior:  pi(r) ∝ area_m2^alpha * w(room_type, use_type, hour) * occupancy_factor
+# w = room_weights[use_type][room_type] * time_multipliers[use_type][band][room_type]
+# A slice `p_not_in_model` of prior mass is reserved for "caller is somewhere the
+# building model does not cover".
+version: 1
+
+alpha: 0.7
+p_not_in_model: 0.05
+
+# Weight used when a room_type is missing from a table.
+default_room_weight: 0.3
+
+# Hour bands, [start, end) in local 24h time. A band may wrap past midnight.
+hour_bands:
+  business: [7, 18]
+  evening: [18, 22]
+  night: [22, 7]
+
+# Base weight per room type, by building use. `default` is the fallback use type.
+room_weights:
+  office:
+    office: 1.0
+    open_office: 1.0
+    conference: 0.7
+    restroom: 0.8
+    break_room: 0.5
+    lobby: 0.5
+    reception: 0.5
+    corridor: 0.15
+    stairwell: 0.1
+    elevator: 0.05
+    storage: 0.1
+    server_room: 0.1
+    mechanical: 0.05
+  default:
+    office: 0.8
+    open_office: 0.8
+    conference: 0.6
+    restroom: 0.6
+    break_room: 0.5
+    lobby: 0.6
+    reception: 0.6
+    corridor: 0.2
+    stairwell: 0.1
+    elevator: 0.05
+    storage: 0.15
+    server_room: 0.1
+    mechanical: 0.05
+
+# Time-of-day multipliers on top of the base weight (missing entry -> `default`,
+# missing `default` -> 1.0).
+time_multipliers:
+  office:
+    business:
+      default: 1.0
+    evening:
+      default: 0.6
+      office: 0.7
+      open_office: 0.5
+      conference: 0.3
+      break_room: 0.6
+      restroom: 0.8
+      corridor: 1.2      # cleaning crews / security rounds
+      storage: 1.5
+      lobby: 1.0
+      reception: 0.6
+    night:
+      default: 0.4
+      office: 0.3
+      open_office: 0.25
+      conference: 0.1
+      break_room: 0.3
+      restroom: 0.6
+      corridor: 1.5
+      stairwell: 1.5
+      storage: 2.0
+      mechanical: 2.0
+      server_room: 2.0
+      lobby: 1.5         # security desk
+      reception: 0.3
+  default:
+    business:
+      default: 1.0
+    evening:
+      default: 0.7
+    night:
+      default: 0.5
