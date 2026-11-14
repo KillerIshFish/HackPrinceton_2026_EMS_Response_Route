@@ -10,6 +10,8 @@ import { TranscriptPanel } from "./components/TranscriptPanel";
 import { SearchPlan } from "./components/SearchPlan";
 import { AerialApproach } from "./components/AerialApproach";
 import { ScanViewer } from "./components/ScanViewer";
+import { Building3D } from "./components/Building3D";
+import { BuildingSearch } from "./components/BuildingSearch";
 
 const BACKEND_CMD = "uv run uvicorn api.server:app --reload --port 8000";
 const TEAM_OPTIONS = [1, 2];
@@ -51,6 +53,21 @@ export default function App() {
     void load();
   }, [load]);
 
+  /** Generate a building's model now (address, property id or "mp:<model id>") and start a call on it. */
+  const openGenerated = useCallback(async (query: string) => {
+    setBusy("generate");
+    setActionError(null);
+    try {
+      const report = await api.generate(query);
+      setAllBuildings(await api.buildings());
+      setState(await api.setBuilding(report.building_id));
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }, []);
+
   /** Run a mutating call; every response is a full DemoState that replaces local state. */
   const run = useCallback(async (kind: string, call: () => Promise<DemoState>) => {
     setBusy(kind);
@@ -63,6 +80,18 @@ export default function App() {
       setBusy(null);
     }
   }, []);
+
+  // ?building=<id> opens that building: an existing one directly, a generated one ("prop-<id>", "mp-<id>") by building it.
+  const wanted = useMemo(() => new URLSearchParams(window.location.search).get("building"), []);
+  const [wantedDone, setWantedDone] = useState(false);
+  useEffect(() => {
+    if (!wanted || wantedDone || !state || allBuildings.length === 0) return;
+    setWantedDone(true);
+    if (state.building_id === wanted) return;
+    if (allBuildings.some((b) => b.id === wanted)) void run("building", () => api.setBuilding(wanted));
+    else if (wanted.startsWith("prop-")) void openGenerated(wanted.slice(5));
+    else if (wanted.startsWith("mp-")) void openGenerated(`mp:${wanted.slice(3)}`);
+  }, [wanted, wantedDone, state, allBuildings, run, openGenerated]);
 
   const buildingId = state?.building_id ?? null;
   const building = useMemo(
@@ -117,7 +146,7 @@ export default function App() {
   return (
     <div className="flex min-h-full flex-col">
       <header className="sticky top-0 z-20 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-bg/95 px-3 py-2 backdrop-blur">
-        <div className="flex min-w-0 items-center gap-2.5">
+        <div className="flex min-w-0 items-center gap-2.5 xl:max-w-[430px]">
           <Building2 size={18} className="shrink-0 text-ink-mute" aria-hidden />
           <div className="min-w-0">
             <h1 className="truncate text-[15px] font-semibold leading-tight text-ink">
@@ -140,13 +169,24 @@ export default function App() {
                 building.name
               )}
             </h1>
-            <p className="text-[11px] leading-tight text-ink-mute">
+            <p
+              className="truncate text-[11px] leading-tight text-ink-mute"
+              title={`${building.floors.length} floors, ${building.rooms.length} rooms modelled${
+                meta?.room_sources ? ` (${sourceSummary(meta.room_sources, building.rooms.length)})` : ""
+              }`}
+            >
               {meta?.address ? `${meta.address} - ` : "Caller location - "}
               {building.floors.length} floors, {building.rooms.length} rooms modelled
               {meta?.room_sources ? ` (${sourceSummary(meta.room_sources, building.rooms.length)})` : ""}
             </p>
           </div>
         </div>
+
+        <BuildingSearch
+          disabled={busy !== null}
+          generating={busy === "generate"}
+          onChoose={(hit) => void openGenerated(String(hit.property_id))}
+        />
 
         <div className="flex items-center gap-2 rounded border border-line px-2 py-1">
           <span className="live-dot h-2 w-2 rounded-full bg-alert" aria-hidden />
@@ -265,6 +305,17 @@ export default function App() {
               }}
             />
           </div>
+          <Building3D
+            building={building}
+            posterior={state.posterior}
+            plan={state.plan}
+            floor={shownFloor}
+            onSelectFloor={(f) => {
+              setFollow(false);
+              setFloor(f);
+            }}
+            onSelectRoom={setPinnedRoomId}
+          />
           {meta && meta.matterport_models.length > 0 ? (
             <ScanViewer
               building={building}
@@ -304,7 +355,7 @@ function sourceSummary(sources: Record<string, number>, total: number): string {
   if (scanned === total) return "all from one Matterport scan";
   const parts = [
     [scanned, "scanned"],
-    [sources.costar ?? 0, "from suite records"],
+    [sources.costar ?? 0, "from unit and tenant records"],
     [sources.inferred ?? 0, "inferred"],
   ] as const;
   return parts

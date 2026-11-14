@@ -1,4 +1,15 @@
-import type { Building, BuildingMeta, ClientConfig, DemoState, ParserMode, Posterior, SearchPlan } from "./types";
+import type {
+  Building,
+  BuildingMeta,
+  ClientConfig,
+  DemoState,
+  GenerateReport,
+  Model3DPayload,
+  ParserMode,
+  Posterior,
+  PropertyHit,
+  SearchPlan,
+} from "./types";
 
 const BASE: string =
   (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") ?? "/api";
@@ -49,6 +60,11 @@ export const api = {
   buildings: () => request<Building[]>("/buildings"),
   building: (id: string) => request<Building>(`/buildings/${encodeURIComponent(id)}`),
   buildingMeta: (id: string) => request<BuildingMeta>(`/buildings/${encodeURIComponent(id)}/meta`),
+  /** properties matching an address, a building name or a property id */
+  lookup: (q: string) => request<PropertyHit[]>(`/lookup?q=${encodeURIComponent(q)}`),
+  /** generate a building model now from an address, a property id or "mp:<model id>" */
+  generate: (q: string) => post<GenerateReport>(`/buildings/generate?q=${encodeURIComponent(q)}`),
+  model3d: (id: string) => request<Model3DPayload>(`/buildings/${encodeURIComponent(id)}/model3d`),
   /** URL of Matterport's plan image for one floor (whole-building scans only) */
   floorplanUrl: (id: string, floor: number) => `${BASE}/buildings/${encodeURIComponent(id)}/floorplan/${floor}`,
   /** URL of one aerial tile, served (and cached) by the backend so the Vexcel key stays there */
