@@ -143,6 +143,8 @@ export interface NextQuestion {
   clue_type: string;
   value: string;
   expected_info_gain_bits: number;
+  /** prior-predictive probability the caller answers yes (optional extra from the backend) */
+  p_yes?: number;
 }
 
 export interface HistoryEntry {

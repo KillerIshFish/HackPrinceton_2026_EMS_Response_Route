@@ -25,10 +25,17 @@ interface Props {
   onToggleFollow: () => void;
 }
 
-const S = 20; // svg units per metre
-const PAD_X = 14;
-const PAD_Y = 30; // room for the N / S side labels
-const CHAR_W = 6.1; // approx glyph advance at 11px
+const S = 14; // svg units per metre (viewBox ~700 wide, so text renders near 1:1)
+const PAD_X = 10;
+const PAD_Y = 24; // room for the N / S side labels
+const CHAR_W = 5.3; // approx glyph advance at 10px
+
+/** Room name that fits in `w` svg units: whole, ellipsised, or null when too narrow. */
+function fitName(name: string, w: number): string | null {
+  const maxChars = Math.floor((w - 8) / CHAR_W);
+  if (name.length <= maxChars) return name;
+  return maxChars >= 6 ? `${name.slice(0, maxChars - 1).trimEnd()}…` : null;
+}
 const MARKED_STOPS = 5; // stops per team that get a numbered marker
 
 interface StopMark {
@@ -185,10 +192,10 @@ export function FloorPlanHeatmap({
           </defs>
 
           {/* side labels */}
-          <text x={W / 2} y={PAD_Y - 11} textAnchor="middle" fontSize="11" fontWeight="600" letterSpacing="1.2" fill="#8394a6">
+          <text x={W / 2} y={PAD_Y - 9} textAnchor="middle" fontSize="9.5" fontWeight="600" letterSpacing="1.1" fill="#8394a6">
             N{northFacing ? ` - ${titleCase(northFacing).toUpperCase()} SIDE` : ""}
           </text>
-          <text x={W / 2} y={H - PAD_Y + 20} textAnchor="middle" fontSize="11" fontWeight="600" letterSpacing="1.2" fill="#8394a6">
+          <text x={W / 2} y={H - PAD_Y + 16} textAnchor="middle" fontSize="9.5" fontWeight="600" letterSpacing="1.1" fill="#8394a6">
             S{southFacing ? ` - ${titleCase(southFacing).toUpperCase()} SIDE` : ""}
           </text>
 
@@ -245,26 +252,27 @@ export function FloorPlanHeatmap({
             const cy = Y((b.minY + b.maxY) / 2);
             const isCleared = cleared.has(room.id);
             const ink = isCleared ? "#e6edf3" : rampInk(t);
-            const nameFits = w >= room.name.length * CHAR_W + 8 && h >= 34;
-            const pctFits = w >= 34 && h >= 16 && p >= 0.001;
+            const pctFits = w >= 30 && h >= 14 && p >= 0.001;
+            const shownName = h >= (pctFits ? 30 : 14) ? fitName(room.name, w) : null;
+            const nameFits = shownName !== null;
             const mark = stopMarks.get(room.id);
             const isNext = mark?.index === 0;
-            const mx = X(b.maxX) - 13;
-            const my = Y(b.maxY) + 13;
+            const mx = X(b.maxX) - 11;
+            const my = Y(b.maxY) + 11;
             const markLabel = mark ? `${multiTeam ? String.fromCharCode(65 + mark.team) : ""}${mark.index + 1}` : "";
             return (
               <g key={room.id} pointerEvents="none">
                 {nameFits ? (
                   <text
                     x={cx}
-                    y={pctFits ? cy - 3 : cy + 4}
+                    y={pctFits ? cy - 3 : cy + 3.5}
                     textAnchor="middle"
-                    fontSize="11"
+                    fontSize="10"
                     fill={ink}
                     fillOpacity={isCleared ? 0.75 : 0.92}
                     textDecoration={isCleared ? "line-through" : undefined}
                   >
-                    {room.name}
+                    {shownName}
                   </text>
                 ) : null}
                 {pctFits ? (
@@ -272,7 +280,7 @@ export function FloorPlanHeatmap({
                     x={cx}
                     y={nameFits ? cy + 12 : cy + 4}
                     textAnchor="middle"
-                    fontSize={nameFits ? 12 : 10.5}
+                    fontSize={nameFits ? 11.5 : 10.5}
                     fontWeight="700"
                     fill={ink}
                     style={{ fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}
@@ -282,20 +290,20 @@ export function FloorPlanHeatmap({
                 ) : null}
                 {mark && !isCleared ? (
                   <g>
-                    {isNext ? <circle cx={mx} cy={my} r={10} fill="#f2a93b" className="next-stop-ring" /> : null}
+                    {isNext ? <circle cx={mx} cy={my} r={9} fill="#f2a93b" className="next-stop-ring" /> : null}
                     <circle
                       cx={mx}
                       cy={my}
-                      r={isNext ? 10 : 8.5}
+                      r={isNext ? 9 : 7.5}
                       fill={isNext ? "#f2a93b" : "#0b1016"}
                       stroke={isNext ? "#0b1016" : "#f2a93b"}
                       strokeWidth={1.5}
                     />
                     <text
                       x={mx}
-                      y={my + (isNext ? 4 : 3.5)}
+                      y={my + (isNext ? 3.7 : 3.2)}
                       textAnchor="middle"
-                      fontSize={markLabel.length > 1 ? 9 : isNext ? 11.5 : 10}
+                      fontSize={markLabel.length > 1 ? 8 : isNext ? 10.5 : 9}
                       fontWeight="700"
                       fill={isNext ? "#1a1204" : "#f2a93b"}
                     >

@@ -67,18 +67,59 @@ def question_key(clue_type: str, value: str) -> str:
 
 
 def asked_from_clues(clues: Iterable[Clue]) -> set[str]:
-    """Question keys already answered by clues the caller volunteered."""
+    """``asked`` keys for clues the caller already gave.
+
+    Asserted clues -> ``"<type>:<value>"``; denied clues (type "negative" or
+    polarity False) -> ``"negative:<section>:<key>"``. ``rank_questions`` expands
+    these into everything they make redundant (see ``_excluded_keys``).
+    """
     keys: set[str] = set()
     for clue in clues:
-        ctype, value = clue.type, clue.value
-        if ctype == "negative":
-            section, _, key = value.partition(":")
-            if key and section in TYPE_FOR_SECTION:
-                ctype, value = TYPE_FOR_SECTION[section], key
-            else:
-                continue
-        keys.add(question_key(ctype, value))
+        if clue.type == "negative":
+            keys.add(f"negative:{clue.value}")
+        elif not clue.polarity:
+            keys.add(f"negative:{SECTION_FOR_TYPE.get(clue.type, clue.type)}:{clue.value}")
+        else:
+            keys.add(question_key(clue.type, clue.value))
     return keys
+
+
+def _excluded_keys(asked: Iterable[str], candidates: Iterable[tuple[str, str]], vocab: dict) -> set[str]:
+    """Question keys that are already answered or made redundant by ``asked``.
+
+    * ``room_type:X`` (caller said they are in X) -> every room-type question, and
+      landmark questions that are only a proxy for a room type (sink, vending machine).
+    * ``view:X`` -> every view question and "is there a window" (a view implies one).
+    * ``floor:X`` -> every floor question.
+    * ``negative:<section>:<key>`` -> just that one question.
+    Anything else in ``asked`` excludes only the identical key.
+    """
+    asked = set(asked)
+    candidates = list(candidates)
+    out = set(asked)
+    landmarks = vocab.get(SECTION_FOR_TYPE["landmark"]) or {}
+    room_proxy_landmarks = {
+        str(k) for k, v in landmarks.items() if set(((v or {}).get("match") or {}).keys()) == {"room_type"}
+    }
+    for key in asked:
+        head, _, rest = key.partition(":")
+        if head == "negative":
+            section, _, value = rest.partition(":")
+            if value and section in TYPE_FOR_SECTION:
+                out.add(question_key(TYPE_FOR_SECTION[section], value))
+                if (section, value) == ("landmarks", "window"):  # no window -> no view
+                    out.update(question_key(t, v) for t, v in candidates if t == "view")
+            else:  # bare key: exclude it under every type it could belong to
+                out.update(question_key(t, v) for t, v in candidates if v == rest)
+        elif head == "room_type":
+            out.update(question_key(t, v) for t, v in candidates if t == "room_type")
+            out.update(question_key("landmark", v) for v in room_proxy_landmarks)
+        elif head == "view":
+            out.update(question_key(t, v) for t, v in candidates if t == "view")
+            out.add(question_key("landmark", "window"))
+        elif head == "floor":
+            out.update(question_key(t, v) for t, v in candidates if t == "floor")
+    return out
 
 
 def _phrase_question(clue_type: str, value: str) -> str:
@@ -154,10 +195,11 @@ def rank_questions(
 ) -> list[dict]:
     """All not-yet-asked candidate questions, best expected information gain first."""
     vocab = vocab or load_vocab()
-    asked = asked or set()
+    candidates = candidate_questions(building, vocab)
+    excluded = _excluded_keys(asked or set(), candidates, vocab)
     ranked: list[dict] = []
-    for clue_type, value in candidate_questions(building, vocab):
-        if question_key(clue_type, value) in asked:
+    for clue_type, value in candidates:
+        if question_key(clue_type, value) in excluded:
             continue
         probe = Clue(type=clue_type, value=value, polarity=True, confidence=1.0, span="")  # type: ignore[arg-type]
         match = clue_match(building, probe, vocab)
@@ -184,8 +226,11 @@ def next_question(
     """Best next yes/no question, or None when nothing left would reduce uncertainty.
 
     Returns ``{"question", "clue_type", "value", "expected_info_gain_bits", "p_yes"}``.
-    ``asked`` holds ``question_key(clue_type, value)`` strings to exclude (see
-    ``asked_from_clues`` for clues the caller already volunteered).
+    ``asked`` holds keys to exclude: ``"<type>:<value>"`` for things the caller
+    asserted or was already asked, ``"negative:<section>:<key>"`` for things they
+    denied (``asked_from_clues(clues)`` builds this). Questions made redundant by
+    those answers are skipped too - nobody asks "are you in an office?" after
+    "I'm in a bathroom".
     """
     ranked = rank_questions(building, room_probs, p_nim, asked)
     if not ranked or ranked[0]["expected_info_gain_bits"] <= MIN_GAIN_BITS:
