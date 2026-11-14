@@ -7,6 +7,31 @@
 version: 1
 
 buildings:
+  # One Matterport scan covers this whole building, so rooms, doors, windows and
+  # stairs are all real (see ingest/scan_building.py). Only the map position and
+  # the view from each side are annotated here.
+  - id: washington-5285
+    kind: full_scan
+    costar_property_id: 21210018
+    name: 5285 W Washington Blvd
+    use_type: office
+    matterport_model: qob2doafRcY
+    site:
+      source: "Vexcel ortho, layer urban, zoom 21"
+      imagery: {layer: urban, zoom: 21, radius_m: 42}
+      # Building corners matched between the scan (model metres) and the aerial image.
+      # The fit comes out 32.9 degrees from east (the scan's own compass says 29.2) with 1.4 m residual.
+      control_points:
+        - {model_xy: [-19.3, 13.4], latlng: [34.0410306, -118.3573705]}   # rear west corner (warehouse)
+        - {model_xy: [11.2, 13.4], latlng: [34.0411817, -118.3571003]}    # rear east corner
+        - {model_xy: [11.2, -10.1], latlng: [34.0410095, -118.3569883]}   # front east corner
+      # What a window on each outer wall looks at (sides are in the scan's own axes).
+      facing_by_side:
+        "-y": street              # front: Washington Blvd
+        "+y": residential         # rear: back yards of the houses behind
+        "+x": adjacent_building   # east: the neighbouring building
+        "-x": adjacent_building   # west: the neighbouring building
+
   - id: bundy-olympic
     costar_property_id: 246948
     name: Bundy Olympic

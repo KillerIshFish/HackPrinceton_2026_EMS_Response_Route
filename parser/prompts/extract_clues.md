@@ -13,7 +13,7 @@ fences). Each element of `clues` is one clue object with exactly these keys:
 
 | key          | type    | meaning |
 |--------------|---------|---------|
-| `type`       | string  | one of `"room_type"`, `"floor"`, `"landmark"`, `"view"`, `"sound"`, `"smell"`, `"negative"` |
+| `type`       | string  | one of `"room_type"`, `"floor"`, `"landmark"`, `"view"`, `"sound"`, `"smell"`, `"route"`, `"negative"` |
 | `value`      | string  | a key from the controlled vocabulary below (never free text) |
 | `polarity`   | boolean | `true` = the caller asserts it; `false` = the caller denies it |
 | `confidence` | number  | 0.0–1.0, how sure you are the caller meant this and that it is true of where they are |
@@ -38,6 +38,11 @@ Which section goes with which `type`:
 - `landmark` → a key of `landmarks` (an object or feature in or right next to their room)
 - `sound` → a key of `sounds`
 - `smell` → a key of `smells`
+- `route` → a key of `routes`: how the caller **got to** where they are now, as an
+  anchor they passed plus the turn they made after it. Anchors: stairs they came up
+  (`stairs_up_*`), stairs they went down (`stairs_down_*`), an elevator they got out of
+  (`elevator_*`), the building entrance they came in by (`entrance_*`). Turns: `left`,
+  `right`, `straight`.
 - `floor` → the floor label as a string (`"4"`, `"12"`), or `"top"` / `"ground"`
   when the caller only gives a relative description
 - `negative` → the caller explicitly rules something out. `value` is
@@ -71,10 +76,21 @@ Which section goes with which `type`:
 6. **Floors.** Convert words to the label: "fourth floor" → `"4"`. Callers often
    miscount; if they sound unsure ("third or fourth"), emit both with lower
    confidence rather than picking one.
-7. **Only the caller's current location.** Ignore where they were earlier
-   ("I came up from the lobby"), where other people are, and the nature of the
-   emergency.
-8. **Never invent.** No clue without a supporting span. No value outside the
+7. **Only the caller's current location.** Ignore where other people are and the
+   nature of the emergency. A place the caller merely passed ("we ran past the
+   kitchen") is not a `room_type` or `landmark` clue.
+8. **Routes are location evidence.** When the caller says which way they turned
+   after stairs, an elevator or the entrance on the way to where they are now
+   ("I turned right after coming up the staircase", "got off the elevator and
+   went left", "came in the front door and went straight back"), emit one
+   `route` clue. The span covers the anchor and the turn. Do **not** also emit
+   a `room_type` or `landmark` clue for that anchor: they passed the stairs,
+   they are not in or beside them. Stairs with no direction of travel stated
+   count as `stairs_up_*`. A left or right with no stairs, elevator or entrance
+   to measure it from ("the door is on my left", "I'm on the left side") is not
+   a route clue; emit nothing for it. Confidence 0.7–0.85 for a plain statement,
+   lower if hedged.
+9. **Never invent.** No clue without a supporting span. No value outside the
    vocabulary. No commentary.
 
 ## Examples
@@ -114,6 +130,21 @@ Utterance: `we ran past the kitchen and now I'm hiding under a desk by the copie
 ```
 
 (The kitchen is somewhere they passed, not where they are now — no clue.)
+
+Utterance: `I came up the stairs and turned right, I'm in the second room, I can see houses out back`
+
+```json
+{"clues": [
+  {"type": "route", "value": "stairs_up_right", "polarity": true, "confidence": 0.8, "span": "came up the stairs and turned right"},
+  {"type": "view", "value": "residential", "polarity": true, "confidence": 0.85, "span": "houses"}
+]}
+```
+
+Utterance: `I got out of the elevator and it was the first door on my left`
+
+```json
+{"clues": [{"type": "route", "value": "elevator_left", "polarity": true, "confidence": 0.75, "span": "got out of the elevator and it was the first door on my left"}]}
+```
 
 Utterance: `Please hurry, he's not breathing!`
 

@@ -27,7 +27,17 @@ function parserLabel(parser: string | null | undefined): { text: string; warn: b
 }
 
 /** "landmarks:window" (the value of a negative clue) -> "window" */
+const ROUTE_ANCHOR: Record<string, string> = {
+  stairs_up: "coming up the stairs",
+  stairs_down: "going down the stairs",
+  elevator: "leaving the elevator",
+  entrance: "coming in the entrance",
+};
+
 function clueValue(c: Clue): string {
+  // "stairs_up_right" (a route clue) -> "right after coming up the stairs"
+  const route = /^(?:routes:)?(stairs_up|stairs_down|elevator|entrance)_(left|right|straight)$/.exec(c.value);
+  if (route) return `${route[2]} after ${ROUTE_ANCHOR[route[1] ?? ""] ?? "the stairs"}`;
   return titleCase(c.value.includes(":") ? c.value.slice(c.value.indexOf(":") + 1) : c.value);
 }
 

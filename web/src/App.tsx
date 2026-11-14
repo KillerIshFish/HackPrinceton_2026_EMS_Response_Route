@@ -109,6 +109,9 @@ export default function App() {
   }
 
   const shownFloor = floor ?? topFloor ?? building.floors[0] ?? 1;
+  // Matterport's plan image of the shown floor (buildings built from a whole-building scan)
+  const plan = meta?.building_id === building.id ? meta.floorplans?.[String(shownFloor)] : undefined;
+  const planImage = plan ? { ...plan, href: api.floorplanUrl(building.id, shownFloor) } : null;
   const clearingRoomId = busy?.startsWith("clear:") ? busy.slice(6) : null;
 
   return (
@@ -140,9 +143,7 @@ export default function App() {
             <p className="text-[11px] leading-tight text-ink-mute">
               {meta?.address ? `${meta.address} - ` : "Caller location - "}
               {building.floors.length} floors, {building.rooms.length} rooms modelled
-              {meta?.room_sources
-                ? ` (${meta.room_sources.matterport ?? 0} scanned, ${meta.room_sources.costar ?? 0} from suite records, ${meta.room_sources.inferred ?? 0} inferred)`
-                : ""}
+              {meta?.room_sources ? ` (${sourceSummary(meta.room_sources, building.rooms.length)})` : ""}
             </p>
           </div>
         </div>
@@ -250,6 +251,8 @@ export default function App() {
               onToggleFollow={() => setFollow((v) => !v)}
               roomMeta={meta?.rooms}
               onSelectRoom={setPinnedRoomId}
+              planImage={planImage}
+              rotationDeg={meta?.georeference?.rotation_deg ?? 0}
             />
             <FloorProbBar
               building={building}
@@ -294,6 +297,21 @@ export default function App() {
 }
 
 // ---------------------------------------------------------------------------
+
+/** "28 scanned, 21 from suite records, 99 inferred", or "all scanned" for a whole-building scan */
+function sourceSummary(sources: Record<string, number>, total: number): string {
+  const scanned = sources.matterport ?? 0;
+  if (scanned === total) return "all from one Matterport scan";
+  const parts = [
+    [scanned, "scanned"],
+    [sources.costar ?? 0, "from suite records"],
+    [sources.inferred ?? 0, "inferred"],
+  ] as const;
+  return parts
+    .filter(([n]) => n > 0)
+    .map(([n, label]) => `${n} ${label}`)
+    .join(", ");
+}
 
 function ParserToggle({
   mode,

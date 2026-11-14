@@ -49,11 +49,12 @@ SECTION_FOR_TYPE: dict[str, str] = {
     "sound": "sounds",
     "smell": "smells",
     "floor": "floors",
+    "route": "routes",
 }
 TYPE_FOR_SECTION: dict[str, str] = {v: k for k, v in SECTION_FOR_TYPE.items()}
 
 # When two phrases have the same length, prefer the more specific clue type.
-_TYPE_PRIORITY = {"floor": 0, "room_type": 1, "view": 2, "sound": 3, "smell": 4, "landmark": 5}
+_TYPE_PRIORITY = {"floor": 0, "room_type": 1, "view": 2, "sound": 3, "smell": 4, "landmark": 5, "route": 6}
 
 _NUMBER_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
                  "seven": 7, "eight": 8, "nine": 9, "ten": 10}
@@ -124,7 +125,7 @@ def _phrase_regex(phrase: str) -> re.Pattern[str]:
 def _vocab_candidates(norm: str, vocab: dict) -> list[_Candidate]:
     out: list[_Candidate] = []
     for clue_type, section in SECTION_FOR_TYPE.items():
-        if clue_type == "floor":
+        if clue_type in ("floor", "route"):  # both are built from patterns, not synonym lists
             continue
         for key, entry in (vocab.get(section) or {}).items():
             for syn in (entry or {}).get("synonyms") or [str(key).replace("_", " ")]:
@@ -166,6 +167,49 @@ def _floor_candidates(norm: str, vocab: dict) -> list[_Candidate]:
         for phrase in phrases or []:
             for m in _phrase_regex(str(phrase)).finditer(norm):
                 out.append(_Candidate(m.start(), m.end(), "floor", str(rel)))
+    return out
+
+
+# Route statements: an anchor the caller passed plus the turn they made, in one sentence.
+_ROUTE_TURN = re.compile(
+    r"(?<!\w)(?:(?:turn(?:ed|ing|s)?|went|go(?:ing|es)?|took|take|made|make|hung|hang|head(?:ed|ing)?|walk(?:ed|ing)?|ran|run)"
+    r"\s+(?:(?:a|to\s+(?:the|my))\s+)?(?P<lr>left|right)"
+    r"|(?:went|go(?:ing)?|kept(?:\s+going)?|keep(?:\s+going)?|head(?:ed|ing)?|walk(?:ed|ing)?|ran|continu(?:ed|ing))\s+(?P<st>straight)(?:\s+ahead)?"
+    r"|(?:first|second|next)?\s*(?P<lr2>left|right)\s+(?:turn|at\s+the|out\s+of|from\s+the|off\s+the))(?!\w)",
+    re.IGNORECASE,
+)
+_ROUTE_ANCHORS: list[tuple[str, re.Pattern[str]]] = [
+    ("stairs", re.compile(r"(?<!\w)(?:stair(?:s|case|cases|well|way)?|steps|upstairs|downstairs)(?!\w)", re.IGNORECASE)),
+    ("elevator", re.compile(r"(?<!\w)(?:elevators?|lift)(?!\w)", re.IGNORECASE)),
+    ("entrance", re.compile(r"(?<!\w)(?:entrance|entry|front\s+doors?|main\s+doors?|came\s+in(?:side)?|walked\s+in|got\s+in(?:side)?)(?!\w)", re.IGNORECASE)),
+]
+_STAIRS_DOWN = re.compile(r"(?<!\w)(?:down(?:\s+the|\s+a|\s+some)?\s+(?:stair\w*|steps)|downstairs|bottom\s+of\s+the\s+(?:stair\w*|steps))(?!\w)", re.IGNORECASE)
+# Words that belong to the route statement, so they must not also fire as a room or landmark clue.
+_ROUTE_SWALLOWS = {"stairs", "stairwell", "elevator", "lobby", "footsteps_stairs", "elevator_ding"}
+
+
+def _route_candidates(norm: str, vocab: dict) -> list[_Candidate]:
+    """``route`` candidates: a turn phrase and an anchor word in the same sentence."""
+    routes = vocab.get("routes") or {}
+    out: list[_Candidate] = []
+    start = 0
+    for brk in [m.end() for m in _SENTENCE_BREAK.finditer(norm)] + [len(norm)]:
+        sentence, offset = norm[start:brk], start
+        start = brk
+        turn = _ROUTE_TURN.search(sentence)
+        if not turn:
+            continue
+        direction = (turn.group("lr") or turn.group("lr2") or turn.group("st")).lower()
+        found = [(name, m) for name, rx in _ROUTE_ANCHORS if (m := rx.search(sentence))]
+        if not found:
+            continue
+        # the anchor nearest the turn phrase is the one the turn is measured from
+        name, anchor = min(found, key=lambda nm: min(abs(nm[1].start() - turn.end()), abs(turn.start() - nm[1].end())))
+        if name == "stairs":
+            name = "stairs_down" if _STAIRS_DOWN.search(sentence) else "stairs_up"
+        key = f"{name}_{direction}"
+        if key in routes:
+            out.append(_Candidate(offset + min(turn.start(), anchor.start()), offset + max(turn.end(), anchor.end()), "route", key))
     return out
 
 
@@ -244,6 +288,12 @@ def extract_clues_rules(text: str, vocab: dict | None = None) -> list[Clue]:
     neg_re = _negation_regex(vocab)
 
     winners = _select_non_overlapping(_vocab_candidates(norm, vocab) + _floor_candidates(norm, vocab))
+    # A route statement ("turned right after coming up the staircase") owns its anchor word:
+    # the caller passed the stairs, they are not in or next to them.
+    routes = _route_candidates(norm, vocab)
+    winners = [w for w in winners
+               if not any(r.start <= w.start and w.end <= r.end and w.value in _ROUTE_SWALLOWS for r in routes)]
+    winners = sorted(winners + routes, key=lambda c: c.start)
 
     clues: list[Clue] = []
     seen: set[tuple[str, str]] = set()
@@ -277,7 +327,7 @@ def build_system_prompt(vocab: dict | None = None) -> str:
     vocab = vocab or load_vocab()
     template = PROMPT_PATH.read_text(encoding="utf-8")
     compact: dict[str, Any] = {}
-    for section in ("room_types", "views", "landmarks", "sounds", "smells"):
+    for section in ("room_types", "views", "landmarks", "sounds", "smells", "routes"):
         compact[section] = {
             str(k): list((v or {}).get("synonyms") or []) for k, v in (vocab.get(section) or {}).items()
         }
@@ -302,7 +352,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 LLM_CACHE_PATH = _REPO_ROOT / "data" / "processed" / "llm_clue_cache.json"
 LLM_USAGE_PATH = _REPO_ROOT / "data" / "processed" / "llm_usage.json"
 
-_CLUE_TYPES = ["room_type", "floor", "landmark", "view", "sound", "smell", "negative"]
+_CLUE_TYPES = ["room_type", "floor", "landmark", "view", "sound", "smell", "negative", "route"]
 _CLUES_SCHEMA = {
     "type": "object",
     "properties": {

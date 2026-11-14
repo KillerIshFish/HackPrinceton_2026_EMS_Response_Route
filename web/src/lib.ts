@@ -78,6 +78,7 @@ export const CLUE_STYLE: Record<ClueType, { label: string; color: string }> = {
   landmark: { label: "Landmark", color: "#e3c56b" },
   sound: { label: "Sound", color: "#8fd2e8" },
   smell: { label: "Smell", color: "#c9a27e" },
+  route: { label: "Route", color: "#e0a56a" },
   negative: { label: "Negative", color: "#a9b4c0" },
 };
 

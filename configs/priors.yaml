@@ -34,6 +34,10 @@ room_weights:
     mechanical: 0.05
     parking: 0.08       # garage levels: large area, few people at any moment
     suite: 1.0          # a whole unscanned tenant suite (see composite_room_types in clue_vocab.yaml)
+    room: 0.6           # a scanned room with no label or recognised class
+    common_area: 0.7
+    warehouse: 0.4
+    rooftop: 0.03
   default:
     office: 0.8
     open_office: 0.8

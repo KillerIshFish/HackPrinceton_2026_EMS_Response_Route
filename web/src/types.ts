@@ -8,6 +8,7 @@ export type ClueType =
   | "view"
   | "sound"
   | "smell"
+  | "route"
   | "negative";
 
 export type XY = [number, number];
@@ -175,14 +176,28 @@ export interface RoomMeta {
   note?: string;
 }
 
+/** Matterport's plan image of one floor, placed in the same coordinates as the rooms */
+export interface FloorPlanImage {
+  width: number;
+  height: number;
+  /** pixels per metre */
+  resolution: number;
+  /** building-local (x, y) of the image's lower-left corner */
+  origin: XY;
+}
+
 export interface MatterportModel {
   model_id: string;
-  suite: string;
+  /** suite the scan covers; null when the scan covers the whole building */
+  suite: string | null;
   name: string;
   floor: number | null;
   created?: string;
   sweeps?: number;
   has_room_boundaries?: boolean;
+  /** false when the scan's owner switched that overview mode off in Matterport; null/undefined = unknown */
+  dollhouse_enabled?: boolean | null;
+  floorplan_enabled?: boolean | null;
 }
 
 /** GET /buildings/{id}/meta - provenance, scans and the aerial site annotation */
@@ -198,6 +213,12 @@ export interface BuildingMeta {
     tiles?: SiteTiles;
   };
   matterport_models: MatterportModel[];
+  /** "full_scan" when one Matterport scan covers the whole building */
+  kind?: string;
+  /** rotation_deg: counter-clockwise angle of the floor plan's +x axis from east */
+  georeference?: { rotation_deg: number };
+  /** keyed by floor number; only for buildings built from a whole-building scan */
+  floorplans?: Record<string, FloorPlanImage>;
   room_sources?: Record<string, number>;
   rooms: Record<string, RoomMeta>;
   caveats: string[];
