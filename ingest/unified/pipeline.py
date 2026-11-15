@@ -81,6 +81,20 @@ def load_model(building_id: str) -> Optional[BuildingModel]:
     )
 
 
+def floor_area(facts: dict, roster: Optional[dict] = None) -> Optional[float]:
+    """The record's area of one floor in m2: the typical floor, else gross area over the storeys,
+    else the units' areas over the storeys. None when the record has none of them."""
+    if facts.get("typical_floor_m2"):
+        return float(facts["typical_floor_m2"])
+    stories = int(facts.get("stories") or (roster or {}).get("stories") or 0)
+    if not stories:
+        return None
+    if facts.get("gross_m2"):
+        return float(facts["gross_m2"]) / stories
+    units = sum(float(u.get("area_m2") or 0.0) for u in facts.get("units") or [])
+    return units / stories if units else None
+
+
 def building_count(facts: dict, roster: Optional[dict] = None) -> int:
     """How many buildings the record describes: the count it states, or the buildings its units name."""
     roster = roster or build_roster(facts)
@@ -318,6 +332,7 @@ def generate(query: str, stamp: bool = True, context: bool = True, offline: bool
     geo = facts.get("latlng")
     roster = build_roster(facts)
     buildings = building_count(facts, roster)
+    plate_m2 = floor_area(facts, roster)
     current: dict = {}
     ready = threading.Event()
 
@@ -325,14 +340,14 @@ def generate(query: str, stamp: bool = True, context: bool = True, offline: bool
         # a source answered after the deadline: lay the building out again if what it brought
         # (an outline, or the street that says which side is the front) changes the layout
         ready.wait(60.0)
-        site = layout_site(state, geo, buildings)
+        site = layout_site(state, geo, buildings, plate_m2)
         model = current["bm"] if _same_site(site, current["site"]) else build_property_model(facts, models, site=site)
         current.update(bm=model, site=site)
         _write(model, _assemble(model, geo, state, pending=not state.get("osm_done")), facts, statuses)
 
     sources = site_sources(f"prop-{facts['property_id']}", geo, single=(len({s["block"] for s in roster["slots"]}) or 1) == 1,
                            buildings=buildings, network=context and not offline, refresh=refresh_context, on_late=late)
-    site = layout_site(sources, geo, buildings)
+    site = layout_site(sources, geo, buildings, plate_m2)
     stages.mark("building outline", (f"{site['source']}: {len(site['polygons_latlng'])} outline"
                                      f"{'' if len(site['polygons_latlng']) == 1 else 's'}") if site["polygons_latlng"]
                 else site.get("reason", "none"))

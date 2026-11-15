@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { ReactNode } from "react";
-import { ArrowUp, ChevronDown, DoorOpen, MapPin, Search, Waypoints } from "lucide-react";
+import { ChevronDown, DoorOpen, MapPin, Search } from "lucide-react";
 import type { Building, DemoState } from "../types";
 import { mmss, pct, roomIndex } from "../lib";
 
@@ -19,8 +19,8 @@ interface Props {
 const SECOND_FLOOR_MIN = 0.05;
 
 /**
- * Four plain-language answers for a dispatcher who is talking, not reading statistics:
- * where, how in, how much is searched, and whether the caller may be somewhere else.
+ * Three plain-language answers for a dispatcher who is talking, not reading statistics:
+ * where, how in, and how much is searched.
  * Entropy, peaks and expected time sit behind "Details".
  */
 export function AnswerStrip({ state, building, outlineRoomIds, onHoverRooms, showDetails, onToggleDetails }: Props) {
@@ -38,21 +38,12 @@ export function AnswerStrip({ state, building, outlineRoomIds, onHoverRooms, sho
   const floorName = (label: string) => `Floor ${label}`;
   const topOutlined = topRoom !== undefined && (outlineRoomIds?.includes(topRoom.id) ?? false);
 
-  // ---- outside the mapped rooms, with its trend (kept on the client: the server sends one value) ----
-  const pOut = plan.p_out ?? posterior.p_not_in_model;
-  const [lastPOut, setLastPOut] = useState(pOut);
-  const [pOutRose, setPOutRose] = useState(false);
-  if (pOut !== lastPOut) {
-    setPOutRose(pOut > lastPOut + 1e-4);
-    setLastPOut(pOut);
-  }
-
   const searchedRooms = new Set(state.searched.map((s) => s.room_id)).size;
   const routeOn = policy.route_enabled;
 
   return (
     <div className="border-b border-line">
-      <div className="grid grid-cols-2 gap-px bg-line lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+      <div className="grid grid-cols-2 gap-px bg-line lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1.15fr)_minmax(0,1fr)_auto]">
         {!routeOn && !foundRoom ? (
           // Route planning off (active threat, confirmed or suggested): no single room is put
           // forward as the place to go. The floor band stays, as information for command.
@@ -137,28 +128,11 @@ export function AnswerStrip({ state, building, outlineRoomIds, onHoverRooms, sho
           </span>
         </Answer>
 
-        <Answer
-          label="May not be in mapped rooms"
-          icon={<Waypoints size={14} aria-hidden />}
-          title="Chance the caller is somewhere the building model does not cover (after the searches so far)"
-        >
-          <span className="flex items-baseline gap-1.5">
-            <span className="num text-[17px] font-semibold leading-tight text-ink">{pct(pOut)}</span>
-            {pOutRose ? (
-              <span className="flex items-center text-[12px] font-semibold text-warn" title="Higher than before the last update">
-                <ArrowUp size={14} strokeWidth={2.5} aria-hidden />
-                rising
-              </span>
-            ) : null}
-          </span>
-          <span className="truncate text-[13px] text-ink-dim">chance the caller is elsewhere</span>
-        </Answer>
-
         <button
           onClick={onToggleDetails}
           aria-expanded={showDetails}
           aria-controls="answer-details"
-          className="col-span-2 flex items-center justify-center gap-1 bg-panel px-3 py-1.5 text-xs text-ink-dim hover:bg-raised hover:text-ink lg:col-span-1"
+          className="flex items-center justify-center gap-1 bg-panel px-3 py-1.5 text-xs text-ink-dim hover:bg-raised hover:text-ink"
         >
           Details
           <ChevronDown size={14} className={`transition-transform ${showDetails ? "rotate-180" : ""}`} aria-hidden />
@@ -176,7 +150,7 @@ export function AnswerStrip({ state, building, outlineRoomIds, onHoverRooms, sho
           <Detail term="Peaks" title="Connected clusters of high-probability rooms">
             {posterior.peak_count}
           </Detail>
-          <Detail term="90% set" title="Smallest set of rooms holding 90% of the in-model probability">
+          <Detail term="90% set" title="Smallest set of rooms holding 90% of the probability">
             {posterior.credible_set_90.length} of {building.rooms.length} rooms
           </Detail>
           {routeOn ? (

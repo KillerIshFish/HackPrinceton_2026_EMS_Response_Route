@@ -9,8 +9,14 @@ mass not yet searched when the leg starts::
 so the cost of reaching state ``(S = rooms searched, j = room just searched)`` does not
 depend on the order inside ``S``. That gives the Held-Karp style dynamic programme::
 
-    f({k}, k)     = (T[start][k] + s[k]) * M
-    f(S + k, k)   = min_j  f(S, j) + (T[j][k] + s[k]) * (M - p(S))
+    f({k}, k)     = (T[start][k] + s[k]) * (M + lam)
+    f(S + k, k)   = min_j  f(S, j) + (T[j][k] + s[k]) * (M - p(S) + lam)
+
+Walking penalty ``lam`` (``planning.search_order``, "Walking penalty"): the objective
+``sum_k p_k C_k + lam * T_total`` (``T_total`` = when the last look ends) is the same leg sum
+with every leg also paying ``lam``, because every leg delays the end of the route. ``lam`` is a
+constant added to the weight, so the state space, the exactness and the speed are unchanged.
+``lam = 0`` is the original programme, bit for bit.
 
 over ``2^n * n`` states, ``O(2^n n^2)`` work. It is vectorised with numpy one subset size
 (layer) at a time. Measured (``python -m planning.exact``, median of random instances):
@@ -35,10 +41,12 @@ import numpy as np
 EXACT_MAX_ROOMS = 12  # largest candidate set solved exactly (measured well under 150 ms)
 
 
-def solve_exact(T: Sequence[Sequence[float]], s: Sequence[float], p: Sequence[float], start: int) -> tuple[list[int], float]:
-    """Optimal order of rooms ``0..n-1`` from node ``start`` for ``sum p_k C_k``.
+def solve_exact(T: Sequence[Sequence[float]], s: Sequence[float], p: Sequence[float], start: int,
+                lam: float = 0.0) -> tuple[list[int], float]:
+    """Optimal order of rooms ``0..n-1`` from node ``start`` for ``sum p_k C_k + lam * T_total``.
 
-    Returns ``(order, cost)`` with the un-normalised cost. Ties go to the lower room index.
+    Returns ``(order, cost)`` with the un-normalised cost (penalty included). Ties go to the
+    lower room index.
     Raises ``ValueError`` above 20 rooms (memory); callers use ``EXACT_MAX_ROOMS``.
     """
     n = len(p)
@@ -57,13 +65,13 @@ def solve_exact(T: Sequence[Sequence[float]], s: Sequence[float], p: Sequence[fl
     subsets = np.arange(full, dtype=np.int64)
     bits = (subsets[:, None] >> np.arange(n)) & 1  # (2^n, n)
     mass_in = bits @ pv  # p(S)
-    remaining = total - mass_in  # mass not yet searched
+    remaining = total - mass_in + float(lam)  # mass not yet searched, plus the walking penalty
     popcount = bits.sum(axis=1)
 
     f = np.full((full, n), np.inf)
     parent = np.full((full, n), -1, dtype=np.int16)
     for k in range(n):
-        f[1 << k, k] = D0[k] * total
+        f[1 << k, k] = D0[k] * (total + float(lam))
 
     for size in range(1, n):
         layer = subsets[popcount == size]

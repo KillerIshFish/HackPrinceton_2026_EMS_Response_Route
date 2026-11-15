@@ -276,17 +276,30 @@ def test_undo_restores_the_previous_state(client: TestClient) -> None:
     assert [st["room_id"] for st in _stops(u)] == before_plan
 
 
-def test_searched_room_can_return_as_a_second_look(client: TestClient) -> None:
-    s = _run(client, "fire_smoke_office")
-    p_out_before = s["plan"]["p_out"]
-    s = _ok(client.post(f"/rooms/{FIRE_TRUE_ROOM_ID}/searched", params={"mode": "rapid"}))
-    again = [st for st in _stops(s) if st["room_id"] == FIRE_TRUE_ROOM_ID]
-    assert again and all(st["kind"] == "re_search" for st in again)
-    assert s["plan"]["p_out"] > p_out_before  # the outside-the-model figure rises as rooms are searched
-    assert s["plan"]["p_out"] == pytest.approx(s["posterior"]["p_not_in_model"], abs=1e-6)
-    # a closed room never returns: only the officer's gate takes it out
-    s = _ok(client.post("/calls/demo/gates", json={"closed_room_ids": [FIRE_TRUE_ROOM_ID]}))
-    assert FIRE_TRUE_ROOM_ID not in {st["room_id"] for st in _stops(s)}
+def test_searching_ticks_rooms_off_one_fixed_path(client: TestClient) -> None:
+    """One path from the entrance: a searched room leaves the path, nothing is re-planned,
+    no room comes back for a second look, and the rest keep their order and ETAs."""
+    s = _run(client, "cardiac_arrest_office")
+    before = _stops(s)
+    assert len(before) >= 4
+    entrance = s["approach"]["entrance_id"]
+    first, second = before[0]["room_id"], before[1]["room_id"]
+    s = _ok(client.post(f"/rooms/{second}/searched", params={"mode": "rapid"}))  # out of order on purpose
+    after = _stops(s)
+    assert [st["room_id"] for st in after] == [st["room_id"] for st in before if st["room_id"] != second]
+    assert [st["eta_s"] for st in after] == [st["eta_s"] for st in before if st["room_id"] != second]
+    assert all(st["kind"] == "first" for st in after)
+    assert s["approach"]["entrance_id"] == entrance and s["plan"]["entrance_id"] == entrance
+    s = _ok(client.post(f"/rooms/{first}/searched", params={"mode": "thorough"}))
+    assert [st["room_id"] for st in _stops(s)] == [st["room_id"] for st in before if st["room_id"] not in (first, second)]
+    assert s["plan"]["p_out"] == 0.0  # no mass is held back for outside the model
+    # undo puts the room back in its place
+    u = _ok(client.post("/calls/demo/undo"))
+    assert [st["room_id"] for st in _stops(u)] == [st["room_id"] for st in before if st["room_id"] != second]
+    # a closed room still leaves the path on the officer's word
+    third = before[2]["room_id"]
+    s = _ok(client.post("/calls/demo/gates", json={"closed_room_ids": [third]}))
+    assert third not in {st["room_id"] for st in _stops(s)}
 
 
 def test_plan_chances_are_given_the_searches_so_far(client: TestClient) -> None:
@@ -296,11 +309,9 @@ def test_plan_chances_are_given_the_searches_so_far(client: TestClient) -> None:
     _confirm(client, "cardiac_arrest")
     s = _ok(client.post(f"/rooms/{CARDIAC_TRUE_ROOM_ID}/searched", params={"mode": "rapid"}))
     q = 0.9  # rapid detection probability (configs/situations.yaml, unverified)
+    assert CARDIAC_TRUE_ROOM_ID not in {st["room_id"] for st in _stops(s)}, "a searched room is ticked off"
     for st in _stops(s):
-        if st["kind"] == "first":
-            assert st["p_find"] == pytest.approx(s["posterior"]["room_probs"][st["room_id"]] * q, rel=1e-4)
-    again = next(st for st in _stops(s) if st["room_id"] == CARDIAC_TRUE_ROOM_ID)
-    assert again["p_find"] == pytest.approx(s["posterior"]["room_probs"][CARDIAC_TRUE_ROOM_ID] * q, rel=1e-4)
+        assert st["p_find"] == pytest.approx(s["posterior"]["room_probs"][st["room_id"]] * q, rel=1e-4)
     assert s["plan"]["cumulative_success"] == pytest.approx(sum(st["p_find"] for st in _stops(s)), abs=1e-5)
     assert s["plan"]["cumulative_success"] <= 1.0 - s["plan"]["p_out"] + 1e-9
 

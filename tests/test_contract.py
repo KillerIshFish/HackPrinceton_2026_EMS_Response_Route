@@ -69,18 +69,19 @@ def _to_turn(c: TestClient, n: int) -> dict:
 # Numbers are unchanged
 # ---------------------------------------------------------------------------
 
-# Recorded from the code before Step 0 (commit 5122233) through the same API calls.
+# Recorded through the same API calls once the "not in model" bucket was dropped (room
+# probabilities sum to 1; the same top rooms as the pre-Step 0 recording at commit 5122233).
 GOLDEN = {
-    0: (0.05, [("f2-open-office-n1", 0.037002038026235334)], 5.812304107928523),
-    1: (0.05, [("f4-open-office-s", 0.09426398314779966), ("f4-office-401", 0.07097116032794946)], 4.886933311870008),
-    2: (0.04446980691113667, [(PL_RESTROOM, 0.20277847596424176), ("f4-restroom-core", 0.20230666276861606)],
-        4.1665549439398735),
-    3: (0.04444350701161753, [(PL_RESTROOM, 0.4892595325778796), ("f4-boardroom", 0.0661123235740738)],
-        3.0630824458540555),
+    0: (0.0, [("f2-open-office-n1", 0.03894951371182667)], 5.816744369276387),
+    1: (0.0, [("f4-open-office-s", 0.0992252454187365), ("f4-office-401", 0.0747064845557363)], 4.842669847109528),
+    2: (0.0, [(PL_RESTROOM, 0.21221566563871366), ("f4-restroom-core", 0.21172189453756143)],
+        4.085827431194406),
+    3: (0.0, [(PL_RESTROOM, 0.5120152876024965), ("f4-boardroom", 0.06918724749315014)],
+        2.9310411222485175),
 }
 
 
-def test_scripted_demo_posterior_matches_pre_step0_values(client: TestClient) -> None:
+def test_scripted_demo_posterior_matches_recorded_values(client: TestClient) -> None:
     s = client.get("/calls/demo/state").json()
     for turn in range(4):
         if turn:
@@ -96,7 +97,8 @@ def test_scripted_demo_posterior_matches_pre_step0_values(client: TestClient) ->
 
 def test_session_matches_the_pipeline(client: TestClient) -> None:
     """Posterior = posterior_probs(prior, fix, evidence) + one Koopman update per look (residual_probs);
-    plan = plan_search on the evidence-only belief with every look in ``searched`` (step I1 wiring)."""
+    plan = plan_search on the evidence-only belief from the entrance with nothing searched, and the
+    searched rooms ticked off it (one fixed path)."""
     building = load_building("ptc-100")
     s = _to_turn(client, 3)
     s = client.post(f"/rooms/{PL_RESTROOM}/searched", params={"mode": "rapid"}).json()
@@ -110,14 +112,13 @@ def test_session_matches_the_pipeline(client: TestClient) -> None:
     for rid, p in probs.items():
         assert s["posterior"]["room_probs"][rid] == pytest.approx(p, abs=1e-12)
     pol = Policy.model_validate(s["policy"])
-    plan = plan_search(building, belief, p0, n_teams=1, start_node=PL_RESTROOM, profile=pol.travel,
-                       searched=looks, gates=Gates())
+    plan = plan_search(building, belief, p0, n_teams=1, profile=pol.travel, gates=Gates())
     got = s["plan"]
-    assert [st["room_id"] for st in got["teams"][0]] == [st.room_id for st in plan.teams[0]]
+    assert [st["room_id"] for st in got["teams"][0]] == [st.room_id for st in plan.teams[0] if st.room_id != PL_RESTROOM]
     assert got["expected_time_to_find_s"] == pytest.approx(plan.expected_time_to_find_s, abs=1e-9)
     assert got["entrance_id"] == plan.entrance_id
-    # the planner's outside-the-model figure is the displayed one
-    assert got["p_out"] == pytest.approx(s["posterior"]["p_not_in_model"], abs=1e-6)
+    # no mass is held back for outside the model
+    assert got["p_out"] == 0.0 and s["posterior"]["p_not_in_model"] == 0.0
 
 
 # ---------------------------------------------------------------------------

@@ -149,6 +149,24 @@ const BADGE_NUDGES: [number, number][] = (() => {
 })();
 /** thickness of the floor slab drawn under each level's rooms */
 const SLAB_M = 0.3;
+/** air added between storeys, as a share of the building's typical storey height: 1 = one floor's height
+ * of clear space above each floor, so every level stands apart and can be seen into from the side */
+const FLOOR_GAP_STOREYS = 1.0;
+/** the gap used when the model has no storey heights */
+const FLOOR_GAP_FALLBACK_M = 3.0;
+
+/** the gap between storeys for this model: its median storey height times FLOOR_GAP_STOREYS */
+function floorGap(payload: Model3DPayload): number {
+  const hs = payload.levels.map((l) => l.h).filter((h) => h > 0).sort((a, b) => a - b);
+  const typical = hs.length ? hs[Math.floor(hs.length / 2)]! : FLOOR_GAP_FALLBACK_M;
+  return typical * FLOOR_GAP_STOREYS;
+}
+/** how far past the building's outline (as a share of its longest side) the view can be panned */
+const PAN_MARGIN = 0.1;
+/** a double-click that comes this soon after a drag ended is the end of that drag, not a pick */
+const DRAG_CLICK_MS = 600;
+/** pointer travel, in pixels, past which a press is a drag rather than a click */
+const DRAG_PX = 5;
 /** height of the route line above the floor it runs on */
 const ROUTE_LIFT_M = 1.0;
 /** route and stop colour per team (the stop numbers also carry the team letter) */
@@ -159,6 +177,29 @@ function modelSpan(payload: Model3DPayload): number {
   const b = payload.bounds;
   return Math.max(b.x1 - b.x0, b.y1 - b.y0, b.z1, 8);
 }
+/**
+ * The model with `gap` metres of air (``floorGap``) added under each storey above the lowest: every level's floor
+ * height and its walls' and windows' heights move up together, so everything drawn per floor (slabs,
+ * room fills, walls, glass, labels, route, marker, framing) follows from the one change, and a route
+ * leg between floors runs from one level's height to the other's, across the gap.
+ */
+function separateFloors(payload: Model3DPayload, gap: number): Model3DPayload {
+  const order = [...payload.levels].sort((a, b) => a.z0 - b.z0);
+  const lift = new Map(order.map((l, k) => [l.i, k * gap]));
+  const up = (level: number) => lift.get(level) ?? 0;
+  type Span = [number, number, number, number];
+  const shift = (spans: Span[], d: number) => spans.map(([t0, t1, z0, z1]): Span => [t0, t1, z0 + d, z1 + d]);
+  return {
+    ...payload,
+    levels: payload.levels.map((l) => ({ ...l, z0: l.z0 + up(l.i) })),
+    walls: payload.walls.map((w) => {
+      const d = up(w.l);
+      return d ? { ...w, p: shift(w.p, d), g: shift(w.g, d) } : w;
+    }),
+    bounds: { ...payload.bounds, z1: payload.bounds.z1 + Math.max(0, order.length - 1) * gap },
+  };
+}
+
 /** height of the cone that points down at the next stop */
 const markerHeight = (span: number) => Math.max(1.4, span / 28);
 
@@ -198,6 +239,8 @@ const WALL_STYLE: Record<string, { color: number; base: number }> = {
   "generated:shell": { color: 0x9ba8b9, base: 0.85 },
   "generated:inner": { color: 0x8793a3, base: 0.5 },
 };
+/** walls (not glass) are drawn at this share of their style's strength, so the rooms and the route behind them show */
+const WALL_OPACITY = 0.67;
 const SLAB_COLOR = 0x303c4b;
 const GLASS_OPACITY = 0.35;
 /** how much of a shell wall's opacity is left when its outside faces the viewer */
@@ -511,19 +554,20 @@ function buildLevels(payload: Model3DPayload): LevelMeshes[] {
       geo.computeVertexNormals();
       const style = WALL_STYLE[b.style];
       const material = style
-        ? new THREE.MeshLambertMaterial({ color: style.color, transparent: true, opacity: style.base })
+        ? new THREE.MeshLambertMaterial({ color: style.color, transparent: true, opacity: style.base * WALL_OPACITY })
         : new THREE.MeshBasicMaterial({ color: 0x7fc4ff, transparent: true, opacity: GLASS_OPACITY, depthWrite: false });
       const mesh = new THREE.Mesh(geo, material);
       const angle = (b.dir * Math.PI) / 4;
       group.add(mesh);
+      const base = style ? style.base * WALL_OPACITY : GLASS_OPACITY;
       walls.push({
         mesh,
         material,
         kind: b.kind,
-        base: style?.base ?? GLASS_OPACITY,
+        base,
         outward: b.dir < 0 ? null : new THREE.Vector3(Math.cos(angle), 0, -Math.sin(angle)),
         color: style ? new THREE.Color(style.color) : null,
-        opacity: style?.base ?? GLASS_OPACITY,
+        opacity: base,
         write: b.kind !== "glass",
         fade: false,
       });
@@ -831,7 +875,9 @@ export interface View3DProbe {
  * Double-click a room to select it.
  */
 export function Building3D({ building, posterior, plan, floor, onSelectFloor, onSelectRoom, policy, closedRoomIds }: Props) {
-  const [payload, setPayload] = useState<Model3DPayload | null>(null);
+  const [rawPayload, setPayload] = useState<Model3DPayload | null>(null);
+  /** the model as drawn: storeys pulled apart by about one storey's height (floorGap) */
+  const payload = useMemo(() => (rawPayload ? separateFloors(rawPayload, floorGap(rawPayload)) : null), [rawPayload]);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<ViewMode>("cutaway");
   const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null);
@@ -852,6 +898,10 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
   /** the stop marks as the last frame laid them out: read by the pointer (hover text) and the test probe */
   const stopMarks = useRef<StopMark[]>([]);
   const anchorsRef = useRef(new Map<string, RoutePoint>());
+  /** the press in progress on the model (pointer start, and whether it has moved far enough to be a drag) */
+  const press = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  /** when the last orbit or pan drag ended, so its closing click is not taken for half of a double-click */
+  const dragEndedAt = useRef(-Infinity);
   /** which levels the view currently shows, kept for the resize handler and the reset button */
   const visibleRef = useRef<(index: number) => boolean>(() => true);
   /** direction from the model to the default camera */
@@ -909,6 +959,15 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
     camera.add(sun, sun.target);
     const controls = new OrbitControls(camera, canvas);
     controls.maxPolarAngle = Math.PI / 2 - 0.02;
+    // left-drag orbits, right-drag (or shift / ctrl + left-drag) pans, scroll zooms; on touch one
+    // finger orbits and two pinch and pan. Panning slides the camera and the point it orbits round
+    // together, in the plane of the screen, by a distance that scales with how far the camera is,
+    // so a drag moves the model the same on screen zoomed in or out
+    controls.enablePan = true;
+    controls.screenSpacePanning = true;
+    controls.panSpeed = 1;
+    controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+    controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
     // "moved by hand" means the camera actually changed during a drag or a scroll: a plain click or
     // a double-click on a room starts an interaction too, and must not stop the view re-framing
     let userMoved = false;
@@ -933,6 +992,21 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
       }
       if (pts.length) levelPoints.set(lv.i, pts);
     }
+    // where the orbit point may be panned to: the building's box plus a margin, and not below the
+    // ground, so the model cannot be slid off screen and lost
+    const panBox = new THREE.Box3();
+    for (const lp of levelPoints.values()) for (const p of lp) panBox.expandByPoint(p);
+    if (panBox.isEmpty()) panBox.setFromCenterAndSize(new THREE.Vector3(cx, 0, -cy), new THREE.Vector3(span, span, span));
+    panBox.expandByScalar(Math.max(4, span * PAN_MARGIN));
+    panBox.min.y = Math.max(panBox.min.y, -SLAB_M);
+    const clamped = new THREE.Vector3();
+    const keepInBounds = () => {
+      clamped.copy(controls.target).clamp(panBox.min, panBox.max);
+      if (clamped.equals(controls.target)) return;
+      // move the camera by the same amount, so the view direction and the distance are kept
+      camera.position.add(clamped.sub(controls.target));
+      controls.target.add(clamped);
+    };
     const framed = (visible: (index: number) => boolean) => {
       let pts: THREE.Vector3[] = [];
       for (const [index, lp] of levelPoints) if (visible(index)) pts = pts.concat(lp);
@@ -1018,6 +1092,7 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
     };
     watchRatio();
     controls.addEventListener("change", () => {
+      keepInBounds();
       if (interacting) userMoved = true;
       render();
     });
@@ -1096,8 +1171,8 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
         const shell = part.kind === "shell";
         if (focus) part.opacity = part.base;
         else if (part.kind === "glass") part.opacity = mode === "all" ? 0.12 : part.base;
-        else if (mode === "all") part.opacity = shell ? 0.3 : 0.14;
-        else part.opacity = shell ? 1 : part.base * 0.55;
+        else if (mode === "all") part.opacity = (shell ? 0.3 : 0.14) * WALL_OPACITY;
+        else part.opacity = shell ? WALL_OPACITY : part.base * 0.55;
         part.write = part.kind !== "glass" && (focus || (shell && mode !== "all"));
         part.fade = focus;
         // the floor in focus is the bright one; the storeys around it step back
@@ -1651,7 +1726,20 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
             setHover(stop ? { x, y, text: stop.text } : hit ? { x, y, text: hit.label } : null);
           }}
           onMouseLeave={() => setHover(null)}
+          onPointerDown={(e) => {
+            press.current = { x: e.clientX, y: e.clientY, moved: false };
+          }}
+          onPointerMove={(e) => {
+            const p = press.current;
+            if (p && !p.moved && Math.hypot(e.clientX - p.x, e.clientY - p.y) > DRAG_PX) p.moved = true;
+          }}
+          onPointerUp={() => {
+            if (press.current?.moved) dragEndedAt.current = performance.now();
+            press.current = null;
+          }}
           onDoubleClick={(e) => {
+            // the click that ends an orbit or a pan drag can pair with the next click into a double-click
+            if (performance.now() - dragEndedAt.current < DRAG_CLICK_MS) return;
             const hit = pick(e);
             if (hit) onSelectRoom(hit.roomId);
           }}
@@ -1768,7 +1856,7 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
               .map(([k, n]) => `${n} ${FIDELITY_LABEL[k] ?? k}`)
               .join(" · ")}
           </span>
-          <span className="ml-auto">Drag to orbit · scroll to zoom · double-click a room to select it</span>
+          <span className="ml-auto">Drag to orbit · right-drag or shift-drag to pan · scroll to zoom · double-click a room to select it</span>
         </div>
       ) : null}
     </Panel>

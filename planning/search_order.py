@@ -53,6 +53,34 @@ Pipeline
 7. Koopman     = posterior after an unsuccessful look with detection probability q:
                  ``p_r <- p_r * (1 - q)`` then renormalise with the outside mass
                  (``koopman_update`` / ``residual_probs``).
+Walking penalty
+---------------
+E[T] alone charges each leg in proportion to the probability not yet searched. Once the likely
+rooms are done that weight is tiny, so a long walk back across the floor costs almost nothing,
+and dividing by ``sum p_find`` assumes the caller is always found on the path. The optimiser
+therefore minimises::
+
+    sum_k p_find_k * C_k  +  lam * T_total
+
+where ``T_total`` is when the route's last look ends and ``lam`` is the probability that the
+search runs to the end without finding the caller: the mass outside the model, the in-model
+mass left off the path, and the misses on it (``1 - sum_k p_find_k``, i.e. ``p_out + sum p_k
+(1 - q)`` plus the rooms below the coverage cut), times ``search.walking_penalty_scale``
+(``configs/situations.yaml``, default 1.0). One way to read it: the caller not found by the
+path is a phantom stop at the end of the route. In optimiser units (``residual = p_find / q``)
+it is ``lam / q``. Scale 0 gives exactly the original plans.
+
+Every place that chooses an order uses the penalised cost: the exact programme
+(``planning.exact``, ``lam`` added to each leg's weight), the greedy index, 2-opt / or-opt, the
+two multi-team planners, the choice between them, moves between routes and the baseline
+guarantee. With several teams each team pays ``lam`` times its own finish time, so a move
+between two routes is scored on those two routes alone. The survival objective gets the same
+phantom stop: ``sum p_find * S(arrival) + lam * S(T_total)`` (see ``_survival_value``).
+
+Reported numbers do not change meaning: ``expected_time_to_find_s`` and both baselines are
+still ``sum p_find C / sum p_find`` without the penalty, so with the penalty on the plan's E[T]
+can sit a little above a baseline's; the guarantee is that its *penalised* cost does not.
+
 8. Second team = with ``second_team_rooms`` (the floors the phone's height fix allows, when
                  a caller statement contradicts the fix: ``core.fusion``) and two or more
                  teams, the stops in those rooms go to team 2, which makes them first, unless
@@ -82,6 +110,7 @@ from situation.config import section, setting_value
 
 # Fallbacks when configs/situations.yaml has no search section (same numbers as the file).
 SEARCH_S_PER_M2 = 0.5
+WALKING_PENALTY_SCALE = 1.0  # fallback for search.walking_penalty_scale
 MIN_SEARCH_S = 10.0
 P_DETECT = 0.9
 _DEFAULT_MODES: dict[str, tuple[float, float]] = {"rapid": (0.9, 1.0), "thorough": (0.97, 2.0)}
@@ -213,7 +242,9 @@ def outside_probability(
     looks = looks_by_room(searched)
     left = sum(float(p) * miss_factor(looks.get(rid, ()), table) for rid, p in room_probs.items())
     total = float(p_nim) + left
-    return float(p_nim) / total if total > 0.0 else 1.0
+    if total <= 0.0:
+        return 1.0 if p_nim > 0.0 else 0.0
+    return float(p_nim) / total
 
 
 def residual_probs(
@@ -380,8 +411,13 @@ def pairwise_travel(G: nx.Graph, nodes: Sequence[str]) -> dict[str, dict[str, fl
 # ---------------------------------------------------------------------------
 
 
-def _route_cost(order: Sequence[int], T, s, p, start: int) -> float:
-    """Un-normalised sum p_r * C_r for one team."""
+def walking_penalty_scale() -> float:
+    """``search.walking_penalty_scale`` from ``configs/situations.yaml`` (judgement; 0 turns the penalty off)."""
+    return max(0.0, float(setting_value(section("search").get("walking_penalty_scale"), WALKING_PENALTY_SCALE)))
+
+
+def _route_cost(order: Sequence[int], T, s, p, start: int, lam: float = 0.0) -> float:
+    """Un-normalised sum p_r * C_r for one team, plus ``lam`` times the route's finish time."""
     t = 0.0
     tot = 0.0
     prev = start
@@ -389,23 +425,32 @@ def _route_cost(order: Sequence[int], T, s, p, start: int) -> float:
         t += T[prev][k] + s[k]
         tot += p[k] * t
         prev = k
-    return tot
+    return tot + lam * t
 
 
-def _greedy_single(cands: Sequence[int], T, s, p, start: int) -> list[int]:
+def _greedy_single(cands: Sequence[int], T, s, p, start: int, lam: float = 0.0) -> list[int]:
+    """Best probability per second next, from where the team is.
+
+    With a walking penalty each remaining room also carries an equal share ``lam / remaining``
+    of the phantom end-of-route stop: every room has to be reached before the route can end,
+    so a cheap room nearby gains on a far one of similar probability. ``lam = 0`` is the
+    plain ratio rule.
+    """
     remaining = list(cands)
     order: list[int] = []
     prev = start
     while remaining:
-        best = max(remaining, key=lambda k: (p[k] / (T[prev][k] + s[k] + _EPS), -k))
+        share = lam / len(remaining)
+        best = max(remaining, key=lambda k: ((p[k] + share) / (T[prev][k] + s[k] + _EPS), -k))
         order.append(best)
         remaining.remove(best)
         prev = best
     return order
 
 
-def _greedy_teams(cands: Sequence[int], T, s, p, start: int, n_teams: int) -> list[list[int]]:
-    """Event-driven greedy: whichever team frees up first takes the best-ratio room."""
+def _greedy_teams(cands: Sequence[int], T, s, p, start: int, n_teams: int, lam: float = 0.0) -> list[list[int]]:
+    """Event-driven greedy: whichever team frees up first takes the best-ratio room (the
+    ratio carries the same ``lam`` share as ``_greedy_single``)."""
     routes: list[list[int]] = [[] for _ in range(n_teams)]
     clock = [0.0] * n_teams
     pos = [start] * n_teams
@@ -413,7 +458,8 @@ def _greedy_teams(cands: Sequence[int], T, s, p, start: int, n_teams: int) -> li
     while remaining:
         team = min(range(n_teams), key=lambda i: (clock[i], i))
         here = pos[team]
-        best = max(remaining, key=lambda k: (p[k] / (T[here][k] + s[k] + _EPS), -k))
+        share = lam / len(remaining)
+        best = max(remaining, key=lambda k: ((p[k] + share) / (T[here][k] + s[k] + _EPS), -k))
         routes[team].append(best)
         remaining.remove(best)
         clock[team] += T[here][best] + s[best]
@@ -421,16 +467,19 @@ def _greedy_teams(cands: Sequence[int], T, s, p, start: int, n_teams: int) -> li
     return routes
 
 
-def _improve_route(order: Sequence[int], T, s, p, start: int, deadline: float) -> tuple[list[int], float]:
-    """2-opt reversals + or-opt relocations; accepts only strict E[T] improvements.
+def _improve_route(order: Sequence[int], T, s, p, start: int, deadline: float,
+                   lam: float = 0.0) -> tuple[list[int], float]:
+    """2-opt reversals + or-opt relocations; accepts only strict improvements of the penalised
+    cost ``sum p C + lam * T_total``.
 
     A move rewrites a window ``order[lo..hi]``. Everything before ``lo`` is
     untouched; everything after ``hi`` keeps its order, so its completion times
-    all shift by one constant ``delta`` - the move is scored in O(window).
+    all shift by one constant ``delta`` - the move is scored in O(window). The route's
+    finish time shifts by the same ``delta`` (or is the window's end when the window is last).
     """
     order = list(order)
     n = len(order)
-    best = _route_cost(order, T, s, p, start)
+    best = _route_cost(order, T, s, p, start, lam)
     if n < 2:
         return order, best
 
@@ -467,7 +516,8 @@ def _improve_route(order: Sequence[int], T, s, p, start: int, deadline: float) -
             # new clock on arrival at nxt minus old clock on arrival at nxt
             delta = (t + T[prev][nxt]) - (pre_t[hi + 1] + T[order[hi]][nxt])
             c += (pre_c[n] - pre_c[hi + 1]) + delta * suf_p[hi + 1]
-        return c
+            return c + lam * (pre_t[n] + delta)
+        return c + lam * t
 
     refresh()
     # A full sweep is O(n^3). Past _LARGE_ROUTE stops, moves are limited to a window of
@@ -489,7 +539,7 @@ def _improve_route(order: Sequence[int], T, s, p, start: int, deadline: float) -
                 if c < best - _EPS:
                     order[i : j + 1] = window
                     refresh()
-                    best = pre_c[n]
+                    best = pre_c[n] + lam * pre_t[n]
                     improved = True
         # --- or-opt: move the room at i to position j ---------------------
         for i in range(n):
@@ -508,17 +558,17 @@ def _improve_route(order: Sequence[int], T, s, p, start: int, deadline: float) -
                 if c < best - _EPS:
                     order[lo : hi + 1] = window
                     refresh()
-                    best = pre_c[n]
+                    best = pre_c[n] + lam * pre_t[n]
                     improved = True
     # Guard against accumulated float drift in the incremental bookkeeping.
-    return order, _route_cost(order, T, s, p, start)
+    return order, _route_cost(order, T, s, p, start, lam)
 
 
 def _relocate_between_teams(
-    routes: list[list[int]], T, s, p, start: int, deadline: float
+    routes: list[list[int]], T, s, p, start: int, deadline: float, lam: float = 0.0
 ) -> list[list[int]]:
-    """Move single rooms between teams when that lowers the total cost."""
-    costs = [_route_cost(r, T, s, p, start) for r in routes]
+    """Move single rooms between teams when that lowers the total (penalised) cost."""
+    costs = [_route_cost(r, T, s, p, start, lam) for r in routes]
     improved = True
     while improved and time.perf_counter() < deadline:
         improved = False
@@ -527,7 +577,7 @@ def _relocate_between_teams(
             while i < len(routes[a]):
                 room = routes[a][i]
                 src_wo = routes[a][:i] + routes[a][i + 1 :]
-                src_cost = _route_cost(src_wo, T, s, p, start)
+                src_cost = _route_cost(src_wo, T, s, p, start, lam)
                 best_gain = _EPS
                 best_move: Optional[tuple[int, int, float]] = None
                 for b in range(len(routes)):
@@ -535,7 +585,7 @@ def _relocate_between_teams(
                         continue
                     for j in range(len(routes[b]) + 1):
                         cand = routes[b][:j] + [room] + routes[b][j:]
-                        dst_cost = _route_cost(cand, T, s, p, start)
+                        dst_cost = _route_cost(cand, T, s, p, start, lam)
                         gain = (costs[a] + costs[b]) - (src_cost + dst_cost)
                         if gain > best_gain:
                             best_gain = gain
@@ -586,7 +636,7 @@ def _wings(cands: Iterable[int], floors: Sequence[int], T, link_s: float) -> lis
     return sorted(groups.values(), key=min)
 
 
-def _cluster_seed(T, s, p, start: int, floors: Sequence[int], link_s: float) -> Optional[list[int]]:
+def _cluster_seed(T, s, p, start: int, floors: Sequence[int], link_s: float, lam: float = 0.0) -> Optional[list[int]]:
     """Greedy route that clears the densest wing first.
 
     Each wing (``_wings``) is scored by its total weight / (time to reach it from ``start``
@@ -599,7 +649,7 @@ def _cluster_seed(T, s, p, start: int, floors: Sequence[int], link_s: float) -> 
     best_inner: Optional[list[int]] = None
     best_score = -1.0
     for g in groups:
-        inner = _greedy_single(g, T, s, p, start)
+        inner = _greedy_single(g, T, s, p, start, lam)
         t = 0.0
         prev = start
         for k in inner:
@@ -611,13 +661,14 @@ def _cluster_seed(T, s, p, start: int, floors: Sequence[int], link_s: float) -> 
     assert best_inner is not None
     chosen = set(best_inner)
     rest = [k for k in range(len(p)) if k not in chosen]
-    return best_inner + _greedy_single(rest, T, s, p, best_inner[-1])
+    return best_inner + _greedy_single(rest, T, s, p, best_inner[-1], lam)
 
 
 def _solve_single(
-    T, s, p, start: int, floors: Sequence[int], link_s: float, deadline: float, exact_ok: bool = True
+    T, s, p, start: int, floors: Sequence[int], link_s: float, deadline: float, exact_ok: bool = True,
+    lam: float = 0.0,
 ) -> tuple[list[int], float, str]:
-    """Best single-team order of rooms ``0..n-1`` for ``sum p C`` -> (order, cost, solver).
+    """Best single-team order of rooms ``0..n-1`` for ``sum p C + lam * T_total`` -> (order, cost, solver).
 
     Greedy + local search always runs. Up to ``EXACT_MAX_ROOMS`` rooms the dynamic programme
     then proves (or improves) it and the solver is ``"exact"``; the heuristic order is kept
@@ -625,17 +676,17 @@ def _solve_single(
     densest-wing-first seed (``_cluster_seed``) and keep the better route.
     """
     n = len(p)
-    greedy = _greedy_single(range(n), T, s, p, start)
-    order, cost = _improve_route(greedy, T, s, p, start, deadline)
+    greedy = _greedy_single(range(n), T, s, p, start, lam)
+    order, cost = _improve_route(greedy, T, s, p, start, deadline, lam)
     if exact_ok and 0 < n <= EXACT_MAX_ROOMS:
-        o3, _ = solve_exact(T, s, p, start)
-        c3 = _route_cost(o3, T, s, p, start)
+        o3, _ = solve_exact(T, s, p, start, lam)
+        c3 = _route_cost(o3, T, s, p, start, lam)
         if c3 < cost - 1e-9 * max(1.0, abs(cost)):
             order, cost = o3, c3
         return order, cost, "exact"
-    seed = _cluster_seed(T, s, p, start, floors, link_s) if n > 1 else None
+    seed = _cluster_seed(T, s, p, start, floors, link_s, lam) if n > 1 else None
     if seed is not None and seed != greedy:
-        o2, c2 = _improve_route(seed, T, s, p, start, time.perf_counter() + _SEED_BUDGET_S)
+        o2, c2 = _improve_route(seed, T, s, p, start, time.perf_counter() + _SEED_BUDGET_S, lam)
         if c2 < cost - _EPS:
             order, cost = o2, c2
     return order, cost, "heuristic"
@@ -663,8 +714,17 @@ def _survival_curve(survival: Callable[[float], float], treatment_s: float) -> C
     return curve
 
 
-def _survival_value(order: Sequence[int], T, s, p, start: int, curve: Callable[[float], float]) -> float:
-    """sum_k p_k * S(arrival_k): weight found while the patient is still savable."""
+def _survival_value(order: Sequence[int], T, s, p, start: int, curve: Callable[[float], float],
+                    lam: float = 0.0) -> float:
+    """sum_k p_k * S(arrival_k) + lam * S(T_total): weight found while the patient is still savable.
+
+    The walking penalty is the same phantom stop as in the linear objective: the caller not
+    found by this path (probability ``lam``) is reached no sooner than the end of the route,
+    so that mass is credited at ``S(T_total)``. A longer route lowers it; ``lam = 0`` is the
+    original objective. This keeps the penalty in survival units without having to pick a
+    slope: its weight per second is ``lam * |S'(T_total)|``, i.e. smaller late in the call
+    where the curve has flattened, which is exactly how much a minute matters there.
+    """
     t = 0.0
     v = 0.0
     prev = start
@@ -673,7 +733,7 @@ def _survival_value(order: Sequence[int], T, s, p, start: int, curve: Callable[[
         v += p[k] * curve(arrive)
         t = arrive + s[k]
         prev = k
-    return v
+    return v + (lam * curve(t) if lam and order else 0.0)
 
 
 def _improve_route_value(
@@ -774,6 +834,7 @@ def _plan_teams(
     q_look: float,
     link_s: float,
     deadline: float,
+    lam: float = 0.0,
 ) -> tuple[_Visits, list[list[int]], list[str]]:
     """Sequential team planning (module docstring, step 6). Returns the visit space, one
     route per team (visit indices) and notes.
@@ -809,7 +870,7 @@ def _plan_teams(
         p = [belief[r] for r in ids]
         floors = [rooms[r].floor for r in ids]
         budget = max(0.0, deadline - time.perf_counter()) / (n_teams - team)
-        order, _, _ = _solve_single(T, s, p, len(ids), floors, link_s, time.perf_counter() + budget)
+        order, _, _ = _solve_single(T, s, p, len(ids), floors, link_s, time.perf_counter() + budget, lam=lam)
         if team < n_teams - 1:
             done = list(completion_times([ids[k] for k in order], travel, dict(zip(ids, s)), start).values())
             if team == 0:
@@ -841,8 +902,8 @@ def _plan_teams(
     for tv in team_visits:
         routes.append(list(range(k, k + len(tv))))
         k += len(tv)
-    routes = _relocate_between_teams(routes, V.T, V.s, V.p, V.start, deadline)
-    routes = [_improve_route(r, V.T, V.s, V.p, V.start, deadline)[0] for r in routes]
+    routes = _relocate_between_teams(routes, V.T, V.s, V.p, V.start, deadline, lam)
+    routes = [_improve_route(r, V.T, V.s, V.p, V.start, deadline, lam)[0] for r in routes]
     routes, dropped = _drop_early_repeats(routes, V)
     notes = [
         f"{n_teams} teams: team 1 planned on the full belief; each room it searches counts at (1 - q) "
@@ -853,8 +914,8 @@ def _plan_teams(
     return V, routes, notes
 
 
-def _start_second_team_in(routes: list[list[int]], V: _Visits, wanted: set[str], deadline: float
-                          ) -> tuple[list[list[int]], int]:
+def _start_second_team_in(routes: list[list[int]], V: _Visits, wanted: set[str], deadline: float,
+                          lam: float = 0.0) -> tuple[list[list[int]], int]:
     """Give team 2 the stops in the ``wanted`` rooms and put them first (module docstring, step 8).
 
     Nothing changes when there is one team, when team 1's own first stop is in a wanted room
@@ -877,7 +938,7 @@ def _start_second_team_in(routes: list[list[int]], V: _Visits, wanted: set[str],
         out[a] = [k for k in r if k not in take]
     if not block:
         return routes, 0
-    block, _ = _improve_route(block, V.T, V.s, V.p, V.start, deadline)
+    block, _ = _improve_route(block, V.T, V.s, V.p, V.start, deadline, lam)
     taken = set(block)
     out[1] = block + [k for k in out[1] if k not in taken]
     out, _ = _drop_early_repeats(out, V)
@@ -956,8 +1017,10 @@ def plan_search(
     otherwise ``"heuristic"``), ``objective`` (``"survival"`` when ``survival`` is given).
 
     The two baselines are single-team routes over the same candidates from the same start,
-    scored with the expected-time objective. For ``n_teams == 1`` without a survival function
-    the returned E[T] is guaranteed to be <= both baselines.
+    scored with the expected-time objective. The order is chosen on the penalised cost
+    (module docstring, "Walking penalty"); for ``n_teams == 1`` without a survival function
+    that penalised cost is guaranteed to be <= both baselines', and with
+    ``search.walking_penalty_scale`` 0 so is the returned E[T].
     """
     asked = max(1, int(n_teams))
     n_teams = asked
@@ -1052,6 +1115,21 @@ def plan_search(
     n = len(cand_ids)
     idx = {rid: i for i, rid in enumerate(cand_ids)}
     START = n
+    # ---- walking penalty (module docstring) ------------------------------------
+    # lam_found: probability the search reaches the end of the path without finding the caller,
+    # on the scale of room_probs: everything still unaccounted for minus what the path finds.
+    # The optimiser weights are residual = p_find / q, so the penalty is lam_found / q there.
+    # (p_nim is untouched by looks; a look removes only the mass it would have found)
+    still = float(p_nim) + sum(residual.values())
+    lam_found = max(0.0, still - q_look * sum(residual[r] for r in cand_ids)) * walking_penalty_scale()
+    lam = lam_found / q_look if q_look > 0 else 0.0
+    if lam_found > 0.0:
+        notes.append(
+            f"Walking penalty applied: lambda = {lam_found:.3f}, the probability the search reaches the end of "
+            f"the path without finding the caller (x scale {walking_penalty_scale():g}), times the route's total "
+            "time, is added to the cost, so the crew is not sent on long walks for rooms that are unlikely anyway. "
+            "E[T] and the baselines are reported without it."
+        )
     nodes = [*cand_ids, start]
     T = [[_t(travel, a, b) for b in nodes] for a in nodes]
     s = [search_times[rid] for rid in cand_ids]
@@ -1065,16 +1143,18 @@ def plan_search(
     near_cost = _route_cost(near_order, T, s, p, START)
     high_cost = _route_cost(high_order, T, s, p, START)
     base_mass = sum(p)
+    near_pen = _route_cost(near_order, T, s, p, START, lam)
+    high_pen = _route_cost(high_order, T, s, p, START, lam)
 
     # ---- optimise (linear objective) ----------------------------------------
     deadline = time.perf_counter() + _OPT_BUDGET_S
     if n_teams == 1:
-        order, cost, solver = _solve_single(T, s, p, START, floors, link_s, deadline)
-        # Guarantee: never worse than either baseline. If one beats the polished route
-        # (impossible after the exact solver), polish that baseline and keep the best.
-        for b_order, b_cost in ((near_order, near_cost), (high_order, high_cost)):
+        order, cost, solver = _solve_single(T, s, p, START, floors, link_s, deadline, lam=lam)
+        # Guarantee: never worse than either baseline on the penalised cost. If one beats the
+        # polished route (impossible after the exact solver), polish that baseline and keep the best.
+        for b_order, b_cost in ((near_order, near_pen), (high_order, high_pen)):
             if b_cost < cost - _EPS:
-                o2, c2 = _improve_route(b_order, T, s, p, START, time.perf_counter() + _SEED_BUDGET_S)
+                o2, c2 = _improve_route(b_order, T, s, p, START, time.perf_counter() + _SEED_BUDGET_S, lam)
                 if c2 > b_cost:  # cannot happen (moves only improve); belt and braces
                     o2, c2 = list(b_order), b_cost
                 if c2 < cost:
@@ -1089,33 +1169,37 @@ def plan_search(
 
         # (a) Event-driven, the original multi-team planner (full time budget): whichever team
         # frees up first takes the best-ratio room.
-        ev = _greedy_teams(range(n), T, s, p, START, n_teams)
-        ev = [_improve_route(r, T, s, p, START, deadline)[0] for r in ev]
-        ev = _relocate_between_teams(ev, T, s, p, START, deadline)
-        ev = [_improve_route(r, T, s, p, START, deadline)[0] for r in ev]
+        ev = _greedy_teams(range(n), T, s, p, START, n_teams, lam)
+        ev = [_improve_route(r, T, s, p, START, deadline, lam)[0] for r in ev]
+        ev = _relocate_between_teams(ev, T, s, p, START, deadline, lam)
+        ev = [_improve_route(r, T, s, p, START, deadline, lam)[0] for r in ev]
         ev_et = sum(_route_cost(r, T, s, p, START) for r in ev) / base_mass
+        ev_pen = sum(_route_cost(r, T, s, p, START, lam) for r in ev)
         # (b) Sequential (build plan A2), on its own budget: team 1 on the full belief, team 2 on
         # what is left. The plan with the lower expected time to find is kept (both scored on
         # sum p_find C / sum p_find).
         V, routes, team_notes = _plan_teams(
             n_teams, building, G, start, residual, cand_ids, closed, coverage, s_of, q_look, link_s,
-            time.perf_counter() + _OPT_BUDGET_S,
+            time.perf_counter() + _OPT_BUDGET_S, lam,
         )
         seq_mass = sum(V.p[k] for r in routes for k in r)
         seq_et = sum(_route_cost(r, V.T, V.s, V.p, V.start) for r in routes) / seq_mass if seq_mass else math.inf
-        if ev_et < seq_et - 1e-9:
+        # both are scored like E[T] (per unit of mass found), on the penalised cost
+        seq_pen = sum(_route_cost(r, V.T, V.s, V.p, V.start, lam) for r in routes) / seq_mass if seq_mass else math.inf
+        if ev_pen / base_mass < seq_pen - 1e-9:
             V, routes = _Visits(list(cand_ids), [0] * n, T, s, p, START), ev
             notes.append(
                 f"{n_teams} teams: whichever team frees up first takes the next best room. Planning team 1 "
-                "first and the next team on what it leaves (each room it searches at 1 - q) gave a longer "
-                f"expected time to find ({seq_et:.0f} s against {ev_et:.0f} s)."
+                "first and the next team on what it leaves (each room it searches at 1 - q) gave a higher "
+                f"cost (expected time to find {seq_et:.0f} s against {ev_et:.0f} s"
+                + (", with the walking penalty" if lam else "") + ")."
             )
         else:
             notes.extend(team_notes)
 
     # ---- caller against phone: team 2 starts on the phone's floor (step 8) -------
     second_first = set(second_team_rooms or ()) if n_teams > 1 else set()
-    routes, put_first = _start_second_team_in(routes, V, second_first, time.perf_counter() + _SEED_BUDGET_S)
+    routes, put_first = _start_second_team_in(routes, V, second_first, time.perf_counter() + _SEED_BUDGET_S, lam)
     if put_first:
         notes.append(
             f"Team 2 starts with {put_first} stop(s) on the floor the phone's height fix points to: a caller "
@@ -1128,15 +1212,18 @@ def plan_search(
         curve = _survival_curve(survival, float(treatment_s))
 
         def value(o: Sequence[int]) -> float:
+            return _survival_value(o, V.T, V.s, V.p, V.start, curve, lam)
+
+        def plain(o: Sequence[int]) -> float:
             return _survival_value(o, V.T, V.s, V.p, V.start, curve)
 
-        before = sum(value(r) for r in routes)
+        before = sum(plain(r) for r in routes)
         sdeadline = time.perf_counter() + _OPT_BUDGET_S
         routes = [_improve_route_value(r, value, sdeadline)[0] for r in routes]
         if n_teams > 1:
             routes, _ = _drop_early_repeats(routes, V)
-        routes, _ = _start_second_team_in(routes, V, second_first, time.perf_counter() + _SEED_BUDGET_S)
-        after = sum(value(r) for r in routes)
+        routes, _ = _start_second_team_in(routes, V, second_first, time.perf_counter() + _SEED_BUDGET_S, lam)
+        after = sum(plain(r) for r in routes)
         found = sum(V.p[k] for r in routes for k in r)
         seed_desc = "the exact linear order" if solver == "exact" else "the linear (expected-time) plan"
         notes.append(
@@ -1145,6 +1232,8 @@ def plan_search(
             + "). The exact solver does not apply to a non-linear survival curve (elapsed time is "
             f"not a function of its state), so this order starts from {seed_desc} and was improved "
             "by local search on the survival objective."
+            + (" The caller not found by the path is credited at S(end of route), so a longer route costs survival."
+               if lam else "")
         )
         if found > 0:
             notes.append(

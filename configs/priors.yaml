@@ -1,11 +1,11 @@
 # Room prior:  pi(r) ∝ area_m2^alpha * w(room_type, use_type, hour) * occupancy_factor
 # w = room_weights[use_type][room_type] * time_multipliers[use_type][band][room_type]
-# A slice `p_not_in_model` of prior mass is reserved for "caller is somewhere the
-# building model does not cover".
+# Room probabilities sum to 100%: no prior mass is held back for "somewhere the building
+# model does not cover" (`p_not_in_model` stays 0; the plumbing for it is still there).
 version: 1
 
 alpha: 0.7
-p_not_in_model: 0.05
+p_not_in_model: 0.0
 
 # Weight used when a room_type is missing from a table.
 default_room_weight: 0.3

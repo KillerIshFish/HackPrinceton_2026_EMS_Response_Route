@@ -33,7 +33,7 @@ import type {
 import type { ConsoleActions } from "../App";
 import { mmss, pct, roomIndex } from "../lib";
 import { Panel } from "./Panel";
-import { WidenSignal } from "./WidenSignal";
+import { PlanSuccess } from "./PlanSuccess";
 
 // ---------------------------------------------------------------------------
 // Shared with FloorPlanHeatmap
@@ -164,7 +164,7 @@ export function SearchPlan({ building, state, busy, actions, onHoverRooms, scann
         className="h-full"
         bodyClassName="flex flex-col"
       >
-        {!found ? <WidenSignal plan={plan} posterior={posterior} historyKey={`${state.building_id}|${state.scenario_id ?? ""}`} /> : null}
+        {!found ? <PlanSuccess plan={plan} /> : null}
 
         <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
           {found ? (

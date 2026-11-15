@@ -107,7 +107,7 @@ building model (ingest/) ──► core/prior ──────┘             
 ```
 
 **Prior** (`core/prior.py`): `π(r) ∝ Area^0.7 · w(room type, building use, hour) · occupancy`,
-with 5% of the mass reserved for "caller is somewhere not in our model".
+normalised so the room probabilities sum to 100%.
 
 **Phone likelihood** (`core/phone_likelihood.py`): a horizontal Gaussian on distance to
 the room, and a vertical Gaussian comparing barometric height to `floor height + 1.2 m`
@@ -145,9 +145,7 @@ p(r | E) ∝ π(r) · L_phone(r) · Π_i [ε + (1 − ε) · m_i(r)]^c_i        
 ```
 
 The `ε` floor means no single clue can zero a room out (callers are often wrong), and
-the exponent `c_i` tempers each clue by the parser's confidence in it. The
-"not in model" bucket is scored at the prior-weighted average of the rooms, so it keeps
-a roughly constant share unless the evidence fits no room well.
+the exponent `c_i` tempers each clue by the parser's confidence in it.
 
 **Uncertainty** (`core/uncertainty.py`): entropy in bits, per-floor probability, the
 smallest set of rooms covering 90%, and the number of separate high-probability

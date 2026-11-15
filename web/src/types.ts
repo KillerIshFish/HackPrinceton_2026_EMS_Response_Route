@@ -82,10 +82,11 @@ export interface Clue {
 }
 
 export interface Posterior {
-  /** keyed by room id; sum(room_probs) + p_not_in_model == 1 */
+  /** keyed by room id; sums to 1 */
   room_probs: Record<string, number>;
+  /** always 0: no mass is held back for outside the model (not displayed) */
   p_not_in_model: number;
-  /** keyed by floor_label; sums to 1 - p_not_in_model */
+  /** keyed by floor_label; sums to 1 */
   p_floor: Record<string, number>;
   credible_set_90: string[];
   entropy_bits: number;
@@ -122,7 +123,7 @@ export interface SearchPlan {
   // ---- Step 0 contract; filled by the planner from step A1 on (null until then) ----
   objective: PlanObjective;
   solver: Solver;
-  /** probability the caller is outside the mapped rooms, after the looks so far */
+  /** always 0: no mass is held back for outside the model (not displayed) */
   p_out: number | null;
   /** probability the caller has been found by the end of this plan */
   cumulative_success: number | null;

@@ -197,7 +197,7 @@ def test_a_stated_floor_gets_exactly_its_share_whatever_the_building_height(buil
         probs, nim = posterior_probs(b, clues=[floor_ev(label, share)])
         assert floors(b, probs)[label] == pytest.approx(share, abs=1e-9)
         assert sum(probs.values()) + nim == pytest.approx(1.0)
-        assert min(probs.values()) > 0.0 and nim > 0.0
+        assert min(probs.values()) > 0.0 and nim == 0.0
 
 
 def test_the_stated_share_does_not_depend_on_the_prior(building):
@@ -486,7 +486,7 @@ def test_a_room_on_the_stated_floor_and_the_floor_reinforce_each_other(building)
     # and many agreeing statements never pass the cap
     many = [room_ev("302", 0.95, turn=t) for t in range(1, 8)] + [floor_ev("3", 0.95, turn=9)]
     probs, nim = posterior_probs(building, clues=many)
-    assert probs[ROOM_302] <= REINFORCED_MAX + 1e-12 and min(probs.values()) > 0.0 and nim > 0.0
+    assert probs[ROOM_302] <= REINFORCED_MAX + 1e-12 and min(probs.values()) > 0.0 and nim == 0.0
 
 
 def test_a_correction_replaces_what_it_corrects(building):
@@ -678,7 +678,7 @@ def test_second_team_rooms_only_moves_the_second_teams_start(building):
 def test_no_single_statement_can_take_a_room_to_zero(building):
     for ev in (room_ev("302", 1.0), floor_ev("3", 1.0)):
         probs, nim = posterior_probs(building, clues=[ev])
-        assert min(probs.values()) > 0.0 and nim > 0.0
+        assert min(probs.values()) > 0.0 and nim == 0.0
         named = sum(p for rid, p in probs.items() if evidence_match(building, ev).match[rid] >= 1.0)
         assert named == pytest.approx(RHO_MAX)  # a confidence of 1.0 still counts as 0.95
 

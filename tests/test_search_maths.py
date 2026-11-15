@@ -199,7 +199,12 @@ def _old_order(building, probs, start, coverage=0.99):
 
 
 @pytest.mark.parametrize("seed", [0, 1, 2])
-def test_first_pass_order_unchanged_with_uniform_q(ptc, seed) -> None:
+def test_first_pass_order_unchanged_with_uniform_q(ptc, seed, monkeypatch) -> None:
+    """With the walking penalty off (scale 0) the planner is the original one. (With it on,
+    lambda depends on q, so a different q can change the order.)"""
+    import planning.search_order as so
+
+    monkeypatch.setattr(so, "walking_penalty_scale", lambda: 0.0)
     rng = random.Random(seed)
     ids = [r.id for r in ptc.rooms]
     w = [rng.random() ** 4 for _ in ids]
@@ -552,3 +557,103 @@ def test_smoke_look_time_uses_wall_length_and_search_advance() -> None:
     assert any("Smoke reported" in n and "0.04 m/s" in n for n in plan.notes)
     # Moving at the smoke rate: entrance 3 m + hall->room 6 m at 0.5 m/s.
     assert plan.teams[0][0].travel_s == pytest.approx(9.0 / 0.5, abs=0.05)
+
+
+# ===========================================================================
+# Walking penalty: sum p C + lam * T_total (planning.search_order, "Walking penalty")
+# ===========================================================================
+
+
+def _corridor(pl, pr, gap=10.0, look=15.0):
+    """Rooms every ``gap`` m left and right of an entrance at x = 0, on one corridor."""
+    xs = [-(i + 1) * gap for i in range(len(pl))] + [(i + 1) * gap for i in range(len(pr))] + [0.0]
+    T = [[abs(a - b) / 1.2 for b in xs] for a in xs]
+    return xs, T, [look] * (len(xs) - 1), list(pl) + list(pr)
+
+
+def _walk_s(order, T, start):
+    t, prev = 0.0, start
+    for k in order:
+        t, prev = t + T[prev][k], k
+    return t
+
+
+def test_zero_penalty_is_the_original_planner() -> None:
+    rng = random.Random(7)
+    for _ in range(5):
+        n = 9
+        pts = [(rng.uniform(0, 60), rng.uniform(0, 30)) for _ in range(n + 1)]
+        T = [[math.dist(a, b) / 1.2 for b in pts] for a in pts]
+        s = [rng.uniform(10, 40) for _ in range(n)]
+        p = [rng.random() for _ in range(n)]
+        assert solve_exact(T, s, p, n, 0.0) == solve_exact(T, s, p, n)
+        g = _greedy_single(range(n), T, s, p, n)
+        assert _greedy_single(range(n), T, s, p, n, 0.0) == g
+        assert _improve_route(g, T, s, p, n, 1e18, 0.0) == _improve_route(g, T, s, p, n, 1e18)
+        assert _route_cost(g, T, s, p, n, 0.0) == _route_cost(g, T, s, p, n)
+
+
+def test_penalty_sweeps_a_corridor_the_old_objective_crosses_twice() -> None:
+    """Left side likely near the door, right side tailing off: E[T] alone finishes the left
+    end and then walks back across the floor for the last two rooms on the right. With the
+    penalty the right side is finished first and the floor is crossed once."""
+    xs, T, s, p = _corridor([.30, .05, .04, .03, .02, .01], [.25, .20, .04, .03, .02, .01])
+    n = len(p)
+    lam = (1.0 - 0.9 * sum(p)) / 0.9            # the phantom stop: not found by the path, / q
+    old, _ = solve_exact(T, s, p, n)
+    new, _ = solve_exact(T, s, p, n, lam)
+    old_x, new_x = [xs[k] for k in old], [xs[k] for k in new]
+    assert old_x[-2:] == [50.0, 60.0] and -60.0 in old_x[:-2]   # the walk back across
+    assert new_x == [-10.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, -20.0, -30.0, -40.0, -50.0, -60.0]
+    assert _walk_s(new, T, n) < 0.75 * _walk_s(old, T, n)
+    et_old = _route_cost(old, T, s, p, n) / sum(p)
+    et_new = _route_cost(new, T, s, p, n) / sum(p)
+    assert et_old <= et_new <= 1.05 * et_old       # a small price in E[T]
+    # the heuristic path (greedy + local search) finds the same sweep
+    h, _ = _improve_route(_greedy_single(range(n), T, s, p, n, lam), T, s, p, n, 1e18, lam)
+    assert _route_cost(h, T, s, p, n, lam) == pytest.approx(_route_cost(new, T, s, p, n, lam), rel=1e-9)
+
+
+@pytest.mark.parametrize("lam", [0.05, 0.3, 2.0])
+def test_exact_solver_matches_brute_force_with_the_penalty(lam) -> None:
+    rng = random.Random(11)
+    for _ in range(3):
+        pts = [(rng.uniform(0, 50), rng.uniform(0, 50)) for _ in range(7)]
+        T = [[math.dist(a, b) / 1.2 for b in pts] for a in pts]
+        s = [rng.uniform(5, 30) for _ in range(6)]
+        p = [rng.random() for _ in range(6)]
+        order, cost = solve_exact(T, s, p, 6, lam)
+        brute = min(_route_cost(o, T, s, p, 6, lam) for o in itertools.permutations(range(6)))
+        assert cost == pytest.approx(brute, rel=1e-9)
+        assert _route_cost(order, T, s, p, 6, lam) == pytest.approx(brute, rel=1e-9)
+
+
+def test_survival_penalty_is_a_phantom_stop_at_the_end() -> None:
+    from planning.search_order import _survival_value
+
+    xs, T, s, p = _corridor([.3, .1], [.2, .1])
+    curve = lambda t: 1.0 / (1.0 + math.exp(-0.5 + t / 120.0))  # noqa: E731 - any falling curve
+    order = [0, 2, 1, 3]
+    end = sum(T[a][b] for a, b in zip([4, *order], order)) + sum(s)
+    plain = _survival_value(order, T, s, p, 4, curve)
+    assert _survival_value(order, T, s, p, 4, curve, 0.0) == plain
+    assert _survival_value(order, T, s, p, 4, curve, 0.4) == pytest.approx(plain + 0.4 * curve(end))
+
+
+def test_plan_reports_the_penalty_and_keeps_e_t_comparable(ptc, monkeypatch) -> None:
+    import planning.search_order as so
+
+    from core.prior import compute_prior
+
+    probs, p0 = compute_prior(ptc, hour=14)
+    on = plan_search(ptc, probs, p0)
+    monkeypatch.setattr(so, "walking_penalty_scale", lambda: 0.0)
+    off = plan_search(ptc, probs, p0)
+    assert any(n.startswith("Walking penalty applied: lambda = ") for n in on.notes)
+    assert not any(n.startswith("Walking penalty") for n in off.notes)
+    walk = lambda plan: sum(st.travel_s for st in plan.teams[0])  # noqa: E731
+    assert walk(on) < walk(off) and on.time_to_cover_all_s < off.time_to_cover_all_s
+    assert on.expected_time_to_find_s <= 1.10 * off.expected_time_to_find_s
+    # the baselines are the same E[T] either way
+    assert on.baseline_nearest_s == pytest.approx(off.baseline_nearest_s)
+    assert on.baseline_highest_prob_s == pytest.approx(off.baseline_highest_prob_s)
