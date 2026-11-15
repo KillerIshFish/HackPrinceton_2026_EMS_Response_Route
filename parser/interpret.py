@@ -6,10 +6,11 @@ Two readers (docs/BUILD_PLAN.md section 6, steps C1 and C2):
   (yes / no answers to the question just asked, numbers and names printed on rooms,
   corrections) run before the vocabulary extractor (``parser.extract``), and the results
   are merged. No network.
-* Modes "llm" and "agent": one and the same reader, the grounded Claude Haiku interpreter
-  ``parser.agent.interpret``, which sees the building's room list and records what the
-  caller's words point at. Both names are accepted so older clients keep working; the
-  console shows it as "Claude Haiku". It falls back to the rules path with source
+* Modes "llm" and "agent": one and the same reader, the layout-reasoning Claude interpreter
+  ``parser.agent.interpret``, which sees the building's layout (hallways and door order, room
+  sizes, corners, stairs, elevators) and works out which rooms the caller's words fit, with no
+  word list. Both names are accepted so older clients keep working; the console shows it as
+  "Claude". It falls back to the rules path with source
   ``"rules (agent unavailable: <reason>)"`` when the model cannot be reached. The older
   single-utterance vocabulary extractor (``parser.extract.extract_clues_llm``) is no
   longer a console mode; ``_rules_path(use_llm=True)`` still runs it for comparison.
@@ -21,7 +22,7 @@ Conventions every path keeps:
   tenant name, a floor) carries the stated share as its confidence: 0.40 to 0.95 depending
   on how sure and how exact the caller sounds (``core.fusion.stated_share``). In mode
   "rules" fixed word patterns rate it (``parser.statement_rating.rate_statement``); in the
-  model modes Claude Haiku does. A floor that is about someone or something else ("he went
+  model modes the model does. A floor that is about someone or something else ("he went
   up to the third floor", "the fire is on four") is not the caller's location and is not
   recorded as one.
 * Evidence ids are ``evidence_id(index, k)`` = ``"t<index>-e<k>"`` (k counts from 0 within
@@ -48,7 +49,7 @@ from parser.extract import extract_clues_with_source
 from parser.statement_rating import Rating, rate_statement
 
 PARSER_MODES = ("rules", "llm", "agent")
-# Modes read by the grounded Claude Haiku interpreter (parser.agent). "llm" is the name the
+# Modes read by the layout-reasoning Claude interpreter (parser.agent). "llm" is the name the
 # console uses; "agent" is kept as an alias.
 MODEL_MODES = ("llm", "agent")
 
@@ -89,7 +90,7 @@ def interpret_turn(
 
     * ``transcript``      every turn so far (index ``index`` is the one to read; earlier
                           turns resolve "yes", "it", corrections).
-    * ``mode``            "rules", or "llm" / "agent" (the same grounded Claude Haiku reader).
+    * ``mode``            "rules", or "llm" / "agent" (the same layout-reasoning Claude reader).
     * ``prior_evidence``  evidence from earlier turns (ids a correction may supersede).
     * ``prior_facts``, ``incident_type``  what earlier turns already put on the console; the
                           model reader is shown them so it does not repeat them.
@@ -99,7 +100,7 @@ def interpret_turn(
         return Interpretation(source="")
 
     if mode in MODEL_MODES:
-        # AGENT HOOK (step C2). parser.agent falls back to the rules path itself when the model fails.
+        # parser.agent falls back to the rules path itself when the model fails.
         from parser.agent import interpret as agent_interpret
         return agent_interpret(building, transcript, index, prior_evidence=prior_evidence, vocab=vocab,
                                prior_facts=prior_facts, incident_type=incident_type, source=mode)

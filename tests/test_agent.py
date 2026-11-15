@@ -9,7 +9,7 @@ import pytest
 import parser.agent as agent
 import parser.extract as extract
 from core.fusion import names_rooms, posterior_probs
-from core.schema import Clue, Evidence, RoomSelector, TranscriptTurn
+from core.schema import Answer, Clue, Evidence, RoomSelector, TranscriptTurn
 from ingest.matterport import generate_synthetic_office
 from parser.building_tools import TOOLS, BuildingIndex, floor_summary, rooms_near, search_rooms, select_rooms
 
@@ -138,9 +138,10 @@ def test_tool_schemas_are_strict():
 # ---------------------------------------------------------------------------
 
 
-def test_patel_office_grounds_to_tenant_room(building, meta, patel_room):
+def test_patel_office_grounds_to_tenant_room(building, meta, patel_room, monkeypatch):
+    monkeypatch.delenv("LLM_MODEL", raising=False)
     client = StubClient([
-        reply(tool_use("search_rooms", query="Patel")),
+        reply(tool_use("find_rooms", text="Patel")),
         reply(
             tool_use("record_location", selector={"tenant_contains": "Patel"}, negate=False,
                      confidence=0.95, certainty=1.0, specificity=1.0, span="Dr. Patel's office",
@@ -165,19 +166,30 @@ def test_patel_office_grounds_to_tenant_room(building, meta, patel_room):
     [fact] = out.facts
     assert fact.verified is False and fact.id == "t1-f0" and fact.category == "patient"
     assert out.suggested_type == "cardiac_arrest" and out.suggested_span == "he's not breathing"
-    assert [t.tool for t in out.trace] == ["search_rooms", "record_location", "record_fact", "suggest_incident_type"]
+    assert [t.tool for t in out.trace] == ["find_rooms", "record_location", "record_fact", "suggest_incident_type"]
+    # the look-up answered with the tenant's room (its full layout line)
+    found = client.calls[1]["messages"][-1]["content"][0]["content"]
+    assert patel_room.id in found and "Patel" in found
     # the look-up result went back as one user message of tool results
     last_user = client.calls[1]["messages"][-1]
     assert last_user["role"] == "user" and [b["type"] for b in last_user["content"]] == ["tool_result"]
     # system block and tools are identical on every request (so they cache)
     assert all(c["system"] == client.calls[0]["system"] and c["tools"] == client.calls[0]["tools"] for c in client.calls)
     assert client.calls[0]["system"][0]["cache_control"] == {"type": "ephemeral"}
-    assert client.calls[0]["model"] == "claude-haiku-5-5"
+    # the default reader: Claude Opus 5.5 with adaptive thinking (the stub has no beta namespace,
+    # so the plain messages.create path is used)
+    assert client.calls[0]["model"] == agent.agent_model() == agent.DEFAULT_AGENT_MODEL == "claude-opus-5-5"
+    assert client.calls[0]["thinking"] == {"type": "adaptive"} and client.calls[0]["max_tokens"] == 16000
+    assert "betas" not in client.calls[0] and "fallbacks" not in client.calls[0]
+    assert "Claude Opus 5.5" in ev.rationale  # the rating says which model made it
 
 
 def test_fabricated_span_is_dropped(building, meta):
     client = StubClient([reply(
-        tool_use("record_vocab_clue", type="floor", value="3", polarity=True, confidence=0.9, span="third floor"),
+        tool_use("record_floor", floor="3", stated_by_caller=True, polarity=True, confidence=0.9, certainty=1.0,
+                 specificity=1.0, span="third floor"),
+        tool_use("record_clue", clue="by the window", room_ids=[building.rooms[0].id], others_fit=0.2, negate=False,
+                 confidence=0.8, span="next to the window", reasoning="made up"),
         tool_use("record_fact", category="threat", text="Caller reports a man with a gun", span="he has a gun"),
     ), done()])
     out = agent.interpret(building, CALL, 1, client=client, meta=meta)
@@ -201,21 +213,23 @@ def test_unknown_room_id_is_dropped(building, meta):
     assert "will be dropped" in ack
 
 
-def test_low_confidence_unknown_vocab_and_verified_fact_dropped(building, meta):
+def test_low_confidence_unknown_room_and_verified_fact_dropped(building, meta, patel_room):
+    clue = dict(clue="Dr. Patel's office", others_fit=0.1, negate=False, reasoning="tenant's office")
     client = StubClient([reply(
-        tool_use("record_vocab_clue", type="room_type", value="office", polarity=True, confidence=0.3,
-                 span="Dr. Patel's office"),
-        tool_use("record_vocab_clue", type="room_type", value="spaceship", polarity=True, confidence=0.9,
-                 span="Dr. Patel's office"),
+        tool_use("record_clue", room_ids=[patel_room.id], confidence=0.3, span="Dr. Patel's office", **clue),
+        tool_use("record_clue", room_ids=["f9-spaceship-1"], confidence=0.9, span="Dr. Patel's office", **clue),
         tool_use("record_fact", category="patient", text="Confirmed cardiac arrest", span="he's not breathing"),
-        tool_use("record_vocab_clue", type="room_type", value="office", polarity=True, confidence=0.8,
-                 span="dr. patel's OFFICE"),
+        tool_use("record_floor", floor="99", stated_by_caller=False, polarity=True, confidence=0.9,
+                 span="Dr. Patel's office"),
+        tool_use("record_clue", room_ids=[patel_room.id], confidence=0.8, span="dr. patel's OFFICE", **clue),
     ), done()])
     out = agent.interpret(building, CALL, 1, client=client, meta=meta)
     kept = [t.kept for t in out.trace]
-    assert kept == [False, False, False, True]
+    assert kept == [False, False, False, False, True]
+    assert "below" in out.trace[0].reason and "unknown room id" in out.trace[1].reason
+    assert "verified" in out.trace[2].reason and "not a floor" in out.trace[3].reason
     [ev] = out.evidence
-    assert ev.kind == "vocab" and ev.clue.value == "office"
+    assert ev.kind == "grounded" and ev.matched_room_ids == [patel_room.id]
     assert ev.span == "Dr. Patel's office"  # caller's own casing recovered
 
 
@@ -244,17 +258,37 @@ def test_supersede_and_denial(building, meta):
     assert out.supersedes[0] == "t1-e0"
 
 
-def test_dialog_answer_comes_first_and_is_not_duplicated(building, meta):
+def test_a_typed_yes_is_left_to_the_model(building, meta):
+    """No word rules run in model mode: a typed "yeah" becomes evidence only if the model records it."""
     call = turns(("dispatcher", "Is there a window in the room you're in?"),
                  ("caller", "yeah, and I can hear sirens outside"))
+    silent = agent.interpret(building, call, 1, client=StubClient(), meta=meta)
+    assert silent.evidence == [] and silent.source == "agent"
+    # (a different message, so not the cached empty reply)
+    call2 = turns(("dispatcher", "Is there a window in the room you're in?"),
+                  ("caller", "yeah, and I can hear sirens outside!"))
+    windowed = [r.id for r in building.rooms if r.has_windows][:6]
     client = StubClient([reply(
-        tool_use("record_vocab_clue", type="landmark", value="window", polarity=True, confidence=0.8, span="yeah"),
+        tool_use("record_clue", clue="room has a window", room_ids=windowed, others_fit=0.1, negate=False,
+                 confidence=0.8, span="yeah", reasoning="yes to the window question"),
     ), done()])
+    out = agent.interpret(building, call2, 1, client=client, meta=meta)
+    [ev] = out.evidence
+    assert ev.source == "agent" and ev.kind == "grounded" and ev.matched_room_ids == windowed
+    assert "answer buttons" not in client.calls[0]["messages"][0]["content"]
+
+
+def test_a_button_answer_is_kept_as_dispatcher_evidence(building, meta):
+    """The Yes / No / Not sure buttons are the one deterministic input kept in model mode."""
+    call = turns(("dispatcher", "Is there a window in the room you're in?"), ("caller", "Yes"))
+    call[1] = call[1].model_copy(update={"answer": Answer(clue_type="landmark", value="window", answer="yes")})
+    client = StubClient()
     out = agent.interpret(building, call, 1, client=client, meta=meta)
     [ev] = out.evidence
-    assert ev.source == "rules" and ev.id == "t1-e0" and ev.clue.value == "window" and ev.span == "yeah"
-    assert not out.trace[0].kept and "dialog rules" in out.trace[0].reason
-    assert "landmark=window" in client.calls[0]["messages"][0]["content"]
+    assert ev.source == "dispatcher" and ev.id == "t1-e0"
+    assert ev.clue.type == "landmark" and ev.clue.value == "window" and ev.clue.polarity is True
+    message = client.calls[0]["messages"][0]["content"]
+    assert "answer buttons" in message and "landmark=window" in message
 
 
 def test_fourth_request_is_never_followed_by_a_fifth(building, meta):
@@ -290,7 +324,7 @@ def test_refusal_and_budget_fall_back(building, meta, monkeypatch):
 
 
 def test_same_transcript_twice_makes_no_second_request(building, meta):
-    script = [reply(tool_use("record_vocab_clue", type="room_type", value="office", polarity=True, confidence=0.8,
+    script = [reply(tool_use("record_floor", floor="3", stated_by_caller=False, polarity=True, confidence=0.8,
                              span="Dr. Patel's office")), done()]
     client = StubClient(script)
     first = agent.interpret(building, CALL, 1, client=client, meta=meta)

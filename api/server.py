@@ -13,7 +13,7 @@ and writes call events to ``data/processed/call_log.jsonl`` (``CALL_LOG_PATH`` o
 
 Network use
 -----------
-* Anthropic: only when the parser mode is "llm" (Claude Haiku; "agent" is an older name for the
+* Anthropic: only when the parser mode is "llm" (the layout-reasoning Claude reader; "agent" is an older name for the
   same interpreter). A new session starts in that mode when a key is configured
   (``default_parser_mode``; ``PARSER_MODE`` overrides it). One request per caller turn in the
   usual case, plus one no-output request when a call starts to write the building's prompt
@@ -43,7 +43,7 @@ from ingest.unified import index as property_index
 from ingest.unified import pipeline as unified
 from ingest.unified.lift import from_building, from_model3d
 from ingest.unified.project import viewer_payload
-from parser.extract import LLM_MODEL
+from parser.agent import agent_model
 from api.session import (  # noqa: F401  (models re-exported for older imports)
     DEMO_HOUR,
     MAX_TEAMS,
@@ -80,12 +80,12 @@ def default_building_id() -> str:
     return REAL_BUILDING_ID if REAL_BUILDING_ID in known else SYNTHETIC_BUILDING_ID
 
 
-MODEL_PARSER_MODES = ("llm", "agent")  # both are the grounded Claude Haiku interpreter (parser.agent)
+MODEL_PARSER_MODES = ("llm", "agent")  # both are the layout-reasoning Claude interpreter (parser.agent)
 
 
 def default_parser_mode() -> str:
     """Parser a new session starts with: ``PARSER_MODE`` (rules | llm | agent) when set, else
-    Claude Haiku (``llm``) when a key is configured, else the offline rules."""
+    the Claude reader (``llm``) when a key is configured, else the offline rules."""
     wanted = (os.getenv("PARSER_MODE") or "").strip().lower()
     if wanted in ("rules", "llm", "agent"):
         return wanted if wanted == "rules" or llm_available() else "rules"
@@ -148,7 +148,7 @@ def config() -> dict[str, Any]:
     return {
         "matterport_sdk_key": (os.getenv("MATTERPORT_SDK_KEY") or "").strip() or None,
         "llm_available": llm_available(),
-        "llm_model": LLM_MODEL,
+        "llm_model": agent_model(),
         "vexcel_available": bool("".join((os.getenv("VEXCEL_API_KEY") or "").split())),
     }
 
@@ -377,7 +377,7 @@ def demo_building(id: str = Query(...)) -> DemoState:
 
 @app.post("/calls/demo/parser", response_model=DemoState)
 def demo_parser(mode: str = Query(..., pattern="^(rules|llm|agent)$")) -> DemoState:
-    """Choose the interpreter: ``rules`` (offline) or ``llm`` (Claude Haiku: the grounded
+    """Choose the interpreter: ``rules`` (offline) or ``llm`` (Claude: the layout-reasoning
     interpreter that reads the call against the building's room list; replies are cached and it
     falls back to the rules when the model cannot be reached). ``agent`` is accepted as an older
     name for ``llm``; both run the same interpreter."""

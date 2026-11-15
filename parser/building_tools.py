@@ -100,6 +100,13 @@ class BuildingIndex:
 
         return build_graph(self.building)
 
+    @cached_property
+    def layout(self):
+        """The building's layout map (``parser.layout.build_layout``): hallways, door order, size, position."""
+        from parser.layout import build_layout
+
+        return build_layout(self)
+
     def walking_m_from(self, room_id: str) -> dict[str, float]:
         """Walking distance (m) from ``room_id`` to every room on the same floor."""
         G = self._graph
@@ -397,6 +404,71 @@ def building_roster(idx: BuildingIndex) -> str:
     return "\n".join(lines)
 
 
+# Above this many rooms each room line drops its neighbour lists (the hallway listings still
+# give who opens onto which hall, in order); find_rooms / room_details give the full lines.
+LAYOUT_COMPACT_ABOVE_ROOMS = 600
+
+
+def layout_roster(idx: BuildingIndex) -> str:
+    """The building for the reasoning reader's cached system block (``parser.layout``).
+
+    Floor by floor: the floor plate, its stairwells, elevators and entrances, every hallway
+    with the rooms along it in order, then one layout line per room.
+    """
+    from parser.layout import hall_text, room_layout_text
+
+    b = idx.building
+    lay = idx.layout
+    compact = len(b.rooms) > LAYOUT_COMPACT_ABOVE_ROOMS
+    partial = len(b.rooms) > ROSTER_MAX_ROOMS
+    listed: Optional[set[str]] = None
+    if partial:
+        from core.evidence import room_labels
+
+        labelled = room_labels(b, idx.meta_rooms)
+        listed = {r.id for r in b.rooms if r.id in labelled or idx.tenant(r.id)}
+    lines = [
+        f"Building id: {b.id}", f"Name: {b.name}", f"Use: {b.use_type}",
+        f"Floor labels, bottom to top: {', '.join(idx.floor_labels)}",
+        "",
+        "How to read this. Directions written 'plan N/S/E/W' are the floor plan's own axes: use them for "
+        "relations inside a floor (which end of a hallway, which side, which corner), not as compass "
+        "directions. 'windows face ...' is the real outlook. Each hallway lists what is at each end and the "
+        "rooms along it in order from its first end, with the side of the hall in brackets. Each room line: "
+        "id | name | type, floor area (size word, rank by area among the floor's rooms) | position on the "
+        "floor plate | hallway(s) it opens onto, side and door position | walking metres to the nearest "
+        "stairs, elevator and entrance on that floor | windows; rooms sharing a wall; rooms across the hall; "
+        "suite and tenant.",
+    ]
+    if compact:
+        lines.append("This building is large: room lines leave out neighbours. Use find_rooms, room_details and "
+                     "rooms_near for detail.")
+    if partial:
+        lines.append(f"This building has {len(b.rooms)} rooms; only the {len(listed or ())} with a number or a "
+                     "tenant are listed. Use find_rooms for the others.")
+    for f in lay.floors:
+        lines += ["", f"=== Floor {f.label}: {len(f.rooms)} rooms, floor plate about {f.width_m} x {f.depth_m} m ==="]
+        bits = []
+        if f.stairs:
+            bits.append("stairs " + ", ".join(f"{s} ({idx.rooms[s].name})" for s in f.stairs))
+        if f.elevators:
+            bits.append("elevators " + ", ".join(f"{e} ({idx.rooms[e].name})" for e in f.elevators))
+        if f.entrances:
+            names = {e.get("room_id"): e.get("name") for e in b.entrances or []}
+            bits.append("entrances in " + ", ".join(f"{e} ({names.get(e) or 'entrance'})" for e in f.entrances))
+        if bits:
+            lines.append("; ".join(bits))
+        if f.halls:
+            lines.append("Hallways:")
+            lines.extend(hall_text(h, idx) for h in f.halls)
+        lines.append("Rooms:")
+        for rid in f.rooms:
+            if listed is not None and rid not in listed:
+                continue
+            lines.append(room_layout_text(idx, lay, idx.rooms[rid], compact=compact))
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Tool schemas (strict). Optional properties are simply left out of `required`.
 # ---------------------------------------------------------------------------
@@ -459,38 +531,46 @@ def _tool(name: str, description: str, properties: dict, required: Iterable[str]
 
 TOOLS: list[dict] = [
     _tool(
-        "search_rooms",
-        "Look-up, only needed when the room list in the briefing is partial. Finds rooms by words the caller "
-        "used: a tenant or business name, a suite, unit or room number, a room name or a room type. Returns id, "
-        "name, floor, type, tenant, suite, windows (side they face, or true/false), near_stairs, near_elevator.",
+        "find_rooms",
+        "Look-up: filter this building's rooms by layout facts and words, when scanning the room list by eye "
+        "is error-prone (a large building, or many conditions at once). Every condition is optional and they "
+        "AND together. Returns each room's full layout line (size and rank, position, hallway and door "
+        "position, walking metres to stairs / elevator / entrance, windows, neighbours, suite, tenant).",
         {
-            "query": {"type": "string"},
-            "floor_label": {"type": "string", "description": "Only rooms on this floor label."},
-            "room_type": {"type": "string", "description": "Only rooms of this type."},
-            "limit": {"type": "integer", "description": "Max rooms returned (default 8, max 20)."},
+            "text": {"type": "string", "description": "Words to match on name, tenant, suite / unit number, type or id."},
+            "floor_labels": {"type": "array", "items": {"type": "string"}},
+            "room_types": {"type": "array", "items": {"type": "string"}},
+            "min_area_m2": {"type": "number"},
+            "max_area_m2": {"type": "number"},
+            "on_hall": {"type": "string", "description": "A corridor id: only rooms opening onto it."},
+            "max_walk_to_stairs_m": {"type": "number"},
+            "max_walk_to_elevator_m": {"type": "number"},
+            "min_walk_to_elevator_m": {"type": "number"},
+            "position": {"type": "string", "enum": ["corner", "outer_edge", "interior", "hall_end"]},
+            "has_windows": {"type": "boolean"},
+            "limit": {"type": "integer", "description": "Max rooms returned (default 15, max 40)."},
         },
-        ["query"],
+        [],
+    ),
+    _tool(
+        "room_details",
+        "Look-up: the full layout line of each room id given (useful in a building whose room list is compact).",
+        {"room_ids": {"type": "array", "items": {"type": "string"}}},
+        ["room_ids"],
     ),
     _tool(
         "rooms_near",
-        "Look-up: rooms within radius_m walking metres of a room, same floor. For 'down the hall from', 'a few "
-        "doors past', or 'next to' when the room list shows no neighbours.",
+        "Look-up: rooms within radius_m walking metres of a room, same floor, nearest first.",
         {"room_id": {"type": "string"}, "radius_m": {"type": "number"}},
         ["room_id", "radius_m"],
     ),
     _tool(
-        "floor_summary",
-        "Look-up, only needed when the room list in the briefing is partial. One floor: room count by type, "
-        "suites and tenants, which sides have windows.",
-        {"floor_label": {"type": "string"}},
-        ["floor_label"],
-    ),
-    _tool(
         "record_location",
-        "Record where the caller is: the rooms their words point at. confidence is your own reading: the chance "
-        "these are the rooms the words point at. certainty and specificity rate the caller's statement and set "
-        "how much it weighs. For a denial ('we're not in 304') set negate=true and select the rooms they ruled "
-        "out; otherwise negate=false.",
+        "Record a place the caller NAMED as where they are (or where the patient is): a room, unit or suite "
+        "number, a room's or tenant's name, a sign. Select every room the name or number points at. confidence "
+        "is your own reading (the chance these are the rooms meant). certainty and specificity rate the "
+        "caller's words and set how much the statement weighs. For a denial of a named place ('we're not in "
+        "304') set negate=true. A place worked out from a description goes in record_clue instead.",
         {
             "selector": _SELECTOR_SCHEMA,
             "negate": {"type": "boolean"},
@@ -503,35 +583,44 @@ TOOLS: list[dict] = [
         ["selector", "negate", "confidence", "certainty", "specificity", "span", "rationale"],
     ),
     _tool(
-        "record_vocab_clue",
-        "Record a clue from the controlled vocabulary in the briefing (type + key): a floor, a view, a sound, a "
-        "smell, a landmark, a route, or a room type that many rooms share. It narrows the picture without naming "
-        "a room. For a denial use type 'negative' with value '<section>:<key>' (e.g. 'views:parking_lot') and "
-        "polarity false. For type 'floor' also give certainty and specificity (the caller's statement of their "
-        "floor is weighed by them); leave both out for every other type.",
+        "record_clue",
+        "Record anything else the caller says about where they are, worked out against the layout: the "
+        "hallway, door order, end of the hall, a corner, the room's size, windows and what they see, what "
+        "they hear or smell, what is next to or across from them, how they walked there. Reason over the "
+        "layout and list the rooms the clue fits (room_ids). others_fit is the chance, 0 to 0.5, that the "
+        "caller's words would still be said from a room you did not list (0.05 when the clue clearly rules "
+        "the others out, 0.3 to 0.5 for a loose one). For a denial ('there's no window', 'we're not by the "
+        "elevator') set negate=true and list the rooms it rules out. One record per independent clue: do not "
+        "repeat a clue already on the console.",
         {
-            "type": {"type": "string", "enum": CLUE_TYPES},
-            "value": {"type": "string"},
+            "clue": {"type": "string", "description": "The clue in a few words, e.g. 'last door at the end of the hall'."},
+            "room_ids": {"type": "array", "items": {"type": "string"},
+                         "description": "Room ids from the room list or a tool result that the clue fits."},
+            "others_fit": {"type": "number", "description": "0 to 0.5: how well the rooms not listed still fit."},
+            "negate": {"type": "boolean"},
+            "confidence": _CONF,
+            "span": _SPAN,
+            "reasoning": {"type": "string", "description": "One or two sentences: how the layout gives these rooms."},
+        },
+        ["clue", "room_ids", "others_fit", "negate", "confidence", "span", "reasoning"],
+    ),
+    _tool(
+        "record_floor",
+        "Record the floor the caller (or the patient) is on: a floor label of this building, or 'top', "
+        "'ground' or 'basement'. stated_by_caller is true when the caller said the floor themselves ('third "
+        "floor', 'on four', 'top floor', or yes to 'are you on the third floor?'); false when you worked it "
+        "out from something else. For a denial ('not on four') set polarity=false. Give certainty and "
+        "specificity for the caller's words.",
+        {
+            "floor": {"type": "string"},
+            "stated_by_caller": {"type": "boolean"},
             "polarity": {"type": "boolean"},
             "confidence": _CONF,
             "certainty": _CERTAINTY,
             "specificity": _SPECIFICITY,
             "span": _SPAN,
         },
-        ["type", "value", "polarity", "confidence", "span"],
-    ),
-    _tool(
-        "rate_statement",
-        "Rate a location statement the fixed rules already read from the newest caller turn. The message lists "
-        "each with a label (s1, s2, ...). The rules matched the full number or name, so specificity is 1.0 "
-        "unless the caller's own words were approximate or garbled ('around 302', 'three oh something'); how "
-        "many rooms carry the name does not lower it. You say how sure the caller sounded. One call per label.",
-        {
-            "statement": {"type": "string", "description": "The label from the message, e.g. 's1'."},
-            "certainty": _CERTAINTY,
-            "specificity": _SPECIFICITY,
-        },
-        ["statement", "certainty", "specificity"],
+        ["floor", "stated_by_caller", "polarity", "confidence", "certainty", "specificity", "span"],
     ),
     _tool(
         "record_fact",
@@ -563,15 +652,127 @@ TOOLS: list[dict] = [
     ),
 ]
 
-LOOKUP_TOOLS = ("search_rooms", "rooms_near", "floor_summary")
-RECORD_TOOLS = ("record_location", "record_vocab_clue", "record_fact", "suggest_incident_type", "supersede")
-# Rates a statement the dialog rules read (no span of its own, nothing to look up).
+LOOKUP_TOOLS = ("find_rooms", "room_details", "rooms_near", "search_rooms", "floor_summary")
+RECORD_TOOLS = ("record_location", "record_clue", "record_floor", "record_fact", "suggest_incident_type", "supersede")
+# Rates a statement the dialog rules read. The reasoning reader runs no word rules, so the tool
+# is no longer offered; the name is kept so an older cached run still validates.
 RATE_TOOLS = ("rate_statement",)
+
+FIND_DEFAULT_LIMIT = 15
+FIND_MAX_LIMIT = 40
+
+
+def _hall_end_rooms(idx: BuildingIndex) -> set[str]:
+    """Rooms at either end of a hallway: listed at an end, or the first / last door along it."""
+    lay = idx.layout
+    out = {rid for rid, r in lay.rooms.items() if any(s.door == 0 for s in r.halls)}
+    for h in lay.halls.values():
+        if h.order:
+            out.add(h.order[0][0])
+            out.add(h.order[-1][0])
+    return out
+
+
+def find_rooms(idx: BuildingIndex, args: Mapping[str, Any]) -> dict:
+    """Rooms meeting every condition in ``args`` (see the ``find_rooms`` tool schema)."""
+    from parser.layout import room_layout_text
+
+    lay = idx.layout
+    try:
+        limit = max(1, min(int(args.get("limit") or FIND_DEFAULT_LIMIT), FIND_MAX_LIMIT))
+    except (TypeError, ValueError):
+        limit = FIND_DEFAULT_LIMIT
+    text = str(args.get("text") or "").strip()
+    floors = {str(f) for f in (args.get("floor_labels") or [])}
+    types = {str(t).lower() for t in (args.get("room_types") or [])}
+    hall = str(args.get("on_hall") or "").strip()
+    position = str(args.get("position") or "").strip()
+    ends = _hall_end_rooms(idx) if position == "hall_end" else set()
+
+    def num(key: str) -> Optional[float]:
+        try:
+            v = args.get(key)
+            return None if v is None or v == "" else float(v)
+        except (TypeError, ValueError):
+            return None
+
+    def dist(v: Optional[float]) -> Optional[float]:
+        return None if v is None else abs(v)  # negative = straight-line estimate
+
+    lo, hi = num("min_area_m2"), num("max_area_m2")
+    max_st, max_el, min_el = num("max_walk_to_stairs_m"), num("max_walk_to_elevator_m"), num("min_walk_to_elevator_m")
+    windows = args.get("has_windows")
+    if text:
+        order = [c["id"] for c in _search_all(idx, text)]
+    else:
+        order = [r.id for r in idx.building.rooms]
+    hits: list[str] = []
+    for rid in order:
+        r, rl = idx.rooms[rid], lay.rooms.get(rid)
+        if floors and r.floor_label not in floors:
+            continue
+        if types and r.room_type.lower() not in types:
+            continue
+        if (lo is not None and r.area_m2 < lo) or (hi is not None and r.area_m2 > hi):
+            continue
+        if hall and not (rl and any(s.hall_id == hall for s in rl.halls)):
+            continue
+        if isinstance(windows, bool) and bool(r.has_windows) != windows:
+            continue
+        st, el = (dist(rl.stairs_m), dist(rl.elevator_m)) if rl else (None, None)
+        if max_st is not None and not (st is not None and st <= max_st):
+            continue
+        if max_el is not None and not (el is not None and el <= max_el):
+            continue
+        if min_el is not None and not (el is not None and el >= min_el):
+            continue
+        pos = rl.position if rl else ""
+        if position == "corner" and "corner" not in pos:
+            continue
+        if position == "outer_edge" and not (pos.startswith("outer") or "corner" in pos):
+            continue
+        if position == "interior" and not pos.startswith("interior"):
+            continue
+        if position == "hall_end" and rid not in ends:
+            continue
+        hits.append(rid)
+    return {"total": len(hits), "rooms": [room_layout_text(idx, lay, idx.rooms[rid]) for rid in hits[:limit]]}
+
+
+def _search_all(idx: BuildingIndex, text: str) -> list[dict]:
+    """Every room ``search_rooms`` scores above zero for ``text``, best first."""
+    res = search_rooms(idx, text, limit=SEARCH_MAX_LIMIT)
+    if res["total"] <= SEARCH_MAX_LIMIT:
+        return res["rooms"]
+    # search_rooms caps its output; rerun the scoring without the cap
+    words = [t for t in _tokens(text) if t not in _STOPWORDS] or _tokens(text)
+    keep = []
+    for r in idx.building.rooms:
+        hay = " ".join([r.name, idx.tenant(r.id) or "", idx.suite(r.id) or "", r.room_type, r.id]).lower()
+        if any(w in hay for w in words):
+            keep.append({"id": r.id})
+    return keep
+
+
+def room_details(idx: BuildingIndex, room_ids: Iterable[str]) -> dict:
+    from parser.layout import room_layout_text
+
+    ids = [str(r) for r in (room_ids or [])][:FIND_MAX_LIMIT]
+    out: dict[str, Any] = {"rooms": [room_layout_text(idx, idx.layout, idx.rooms[r]) for r in ids if r in idx.rooms]}
+    bad = [r for r in ids if r not in idx.rooms]
+    if bad:
+        out["unknown_ids"] = bad
+    return out
 
 
 def run_lookup(idx: BuildingIndex, name: str, args: dict) -> dict:
     """Execute a look-up tool. Unknown names and bad arguments come back as ``{"error": ...}``."""
     try:
+        if name == "find_rooms":
+            return find_rooms(idx, args)
+        if name == "room_details":
+            ids = args.get("room_ids")
+            return room_details(idx, [ids] if isinstance(ids, str) else ids or [])
         if name == "search_rooms":
             return search_rooms(idx, str(args.get("query", "")), args.get("floor_label"),
                                 args.get("room_type"), args.get("limit") or SEARCH_DEFAULT_LIMIT)
@@ -579,9 +780,17 @@ def run_lookup(idx: BuildingIndex, name: str, args: dict) -> dict:
             return rooms_near(idx, str(args.get("room_id", "")), float(args.get("radius_m", 0.0)))
         if name == "floor_summary":
             return floor_summary(idx, str(args.get("floor_label", "")))
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, KeyError) as exc:
         return {"error": f"bad arguments: {exc}"}
     return {"error": f"unknown tool '{name}'"}
+
+
+def clue_room_ids(args: Mapping[str, Any]) -> list[str]:
+    """The ``room_ids`` of a ``record_clue`` call as a list of strings (one id may come as a string)."""
+    ids = args.get("room_ids") or []
+    if isinstance(ids, str):
+        ids = [ids]
+    return [str(i).strip() for i in ids if str(i).strip()]
 
 
 def record_ack(idx: BuildingIndex, name: str, args: dict, record_no: int, turn_text: Optional[str] = None,
@@ -589,9 +798,10 @@ def record_ack(idx: BuildingIndex, name: str, args: dict, record_no: int, turn_t
     """Acknowledge a record call. Final keep / drop happens in code after the loop.
 
     A ``warning`` (or ``error``) says the record will be dropped as it stands: its span is not
-    in the newest caller turn (``turn_text``, when given), a room id does not exist, or the
-    selector matches no room. The loop sends the acknowledgements back only when one carries
-    a warning, so the model can correct that record; otherwise one request is enough.
+    in the newest caller turn (``turn_text``, when given), a room id does not exist, a clue
+    lists no room, a floor is not one of this building's, or a selector matches no room. The
+    loop sends the acknowledgements back only when one carries a warning, so the model can
+    correct that record; otherwise one request is enough.
     """
     ack: dict[str, Any] = {"noted": f"r{record_no}", "note": "checked against the transcript and building after you finish"}
     if turn_text is not None:
@@ -609,6 +819,21 @@ def record_ack(idx: BuildingIndex, name: str, args: dict, record_no: int, turn_t
     fact_room = str(args.get("room_id") or "").strip()
     if name == "record_fact" and fact_room.lower() not in ("", "null", "none") and fact_room not in idx.rooms:
         ack["warning"] = f"unknown room id '{fact_room}': this fact will be dropped"
+        return ack
+    if name == "record_clue":
+        ids = clue_room_ids(args)
+        bad = [i for i in ids if i not in idx.rooms]
+        if bad:
+            ack["warning"] = f"unknown room ids {bad}: send the clue again with ids from the room list"
+        elif not ids:
+            ack["warning"] = "no room ids: this clue will be dropped"
+        else:
+            ack["rooms"] = len(ids)
+        return ack
+    if name == "record_floor":
+        floor = str(args.get("floor") or "").strip()
+        if floor not in idx.floor_labels and floor.lower() not in ("top", "ground", "basement"):
+            ack["warning"] = f"'{floor}' is not a floor of this building (floors: {', '.join(idx.floor_labels)})"
         return ack
     if name == "record_location":
         try:

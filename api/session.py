@@ -72,7 +72,8 @@ from core.uncertainty import summarize
 from ingest.matterport import list_buildings
 from ingest.real_building import load_meta
 from parser.dialog import asked_keys as dialog_asked_keys
-from parser.extract import LLM_MODEL, SECTION_FOR_TYPE, llm_usage
+from parser.agent import agent_model
+from parser.extract import SECTION_FOR_TYPE, llm_usage
 from parser.interpret import interpret_turn
 from parser.next_question import asked_from_clues, next_question, question_key, top_questions
 from parser.rule_facts import read_facts
@@ -869,7 +870,7 @@ class CallSession:
             next_question=next_question(self.building, room_probs, p_nim, asked=asked, policy=policy),
             history=[self._history_point(i, policy, gates) for i in range(len(self.revealed))],
             parser_mode=self.parser_mode,
-            llm=LLMStatus(available=llm_available(), model=LLM_MODEL, usage=llm_usage()),
+            llm=LLMStatus(available=llm_available(), model=agent_model(), usage=llm_usage()),
             buildings=building_summaries(),
             situation=self.situation.model_copy(deep=True),
             policy=policy,

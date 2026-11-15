@@ -4,7 +4,7 @@ A specific statement of where the caller is (a room, unit or suite number, a roo
 name, a floor) gives the place it names 40 % to 95 % of the probability on its own, whatever
 the prior says. Covered here, all offline (the model is a stub client):
 
-1. the stated share on its own, in rules mode and in Claude Haiku mode, and the rating behind it
+1. the stated share on its own, in rules mode and in model mode (parser/agent.py), and the rating behind it
 2. agreement reinforces, a correction replaces, a conflict without a correction: the later
    statement wins and the console shows a notice
 3. caller against phone: the caller's statement leads, a notice says so, the phone keeps a
@@ -149,7 +149,7 @@ class StubClient:
 
 
 def haiku(building, call, *blocks, prior_evidence=()):
-    """Read the last turn of ``call`` in Claude Haiku mode with a scripted reply."""
+    """Read the last turn of ``call`` in model mode ("llm") with a scripted reply."""
     client = StubClient([reply(*blocks)])
     out = agent.interpret(building, call, len(call) - 1, client=client, source="llm", prior_evidence=prior_evidence)
     return out, client
@@ -335,35 +335,41 @@ def test_descriptions_keep_the_soft_factor(building):
         assert ratio <= 10.0 + 1e-9
 
 
-# ---- Claude Haiku mode (stub client) -------------------------------------
+# ---- Model mode (stub client) -------------------------------------------
 
 
-def test_haiku_rates_a_statement_the_rules_read(building):
+def test_the_model_rates_a_hedged_named_room(building, monkeypatch):
+    monkeypatch.delenv("LLM_MODEL", raising=False)
     call = turns(("dispatcher", "Where are you?"), ("caller", "um I think we're in 302? I'm not sure"))
-    out, client = haiku(building, call, tool_use("rate_statement", statement="s1", certainty=0.2, specificity=1.0))
-    [ev] = out.evidence
-    assert ev.source == "rules" and ev.selector.unit == "302"
+    out, client = haiku(building, call,
+                        tool_use("record_location", selector={"room_ids": [ROOM_302]}, negate=False, confidence=0.9,
+                                 certainty=0.2, specificity=1.0, span="we're in 302", rationale="Office 302"))
+    [ev] = out.evidence  # no rule reading first: the one statement is the model's
+    assert ev.source == "llm" and ev.matched_room_ids == [ROOM_302] and names_rooms(ev)
     assert ev.confidence == pytest.approx(stated_share(0.2, 1.0)) == pytest.approx(0.51)
-    assert "rated by Claude Haiku" in ev.rationale
-    assert len(client.calls) == 1  # a rating needs no second request
+    assert "rated by Claude Opus 5.5" in ev.rationale
+    assert len(client.calls) == 1
     message = client.calls[0]["messages"][0]["content"]
-    assert 's1: location {"unit": "302"}' in message and "rate_statement (s1)" in message
-    assert any(t["name"] == "rate_statement" for t in client.calls[0]["tools"])
+    assert "rate_statement" not in message and "Already recorded for turn" not in message
+    names = {t["name"] for t in client.calls[0]["tools"]}
+    assert "rate_statement" not in names and "record_vocab_clue" not in names
+    assert {"record_clue", "record_floor", "find_rooms"} <= names
     probs, _ = posterior_probs(building, clues=out.evidence)
     assert probs[ROOM_302] == pytest.approx(0.51, abs=1e-6)
-    [entry] = [t for t in out.trace if t.tool == "rate_statement"]
-    assert entry.kept and "stated share 0.51" in entry.reason
+    assert "stated share 0.51" in out.trace[0].reason
 
 
-def test_haiku_and_rules_differ_only_in_who_rates(building):
+def test_model_mode_runs_no_word_rules_and_rates_like_the_rules(building):
     call = turns(("caller", "I'm in room 302"))
     by_rules = interpret_turn(building, call, 0, "rules")
-    silent, _ = haiku(building, call)  # the model rated nothing: the rule estimate stands
+    silent, _ = haiku(building, call)  # the model recorded nothing: nothing is on the console
     rated, _ = haiku(building, turns(("caller", "I'm in room 302 ")),  # (a different message, so not the cached reply)
-                     tool_use("rate_statement", statement="s1", certainty=1.0, specificity=1.0))
+                     tool_use("record_location", selector={"room_ids": [ROOM_302]}, negate=False, confidence=0.9,
+                              certainty=1.0, specificity=1.0, span="room 302", rationale="Office 302"))
     assert [e.confidence for e in by_rules.evidence if e.kind == "grounded"] == [0.95]
-    assert [e.confidence for e in silent.evidence] == [0.95] == [e.confidence for e in rated.evidence]
-    assert "rated by rules" in silent.evidence[0].rationale and "rated by Claude Haiku" in rated.evidence[0].rationale
+    assert silent.evidence == [] and silent.source == "llm"
+    assert [e.confidence for e in rated.evidence] == [0.95]
+    assert "rated by rules" in by_rules.evidence[0].rationale and "rated by Claude" in rated.evidence[0].rationale
 
 
 def test_haiku_rating_sets_the_share_of_a_floor_and_of_a_named_room(building):
@@ -373,13 +379,29 @@ def test_haiku_rating_sets_the_share_of_a_floor_and_of_a_named_room(building):
         building, call,
         tool_use("record_location", selector={"room_ids": [ROOM_302]}, negate=False, confidence=0.9, certainty=1.0,
                  specificity=1.0, span="it has 302 on it", rationale="Office 302"),
-        tool_use("record_vocab_clue", type="floor", value="3", polarity=True, confidence=0.7, certainty=0.5,
+        tool_use("record_floor", floor="3", stated_by_caller=True, polarity=True, confidence=0.7, certainty=0.5,
                  specificity=1.0, span="third floor I think"),
     )
     room, floor = out.evidence
     assert room.confidence == 0.95 and room.source == "llm" and names_rooms(room)
     assert floor.confidence == pytest.approx(0.675) and floor.clue.confidence == pytest.approx(0.675)
-    assert "stated share 0.68" in floor.rationale
+    assert "stated share 0.68" in floor.rationale and floor.clue.type == "floor" and names_rooms(floor)
+
+
+def test_a_floor_the_model_worked_out_is_capped_and_a_denial_stays_descriptive(building):
+    call = turns(("dispatcher", "Where are you?"), ("caller", "it has 302 on it, and we're not on four"))
+    out, _ = haiku(
+        building, call,
+        tool_use("record_floor", floor="3", stated_by_caller=False, polarity=True, confidence=0.95, certainty=1.0,
+                 specificity=1.0, span="it has 302 on it"),
+        tool_use("record_floor", floor="4", stated_by_caller=True, polarity=False, confidence=0.99, certainty=1.0,
+                 specificity=1.0, span="we're not on four"),
+    )
+    worked, denial = out.evidence
+    assert worked.clue.type == "floor" and worked.confidence == agent.DESCRIBED_CONFIDENCE_CAP == 0.7
+    assert "not stated by the caller" in worked.rationale
+    assert denial.clue.type == "negative" and denial.clue.value == "floors:4" and denial.clue.polarity is False
+    assert denial.confidence == agent.GROUNDED_CONFIDENCE_CAP and not names_rooms(denial)
 
 
 def test_a_missing_or_unusable_rating_defaults_conservatively(building):
@@ -398,10 +420,10 @@ def test_a_missing_or_unusable_rating_defaults_conservatively(building):
                    tool_use("record_location", selector={"room_ids": [ROOM_302]}, negate=False, confidence=0.9,
                             certainty=40, specificity="exact", span="it has 302 on it", rationale="Office 302"))
     assert out.evidence[0].confidence == pytest.approx(stated_share(1.0, 0.5))
-    # a rating for a label that is not in the message is dropped, and nothing changes
+    # rate_statement is no longer offered; one in an older cached run has nothing to rate and is dropped
     out, _ = haiku(building, turns(("caller", "I'm in room 302")),
-                   tool_use("rate_statement", statement="s9", certainty=0.0, specificity=0.0))
-    assert out.evidence[0].confidence == 0.95
+                   tool_use("rate_statement", statement="s1", certainty=0.0, specificity=0.0))
+    assert out.evidence == []
     assert [t.kept for t in out.trace if t.tool == "rate_statement"] == [False]
 
 
@@ -420,13 +442,15 @@ def test_haiku_mode_keeps_a_repeated_specific_statement(building):
     first = floor_ev("3", 0.95, turn=1)
     call = turns(("dispatcher", "Where are you?"), ("caller", "third floor"), ("dispatcher", "Say again?"),
                  ("caller", "the third floor, please hurry"))
+    windowed = [r.id for r in building.rooms if r.floor_label == "3" and r.has_windows]
     out, _ = haiku(building, call,
-                   tool_use("record_vocab_clue", type="floor", value="3", polarity=True, confidence=0.9, certainty=1.0,
-                            specificity=1.0, span="the third floor"),
-                   tool_use("record_vocab_clue", type="landmark", value="window", polarity=True, confidence=0.8,
-                            span="please hurry"),
+                   tool_use("record_floor", floor="3", stated_by_caller=True, polarity=True, confidence=0.9,
+                            certainty=1.0, specificity=1.0, span="the third floor"),
+                   tool_use("record_clue", clue="room with a window", room_ids=windowed, others_fit=0.3, negate=False,
+                            confidence=0.8, span="please hurry", reasoning="test clue"),
                    prior_evidence=[first])
-    assert [(e.clue.type, e.confidence) for e in out.evidence] == [("floor", 0.95), ("landmark", 0.8)]
+    assert [(e.kind, e.confidence) for e in out.evidence] == [("vocab", 0.95), ("grounded", 0.8)]
+    assert out.evidence[0].clue.type == "floor"
     probs, _ = posterior_probs(building, clues=[first, out.evidence[0]])
     assert 0.95 < floors(building, probs)["3"] < 1.0
 

@@ -89,6 +89,8 @@ def turns(*pairs):
 CALL = turns(("dispatcher", "911, what is the address of your emergency?"),
              ("caller", "I'm in Dr. Patel's office, my coworker collapsed and he's not breathing"))
 PATEL = dict(negate=False, default_match=0.2, confidence=0.9, span="Dr. Patel's office", rationale="tenant")
+# the same call with a different last turn: not answered from the disk cache of an earlier test step
+AGAIN = CALL[:1] + [CALL[1].model_copy(update={"text": CALL[1].text + "!"})]
 
 
 # ---------------------------------------------------------------------------
@@ -185,19 +187,25 @@ def test_empty_within_m_of_counts_as_absent(building, meta, patel_room):
 
 
 # ---------------------------------------------------------------------------
-# 4. Conditions nobody said are stripped
+# 4. Feature conditions are the model's call (no word list strips them any more)
 # ---------------------------------------------------------------------------
 
 
-def test_unsupported_feature_conditions_are_stripped(building, meta, patel_room):
-    sel = {"tenant_contains": "Patel", "near_stairs": True, "near_elevator": False, "window_facing": "street"}
+def test_model_set_feature_conditions_are_kept(building, meta, patel_room):
+    """The reasoning reader works conditions out from the layout; code no longer strips a
+    condition because a feature word is missing from the turn. It only checks what matches."""
+    sel = {"tenant_contains": "Patel", "near_stairs": False, "window_facing": "parking_lot"}
     client = StubClient([reply(tool_use("record_location", selector=sel, **PATEL)), done()])
-    out = agent.interpret(building, CALL, 1, client=client, meta=meta)
-    [ev] = out.evidence  # near_stairs=True alone would have excluded the caller's room
+    out = agent.interpret(building, CALL, 1, client=client, meta=meta)  # no stairs / window words in the turn
+    [ev] = out.evidence
     assert ev.matched_room_ids == [patel_room.id]
-    assert ev.selector.near_stairs is None and ev.selector.near_elevator is None and ev.selector.window_facing is None
-    reason = out.trace[0].reason
-    assert "stripped" in reason and "near_stairs=True" in reason and "window_facing='street'" in reason
+    assert ev.selector.near_stairs is False and ev.selector.window_facing == "parking_lot"
+    assert "stripped" not in (out.trace[0].reason or "")
+    # a condition the room does not meet is kept too, and the record then matches no room
+    sel = {"tenant_contains": "Patel", "near_stairs": True}
+    client = StubClient([reply(tool_use("record_location", selector=sel, **PATEL)), done(), done()])
+    out = agent.interpret(building, AGAIN, 1, client=client, meta=meta)  # (not the cached first reply)
+    assert out.evidence == [] and out.trace[0].reason == "selector matches no room"
 
 
 def test_supported_feature_conditions_are_kept(building, meta, patel_room):
@@ -212,11 +220,18 @@ def test_supported_feature_conditions_are_kept(building, meta, patel_room):
     assert not (out.trace[0].reason or "").count("stripped")
 
 
-def test_selector_with_only_unsupported_conditions_is_dropped(building, meta):
+def test_selector_with_only_a_feature_condition_is_kept_as_a_description(building, meta):
     client = StubClient([reply(tool_use("record_location", selector={"near_elevator": True}, **PATEL)), done()])
     out = agent.interpret(building, CALL, 1, client=client, meta=meta)
-    assert [e for e in out.evidence if e.source == "agent"] == []
-    assert out.trace[0].reason.startswith("selector has no condition") and "stripped" in out.trace[0].reason
+    [ev] = [e for e in out.evidence if e.source == "agent"]
+    assert ev.selector.near_elevator is True
+    assert ev.matched_room_ids == selector_hits(building, ev.selector, meta) and ev.matched_room_ids
+    # the span names none of those rooms: capped like a description
+    assert ev.confidence == agent.DESCRIBED_CONFIDENCE_CAP
+    # an empty selector is still dropped
+    client = StubClient([reply(tool_use("record_location", selector={}, **PATEL)), done(), done()])
+    out = agent.interpret(building, AGAIN, 1, client=client, meta=meta)  # (not the cached first reply)
+    assert out.evidence == [] and out.trace[0].reason.startswith("selector has no condition")
 
 
 # ---------------------------------------------------------------------------

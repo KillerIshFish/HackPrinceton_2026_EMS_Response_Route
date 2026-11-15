@@ -1,4 +1,4 @@
-"""Grounded interpreter: Claude Haiku reads the call so far against this building's room list.
+"""Reasoning interpreter: a Claude model reads the call so far against this building's layout.
 
 Entry point (parser/interpret.py, modes "llm" and "agent")::
 
@@ -6,59 +6,43 @@ Entry point (parser/interpret.py, modes "llm" and "agent")::
 
 How it works
 
-* Claude Haiku 5.5 (``parser.extract.LLM_MODEL``) gets one cached system block: the briefing
-  (``parser/prompts/interpret_call.md``), the controlled vocabulary and the building's room
-  list (``parser.building_tools.building_roster``: id, name, type, area, suite, tenant,
-  windows, stairs / elevator, neighbours), plus the tool list ``parser.building_tools.TOOLS``.
-  Both are identical for every turn in a building, so they are read from the prompt cache.
-  The user message holds the transcript up to this turn and the evidence already recorded.
-* One request per caller turn in the usual case. The model sees the rooms, so it records
-  straight away (several record tools in one reply) and the loop stops there. A second
-  request is sent only when the reply asked for a look-up (``search_rooms``, ``rooms_near``,
-  ``floor_summary``: walking distances, or a building too large to list) or when a record
-  cannot be kept as it stands (span not in the caller's words, unknown room id, selector
-  matching nothing), so the model can correct it. Never more than
-  ``AGENT_MAX_REQUESTS_PER_TURN`` (4) requests per turn.
+* The model (``agent_model()``: ``LLM_MODEL`` in the environment, default ``DEFAULT_AGENT_MODEL``)
+  gets one cached system block: the briefing (``parser/prompts/reason_call.md``) and the
+  building's layout map (``parser.building_tools.layout_roster``, built by ``parser.layout``):
+  every hallway with its rooms in door order and what is at each end, and per room its size and
+  size rank, position on the floor plate (corner, outer edge, interior), the hallway it opens
+  onto, walking metres to stairs / elevator / entrance, windows, neighbours, suite and tenant.
+  There is no controlled vocabulary and no word list: the model works out from the layout which
+  rooms whatever the caller says fits ("the last door past the stairs", "the big room in the
+  corner", "I can hear the elevator").
+* Tools (``parser.building_tools.TOOLS``): ``record_location`` for a place the caller named
+  (number, name, tenant, sign; weighted as a specific statement), ``record_clue`` for any other
+  clue (the rooms it fits plus how well the other rooms still fit; a soft, descriptive
+  statement), ``record_floor``, ``record_fact``, ``suggest_incident_type``, ``supersede``, and
+  the look-ups ``find_rooms``, ``room_details``, ``rooms_near``.
+* One request per caller turn in the usual case; a second only for a look-up or a record that
+  cannot be kept as it stands. Never more than ``AGENT_MAX_REQUESTS_PER_TURN`` (4).
+* No word rules read the turn first. The one deterministic input kept is the dispatcher's
+  Yes / No / Not sure buttons (``parser.dialog.resolve_answer`` with source "dispatcher").
 * Validation in code after the loop: the model cannot invent. A record is dropped (and the
   trace says why) when its span is not in the newest caller turn word for word, a room id
-  does not exist, a selector matches no room, confidence is below 0.4, a vocabulary value is
-  unknown, or a fact asserts something as verified / safe. Every Fact has verified=False.
-* How much a specific statement weighs. The model rates each statement of where the caller
-  is for how sure the caller sounds (``certainty``) and how exactly the words pin the place
-  down (``specificity``), both 0 to 1: on ``record_location``, on a ``floor`` clue, and with
-  ``rate_statement`` for the statements the dialog rules read (labelled ``s1``, ``s2`` in
-  the message). ``parser.statement_rating.clean_rating`` clamps the two numbers and fills a
-  missing one conservatively; ``core.fusion.stated_share`` maps them to the statement's
-  confidence, the share of the probability the named rooms get when the statement stands
-  alone: 0.40 (hesitant, vague) to 0.95 (plain, exact), settings in
-  ``configs/statements.yaml``. That holds for a location whose rooms the caller named (the
-  span carries the number or a distinctive name word of every selected room) and for a
-  stated floor. A location worked out from a description, and a floor the model worked out
-  from a room rather than heard, keep the model's own confidence, capped at 0.7; a denial
-  keeps it capped at 0.85.
-* The deterministic dialog rules (``parser.dialog``) run first and are kept: yes / no
-  answers to the question just asked, numbers and names printed on rooms, corrections. The
-  model is shown what they read and adds to it; a record selecting the same rooms as a rule
-  did is dropped as a duplicate.
-* Spend: the raw records of a run are cached on disk keyed by model, settings, system
-  prompt, tools and the user message (building + transcript up to this turn), so the same
-  transcript never costs a second request. Token use goes to
-  ``data/processed/llm_usage.json``. ``LLM_MAX_CALLS`` caps the requests of one process
-  only when it is set (shared with parser/extract.py).
-* Settings (``model_settings``): ``LLM_THINKING`` ("disabled" or "adaptive"), ``LLM_EFFORT``
-  ("low", "medium", "high") and ``LLM_STRICT_TOOLS``; the defaults below were chosen by
-  measuring accuracy and seconds per caller turn on the evaluation calls.
-* Failure: any API error, timeout, refusal, truncated reply, missing key or budget stop
-  before the first reply falls back to the rule path with source
-  ``"rules (agent unavailable: <reason>)"``. A failure *after* at least one reply keeps the
-  records of the completed rounds (validated as usual) with source
-  ``"agent (cut short: <reason>)"``, and that partial result is not written to the disk
-  cache. The client is built with ``max_retries=0``: a retry would double the wait on a
-  live call, and the rule path is the better fallback.
-* Selector hygiene: an empty ``within_m_of`` (blank room id or zero radius) counts as
-  absent, and yes/no feature conditions (``near_stairs``, ``near_elevator``,
-  ``has_windows``, ``window_facing``) are stripped unless the caller's turn has a word
-  supporting them; the trace says what was stripped.
+  does not exist, a selector or clue matches no room, a floor is not one of the building's,
+  confidence is below 0.4, or a fact asserts something as verified / safe.
+* Weights. A named place carries the stated share for how the caller said it (``certainty``,
+  ``specificity`` -> ``core.fusion.stated_share``, 0.40 to 0.95) when the span carries the
+  number or a distinctive name word of every selected room (``_NameCheck``); otherwise it is
+  capped at 0.7. A floor the caller stated carries the stated share; one the model worked out,
+  0.7 at most. A clue is a descriptive factor (at most 10 to 1 between two rooms) with the
+  model's confidence, capped at ``CLUE_CONFIDENCE_CAP``. Nothing ever zeroes a room.
+* Spend: raw records are cached on disk keyed by model, settings, system prompt, tools and the
+  user message. Token use goes to ``data/processed/llm_usage.json``. ``LLM_MAX_CALLS`` caps the
+  requests of one process only when set.
+* Settings (``model_settings``): ``LLM_MODEL``, ``LLM_THINKING`` ("adaptive"; "disabled" is
+  honoured only on models that accept it), ``LLM_EFFORT`` and ``LLM_STRICT_TOOLS``. On models
+  that support it, server-side refusal fallbacks are on (``fallbacks: "default"``).
+* Failure: any API error, timeout, refusal, truncated reply, missing key or budget stop before
+  the first reply falls back to the rule path with source ``"rules (agent unavailable:
+  <reason>)"``. A failure after at least one reply keeps the records of the completed rounds.
 """
 
 from __future__ import annotations
@@ -87,7 +71,7 @@ from core.schema import (
     RoomSelector,
     TranscriptTurn,
 )
-from parser.dialog import DialogReading, DialogStatement, rating_note, read_dialog, superseded_ids
+from parser.dialog import DialogReading, DialogStatement, rating_note, resolve_answer, superseded_ids
 from parser.statement_rating import clean_rating, rate_span
 from parser.building_tools import (
     LOOKUP_TOOLS,
@@ -98,7 +82,8 @@ from parser.building_tools import (
     BuildingIndex,
     _STOPWORDS,
     _tokens,
-    building_roster,
+    clue_room_ids,
+    layout_roster,
     record_ack,
     run_lookup,
     select_rooms,
@@ -106,13 +91,13 @@ from parser.building_tools import (
     unknown_room_ids,
 )
 
-PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "interpret_call.md"
+PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "reason_call.md"
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 AGENT_CACHE_PATH = _REPO_ROOT / "data" / "processed" / "llm_agent_cache.json"
 
 AGENT_MAX_REQUESTS_PER_TURN = 4
-# A live call cannot wait long for one turn: past this the rule path's reading is used.
-AGENT_TIMEOUT_S = 20.0
+# Seconds one request may take before the turn falls back (or keeps what earlier rounds recorded).
+AGENT_TIMEOUT_S = 45.0
 AGENT_MIN_CONFIDENCE = 0.4
 # Cap on a denial ("we're not in 304"). A location the caller named by a number or name the
 # building has (checked against the span) is no longer capped here: its confidence is the
@@ -120,27 +105,34 @@ AGENT_MIN_CONFIDENCE = 0.4
 GROUNDED_CONFIDENCE_CAP = 0.85
 # A location worked out from a description ("the conference room facing the parking lot").
 DESCRIBED_CONFIDENCE_CAP = 0.7
+# A record_clue is a descriptive factor; its confidence tempers it (1.0 = up to 10 to 1).
+CLUE_CONFIDENCE_CAP = 0.9
+CLUE_OTHERS_FIT_MIN = 0.05  # > 0 keeps a clue descriptive (core.fusion.names_rooms)
+CLUE_OTHERS_FIT_MAX = 0.5
+RELATIVE_FLOORS = ("top", "ground", "basement")
 
-# Model settings, chosen by measurement on eval/run_agent_eval.py (see the module docstring).
-DEFAULT_THINKING = "disabled"
+# Model settings (see the module docstring); the default model is the eval winner
+# (eval/run_agent_eval.py on the free-form calls, layout calls included).
+DEFAULT_AGENT_MODEL = "claude-opus-5-5"
+MODEL_LABELS = {
+    "claude-opus-5-5": "Claude Opus 5.5",
+    "claude-sonnet-5-5": "Claude Sonnet 5.5",
+    "claude-haiku-5-5": "Claude Haiku 5.5",
+    "claude-fable-5-2": "Claude Fable 5.2",
+}
+# Models that reject thinking {"type": "disabled"}: thinking stays adaptive on them.
+_THINKING_ALWAYS_ON = ("claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-2")
+# Models with server-side refusal fallbacks (beta): a declined request is re-run on a fallback model.
+_FALLBACK_MODELS = ("claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-2")
+FALLBACK_BETA = "server-side-fallback-2026-07-01"
+DEFAULT_THINKING = "adaptive"
 DEFAULT_EFFORT = "low"
-# Strict tool schemas are off: every record is checked in code anyway, and on claude-haiku-5-5
-# the strict grammar for these tools took 20 s or more to compile on first use, was refused
-# outright with adaptive thinking ("Schema is too complex", HTTP 400), and made each reply
-# about a third slower. LLM_STRICT_TOOLS=1 turns them back on.
+_EFFORTS = ("low", "medium", "high", "xhigh", "max")
+# Strict tool schemas are off: every record is checked in code anyway, and strict grammars for
+# these tools compiled slowly and were refused with adaptive thinking on claude-haiku-5-5.
+# LLM_STRICT_TOOLS=1 turns them back on.
 DEFAULT_STRICT_TOOLS = "0"
-_MAX_OUTPUT_TOKENS = {"disabled": 2000, "adaptive": 6000}  # thinking counts toward max_tokens
-
-# Words that state a floor: "third floor", "on three", "up on 4", "top floor", "basement". A
-# floor clue whose span has none (the model worked the floor out from a room: "office 302",
-# "next door to Black Label Media") is not the caller's statement of a floor.
-_STATES_A_FLOOR = re.compile(
-    r"(?<!\w)(?:floors?|levels?|stor(?:y|ey|ies|eys)|basement|cellar|ground|top|roof|rooftop|upstairs|downstairs"
-    r"|first|second|third|fourth|forth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth"
-    r"|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d{1,2}(?:st|nd|rd|th)?)(?!\w)",
-    re.IGNORECASE,
-)
-_YES_SPAN = re.compile(r"^\W*(?:yes|yeah|yep|yup|uh[\s-]*huh|mm[\s-]*hmm|mhm|correct|right|that'?s\s+right)\W*$", re.IGNORECASE)
+_MAX_OUTPUT_TOKENS = {"disabled": 2000, "adaptive": 16000}  # thinking counts toward max_tokens
 
 # Fact text that states something as checked, or calls a place safe / clear (ground rule 1).
 _ASSERTS_VERIFIED = re.compile(
@@ -157,16 +149,28 @@ class AgentUnavailable(RuntimeError):
     """The agent cannot run this turn; the rule path is used instead."""
 
 
+def agent_model() -> str:
+    """The model this process reads calls with: ``LLM_MODEL``, else ``DEFAULT_AGENT_MODEL``."""
+    return (os.getenv("LLM_MODEL") or DEFAULT_AGENT_MODEL).strip()
+
+
+def model_label(model: Optional[str] = None) -> str:
+    """Display name of ``model`` (default: this process's model), e.g. "Claude Opus 5.5"."""
+    m = model or agent_model()
+    return MODEL_LABELS.get(m, m)
+
+
 def model_settings() -> dict[str, Any]:
-    """Thinking, effort and strict-tool settings for this process (environment overrides the defaults)."""
+    """Model, thinking, effort and strict-tool settings for this process (environment overrides the defaults)."""
+    model = agent_model()
     thinking = (os.getenv("LLM_THINKING") or DEFAULT_THINKING).strip().lower()
-    if thinking not in ("disabled", "adaptive"):
-        thinking = DEFAULT_THINKING
+    if thinking not in ("disabled", "adaptive") or model in _THINKING_ALWAYS_ON:
+        thinking = "adaptive"
     effort = (os.getenv("LLM_EFFORT") or DEFAULT_EFFORT).strip().lower()
-    if effort not in ("low", "medium", "high"):
+    if effort not in _EFFORTS:
         effort = DEFAULT_EFFORT
     strict = (os.getenv("LLM_STRICT_TOOLS") or DEFAULT_STRICT_TOOLS).strip().lower() in ("1", "true", "yes", "on")
-    return {"thinking": thinking, "effort": effort, "strict": strict}
+    return {"model": model, "thinking": thinking, "effort": effort, "strict": strict}
 
 
 def request_tools(strict: bool = True) -> list[dict]:
@@ -181,21 +185,10 @@ def request_tools(strict: bool = True) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def _vocab_digest(vocab: dict) -> str:
-    import yaml
-
-    compact: dict[str, Any] = {}
-    for section in ("room_types", "views", "landmarks", "sounds", "smells", "routes"):
-        compact[section] = {
-            str(k): list((v or {}).get("synonyms") or []) for k, v in (vocab.get(section) or {}).items()
-        }
-    compact["floors"] = {"relative": list(((vocab.get("floors") or {}).get("relative") or {}).keys())}
-    return yaml.safe_dump(compact, sort_keys=False, width=100).strip()
-
-
-def build_system_prompt(idx: BuildingIndex, vocab: dict) -> str:
+def build_system_prompt(idx: BuildingIndex, vocab: Optional[dict] = None) -> str:
+    """The briefing with this building's layout map (``vocab`` is accepted for older callers and unused)."""
     template = PROMPT_PATH.read_text(encoding="utf-8")
-    return template.replace("{{VOCAB}}", _vocab_digest(vocab)).replace("{{BUILDING_ROSTER}}", building_roster(idx))
+    return template.replace("{{BUILDING_LAYOUT}}", layout_roster(idx))
 
 
 def _rooms_text(building: Building, room_ids: Sequence[str], limit: int = 4) -> str:
@@ -274,7 +267,7 @@ def build_user_message(building: Building, transcript: Sequence[TranscriptTurn],
     lines.append("</transcript>")
     if reading is not None and reading.statements:
         labels = {i: label for label, i in statement_labels(reading).items()}
-        lines += ["", f"Already read from turn [{index}] by fixed rules (leave as is, do not record again):"]
+        lines += ["", f"Already recorded for turn [{index}] from the dispatcher's answer buttons (do not record again):"]
         lines.extend(_statement_summary(st, building, labels.get(i, "")) for i, st in enumerate(reading.statements))
         if labels:
             lines.append(f"Rate each labelled statement with rate_statement ({', '.join(labels.values())}).")
@@ -290,7 +283,7 @@ def build_user_message(building: Building, transcript: Sequence[TranscriptTurn],
 def _cache_key(system: str, user: str, settings: Optional[dict] = None) -> str:
     s = settings or model_settings()
     tools = json.dumps(request_tools(s["strict"]), sort_keys=True)
-    head = f"{_extract.LLM_MODEL}\x00thinking={s['thinking']}\x00effort={s['effort']}"
+    head = f"{s.get('model') or agent_model()}\x00thinking={s['thinking']}\x00effort={s['effort']}"
     return hashlib.sha256(f"{head}\x00{system}\x00{tools}\x00{user}".encode()).hexdigest()
 
 
@@ -397,12 +390,24 @@ def _assistant_content(content: Sequence[Any]) -> list[Any]:
 def _request_kwargs(system: str, settings: dict) -> dict[str, Any]:
     """Everything of a request except ``messages`` and ``max_tokens`` (shared with ``prewarm``)."""
     return {
-        "model": _extract.LLM_MODEL,
+        "model": settings.get("model") or agent_model(),
         "thinking": {"type": "adaptive"} if settings["thinking"] == "adaptive" else {"type": "disabled"},
         "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
         "tools": request_tools(settings["strict"]),
         "output_config": {"effort": settings["effort"]},
     }
+
+
+def _create(client: Any, settings: dict, **kwargs: Any) -> Any:
+    """``messages.create``, with server-side refusal fallbacks on models that have them.
+
+    A request the safety classifiers decline is re-run on a fallback model inside the same call
+    (``fallbacks: "default"``, beta). Test stubs without a ``beta`` namespace get the plain call.
+    """
+    beta = getattr(client, "beta", None)
+    if (settings.get("model") or agent_model()) in _FALLBACK_MODELS and beta is not None and hasattr(beta, "messages"):
+        return beta.messages.create(betas=[FALLBACK_BETA], fallbacks="default", **kwargs)
+    return client.messages.create(**kwargs)
 
 
 def _call_model(client: Any, system: str, messages: list[dict], settings: Optional[dict] = None) -> Any:
@@ -412,11 +417,8 @@ def _call_model(client: Any, system: str, messages: list[dict], settings: Option
     except ImportError:  # pragma: no cover
         anthropic = None  # type: ignore[assignment]
     try:
-        return client.messages.create(
-            max_tokens=_MAX_OUTPUT_TOKENS[settings["thinking"]],
-            messages=messages,
-            **_request_kwargs(system, settings),
-        )
+        return _create(client, settings, max_tokens=_MAX_OUTPUT_TOKENS[settings["thinking"]], messages=messages,
+                       **_request_kwargs(system, settings))
     except Exception as exc:  # map SDK errors to a short reason; anything else is also a fallback
         if anthropic is not None:
             if isinstance(exc, anthropic.AuthenticationError):
@@ -526,15 +528,6 @@ def _loop(run: _Run, client: Any, idx: BuildingIndex, system: str, user: str, tu
 # Selector hygiene
 # ---------------------------------------------------------------------------
 
-# Words in the caller's turn that support a yes/no feature condition. Without one, the
-# condition is something nobody said, and it can exclude the room the caller is in.
-_FEATURE_WORDS: dict[str, re.Pattern[str]] = {
-    "near_stairs": re.compile(r"(?<!\w)(?:stair\w*|steps)(?!\w)", re.IGNORECASE),
-    "near_elevator": re.compile(r"(?<!\w)(?:elevators?|lifts?)(?!\w)", re.IGNORECASE),
-    "has_windows": re.compile(r"(?<!\w)windows?(?!\w)", re.IGNORECASE),
-}
-
-
 def _clean_selector(raw: Any) -> tuple[dict, list[str]]:
     """The selector without empty conditions, plus notes for the trace.
 
@@ -587,26 +580,6 @@ def _clean_record_args(name: str, args: dict) -> tuple[dict, list[str]]:
     if not isinstance(selector, dict):
         return args, []
     return {**args, "selector": selector}, notes
-
-
-def _facing_words(value: str, vocab: dict) -> re.Pattern[str]:
-    phrases = {value.replace("_", " ").strip()}
-    key = value.strip().lower().replace(" ", "_").replace("-", "_")
-    phrases.update(str(s) for s in (((vocab.get("views") or {}).get(key) or {}).get("synonyms") or []))
-    alts = sorted((r"\s+".join(re.escape(w) for w in p.split()) for p in phrases if p.strip()), key=len, reverse=True)
-    return re.compile(rf"(?<!\w)(?:{'|'.join(alts)})s?(?!\w)", re.IGNORECASE)
-
-
-def _unsupported_features(selector: dict, text: str, vocab: dict) -> list[str]:
-    """Feature conditions of ``selector`` with no supporting word in ``text``."""
-    out: list[str] = []
-    for key, rx in _FEATURE_WORDS.items():
-        if selector.get(key) is not None and not rx.search(text or ""):
-            out.append(key)
-    facing = selector.get("window_facing")
-    if isinstance(facing, str) and facing.strip() and not _facing_words(facing, vocab).search(text or ""):
-        out.append("window_facing")
-    return out
 
 
 # ---------------------------------------------------------------------------
@@ -722,7 +695,7 @@ class _NameCheck:
 
 def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[TranscriptTurn], index: int,
               prior_evidence: Sequence[Evidence], vocab: dict, reading: DialogReading,
-              source: str = "agent") -> Interpretation:
+              source: str = "agent", model: Optional[str] = None) -> Interpretation:
     from parser.interpret import evidence_id, fact_id
 
     turn = transcript[index]
@@ -741,6 +714,7 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
     prior_rooms.pop((frozenset(), True), None)
     observed = turn.at or datetime.now(timezone.utc)
     name_check = _NameCheck(idx)
+    who = model_label(model)
 
     evidence: list[Evidence] = []
     offsets: list[int] = []  # start of each evidence span in this turn's text (-1 unknown)
@@ -771,7 +745,7 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
         rationale = st.rationale
         if i in rated_by_model:
             st = st.with_rating(rated_by_model[i][0])
-            rationale = "; ".join(x for x in (rationale, rating_note(st.rating, "Claude Haiku")) if x)
+            rationale = "; ".join(x for x in (rationale, rating_note(st.rating, who)) if x)
         elif st.rating is not None:
             rationale = "; ".join(x for x in (rationale, rating_note(st.rating, "rules")) if x)
         evidence.append(Evidence(
@@ -809,7 +783,7 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
                 entry.reason = f"unknown statement label '{label}'"
             else:
                 rating, fixes = clean_rating(args.get("certainty"), args.get("specificity"), reading.statements[i].rating)
-                entry.reason = "; ".join([f"{label} ({reading.statements[i].span!r}): {rating_note(rating, 'Claude Haiku')}"]
+                entry.reason = "; ".join([f"{label} ({reading.statements[i].span!r}): {rating_note(rating, who)}"]
                                          + fixes)
             continue
         if name not in RECORD_TOOLS:
@@ -885,39 +859,80 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
             drop(f"confidence {conf:.2f} below {AGENT_MIN_CONFIDENCE}")
             continue
 
-        if name == "record_vocab_clue":
-            ctype = str(args.get("type", ""))
-            value = str(args.get("value", "")).strip()
-            if ctype not in _extract._CLUE_TYPES or not _extract._known_value(ctype, value, vocab):
-                drop(f"'{ctype}={value}' is not in the vocabulary")
+        if name == "record_floor":
+            value = str(args.get("floor", "")).strip()
+            if value.lower() in RELATIVE_FLOORS:
+                value = value.lower()
+            elif value not in idx.floor_labels:
+                drop(f"'{value}' is not a floor of this building")
                 continue
-            polarity = False if ctype == "negative" else _as_bool(args.get("polarity"), True)
-            stated_floor = ctype == "floor" and polarity  # a specific statement (core.fusion)
-            if (ctype, value) in prior_vocab and not stated_floor:
-                drop(f"duplicate of earlier evidence {prior_vocab[(ctype, value)]}")
+            polarity = _as_bool(args.get("polarity"), True)
+            ctype, cvalue = ("floor", value) if polarity else ("negative", f"floors:{value}")
+            if (ctype, cvalue) in prior_vocab and not polarity:
+                drop(f"duplicate of earlier evidence {prior_vocab[(ctype, cvalue)]}")
                 continue
-            if (ctype, value) in seen_vocab:
-                drop("duplicate within this turn (or already read by the dialog rules)")
+            if (ctype, cvalue) in seen_vocab:
+                drop("duplicate within this turn")
                 continue
-            seen_vocab.add((ctype, value))
+            seen_vocab.add((ctype, cvalue))
             rationale = ""
-            if stated_floor and not (_STATES_A_FLOOR.search(span) or _YES_SPAN.match(span)):
-                # The model worked the floor out (from a room number, a neighbour): like a location
-                # worked out from a description, it keeps the model's confidence, capped.
-                conf = min(conf, DESCRIBED_CONFIDENCE_CAP)
-                rationale = "floor worked out by Claude Haiku, not stated by the caller"
-                note(f"{rationale}: share capped at {DESCRIBED_CONFIDENCE_CAP}")
-            elif stated_floor:
+            if polarity and _as_bool(args.get("stated_by_caller"), False):
                 # The caller's own statement of their floor: its weight is the stated share for
                 # how they said it. Said again in a later turn it is kept: agreement reinforces.
                 rating, fixes = clean_rating(args.get("certainty"), args.get("specificity"), rate_span(turn.text, span))
                 conf = rating.share()
-                rationale = rating_note(rating, "Claude Haiku")
+                rationale = rating_note(rating, who)
                 note("; ".join([rationale] + fixes))
-            clue = Clue(type=ctype, value=value, polarity=polarity, confidence=round(conf, 3), span=span)  # type: ignore[arg-type]
+            elif polarity:
+                # Worked out from something else (a room number, a neighbour): capped like a description.
+                conf = min(conf, DESCRIBED_CONFIDENCE_CAP)
+                rationale = f"floor worked out by {who}, not stated by the caller"
+                note(f"{rationale}: share capped at {DESCRIBED_CONFIDENCE_CAP}")
+            else:
+                conf = min(conf, GROUNDED_CONFIDENCE_CAP)
+            clue = Clue(type=ctype, value=cvalue, polarity=polarity, confidence=round(conf, 3), span=span)  # type: ignore[arg-type]
             evidence.append(Evidence(id=evidence_id(index, len(evidence)), kind="vocab", clue=clue,
                                      confidence=clue.confidence, span=span, turn=index, source=source,  # type: ignore[arg-type]
                                      rationale=rationale))
+            offsets.append(offset_of(span))
+            continue
+
+        if name == "record_clue":
+            ids = clue_room_ids(args)
+            bad = [i for i in ids if i not in idx.rooms]
+            if bad:
+                drop(f"unknown room id(s) {bad}")
+                continue
+            if not ids:
+                drop("clue lists no room")
+                continue
+            ids = list(dict.fromkeys(ids))
+            negate = _as_bool(args.get("negate"), False)
+            try:
+                others = float(args.get("others_fit", 0.2))
+            except (TypeError, ValueError):
+                others = 0.2
+            others = min(CLUE_OTHERS_FIT_MAX, max(CLUE_OTHERS_FIT_MIN, others))
+            default_match = 1.0 if negate else others  # a denial leaves every other room as it was
+            rooms_key = (frozenset(ids), negate)
+            if rooms_key in prior_rooms:
+                drop(f"duplicate of earlier evidence {prior_rooms[rooms_key]}")
+                continue
+            if rooms_key in seen_rooms:
+                drop("duplicate within this turn")
+                continue
+            seen_rooms.add(rooms_key)
+            if conf > CLUE_CONFIDENCE_CAP:
+                note(f"confidence capped at {CLUE_CONFIDENCE_CAP}")
+            conf = min(conf, CLUE_CONFIDENCE_CAP)
+            what = str(args.get("clue", "")).strip()
+            why = str(args.get("reasoning", "")).strip()
+            rationale = (f"{what}: {why}" if what and why else what or why)[:400]
+            evidence.append(Evidence(
+                id=evidence_id(index, len(evidence)), kind="grounded", selector=RoomSelector(room_ids=ids),
+                default_match=default_match, negate=negate, confidence=round(conf, 3), span=span, turn=index,
+                source=source, rationale=rationale, matched_room_ids=ids,  # type: ignore[arg-type]
+            ))
             offsets.append(offset_of(span))
             continue
 
@@ -925,12 +940,6 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
         raw_selector, cleaned = _clean_selector(args.get("selector") or {})
         for msg in cleaned:
             note(msg)
-        if isinstance(raw_selector, dict):
-            unsupported = _unsupported_features(raw_selector, turn.text, vocab)
-            if unsupported:
-                note("stripped condition(s) nobody said: " + ", ".join(
-                    f"{k}={raw_selector[k]!r}" for k in unsupported))
-                raw_selector = {k: v for k, v in raw_selector.items() if k not in unsupported}
         try:
             selector = RoomSelector.model_validate(raw_selector)
         except (ValueError, TypeError):
@@ -975,8 +984,8 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
             # it. Named again in a later turn the statement is kept: agreement reinforces.
             rating, fixes = clean_rating(args.get("certainty"), args.get("specificity"), rate_span(turn.text, span))
             capped = rating.share()
-            rationale = "; ".join(x for x in (rationale, rating_note(rating, "Claude Haiku")) if x)
-            note("; ".join([rating_note(rating, "Claude Haiku")] + fixes))
+            rationale = "; ".join(x for x in (rationale, rating_note(rating, who)) if x)
+            note("; ".join([rating_note(rating, who)] + fixes))
         else:
             cap = GROUNDED_CONFIDENCE_CAP if named else DESCRIBED_CONFIDENCE_CAP
             capped = min(conf, cap)
@@ -1018,13 +1027,26 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
 # ---------------------------------------------------------------------------
 
 
+def button_reading(transcript: Sequence[TranscriptTurn], index: int, vocab: Optional[dict]) -> DialogReading:
+    """The dispatcher's Yes / No / Not sure button answer for this turn, if any, as a DialogReading.
+
+    A typed or spoken "yes" is left to the model, which reads it against the question asked.
+    """
+    key, answer, stmt = resolve_answer(transcript, index, vocab)
+    reading = DialogReading()
+    if stmt is not None and stmt.source == "dispatcher":
+        reading.statements.append(stmt)
+        reading.question_key, reading.answer = key, answer
+    return reading
+
+
 def _checked(run_calls: list[dict], idx: BuildingIndex, building: Building, transcript: Sequence[TranscriptTurn],
              index: int, prior_evidence: Sequence[Evidence], vocab: dict, reading: DialogReading,
              source: str) -> Interpretation:
     """``_validate``, with the rule path as the net under it: whatever the model wrote, a caller
     turn is never lost to an exception."""
     try:
-        return _validate(run_calls, idx, transcript, index, prior_evidence, vocab, reading, source)
+        return _validate(run_calls, idx, transcript, index, prior_evidence, vocab, reading, source, agent_model())
     except Exception as exc:  # a record shape nobody foresaw
         return _fallback(building, transcript, index, f"could not read the model's records ({type(exc).__name__})",
                          prior_evidence=prior_evidence, vocab=vocab, source=source)
@@ -1054,7 +1076,7 @@ def interpret(
 ) -> Interpretation:
     """Read ``transcript[index]`` with the grounded interpreter.
 
-    ``source`` is the label the result carries: "llm" when the console's Claude Haiku mode
+    ``source`` is the label the result carries: "llm" when the console's model mode
     asked, "agent" under the older mode name. It becomes ``Interpretation.source`` (and so
     ``TranscriptTurn.parser``) and the ``source`` of every record the model made; the reading
     itself and the disk cache are the same for both.
@@ -1064,8 +1086,8 @@ def interpret(
 
     ``client`` (an ``anthropic.Anthropic``-like object) and ``meta`` (``room id -> {"suite",
     "tenant"}``, default ``core.evidence.room_meta``) are injectable for tests; the hook passes
-    neither. The dialog rules (``parser.dialog.read_dialog``) run first; their statements are
-    kept as they are and shown to the model so it only adds to them.
+    neither. No word rules run: the one deterministic input is the dispatcher's Yes / No / Not
+    sure buttons (``button_reading``), kept as they are and shown to the model.
     """
     turn = transcript[index]
     if turn.speaker != "caller":
@@ -1073,7 +1095,7 @@ def interpret(
     source = source if source in ("agent", "llm") else "agent"
     vocab = vocab or _extract.load_vocab()
     idx = BuildingIndex(building, meta, vocab=vocab)
-    reading = read_dialog(building, transcript, index, vocab, meta=idx.meta_rooms)  # rules before any model
+    reading = button_reading(transcript, index, vocab)  # the dispatcher's answer buttons; no word rules
     settings = model_settings()
     system = build_system_prompt(idx, vocab)
     user = build_user_message(building, transcript, index, prior_evidence, reading,
@@ -1115,7 +1137,7 @@ def interpret(
 
     with _extract._llm_lock:
         cache = _extract._read_json(AGENT_CACHE_PATH, {})
-        cache[key] = {"building_id": building.id, "turn": index, "text": turn.text, "model": _extract.LLM_MODEL,
+        cache[key] = {"building_id": building.id, "turn": index, "text": turn.text, "model": settings["model"],
                       "settings": settings, "requests": run.requests, "seconds": round(run.seconds, 3),
                       "capped": run.capped, "calls": run.calls}
         _extract._write_json(AGENT_CACHE_PATH, cache)
@@ -1141,11 +1163,8 @@ def prewarm(building: Building, *, vocab: dict | None = None, client: Any = None
             client = _make_client()
         _reserve_request()
         started = time.perf_counter()
-        response = client.messages.create(
-            max_tokens=0,
-            messages=[{"role": "user", "content": "warmup"}],
-            **_request_kwargs(system, settings),
-        )
+        response = _create(client, settings, max_tokens=0, messages=[{"role": "user", "content": "warmup"}],
+                           **_request_kwargs(system, settings))
         seconds = time.perf_counter() - started
         u = getattr(response, "usage", None)
         _record_usage(u, seconds=seconds, kind="prewarm")

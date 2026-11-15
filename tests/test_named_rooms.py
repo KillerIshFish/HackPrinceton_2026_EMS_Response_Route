@@ -1,8 +1,8 @@
 """A caller names a room that the building's own labels have: "302", "my office, 302", "the server room".
 
 Covers the label look-up (numbers printed in room names, no sidecar metadata needed), the
-naming factor in fusion, the rules that read numbers and names, the grounded Claude Haiku
-interpreter with a stub client (no network), and the parser-mode defaults.
+naming factor in fusion, the rules that read numbers and names, the grounded Claude
+interpreter (parser/agent.py) with a stub client (no network), and the parser-mode defaults.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from core.fusion import (
 from core.prior import compute_prior
 from core.schema import Evidence, RoomSelector, TranscriptTurn
 from ingest.matterport import generate_synthetic_office
-from parser.building_tools import BuildingIndex, building_roster, room_neighbours
+from parser.building_tools import BuildingIndex, building_roster, layout_roster, room_neighbours
 from parser.dialog import find_names, find_units, reply_context, spoken_number
 from parser.interpret import interpret_turn
 from sim.generate_calls import FIRE_TRUE_ROOM_ID
@@ -378,7 +378,7 @@ def test_fire_scenario_singles_out_office_302_and_reject_undoes_it(building):
 
 
 # ---------------------------------------------------------------------------
-# Grounded Claude Haiku interpreter (stub client)
+# Grounded Claude interpreter (stub client)
 # ---------------------------------------------------------------------------
 
 
@@ -415,16 +415,27 @@ PLATE = turns(("dispatcher", "Where are you?"),
 
 def test_room_list_is_in_the_cached_system_block(building):
     idx = BuildingIndex(building, None, vocab=extract.load_vocab())
+    # the older one-line-per-room roster and neighbour lists are still available
     roster = building_roster(idx)
     assert "f3-office-302 | Office 302 | office, 35 m2 | windows face street" in roster
     assert len([line for line in roster.splitlines() if " | " in line]) == len(building.rooms) + 1  # + the legend
     near = room_neighbours(idx)["f3-office-302"]
     assert "f3-office-301" in near["next_to"] and "f3-storage-supply" in near["across"]
+    # the system block carries the layout map: every room's layout line and every hallway
+    layout = layout_roster(idx)
+    room_lines = [line for line in layout.splitlines() if " | " in line and not line.startswith("How to read")]
+    assert len(room_lines) == len(building.rooms)  # one layout line per room (plus the legend, left out)
+    assert {line.split(" | ")[0] for line in room_lines} == {r.id for r in building.rooms}
+    assert any(line.startswith("f3-office-302 | Office 302 | office, 35 m2") for line in room_lines)
+    for r in building.rooms:
+        if r.room_type == "corridor":
+            assert f"- {r.id} " in layout
     system = agent.build_system_prompt(idx, extract.load_vocab())
-    assert roster in system and "{{" not in system
+    assert layout in system and "{{" not in system
 
 
-def test_stubbed_model_grounds_302_in_one_request(building):
+def test_stubbed_model_grounds_302_in_one_request(building, monkeypatch):
+    monkeypatch.delenv("LLM_MODEL", raising=False)
     client = StubClient([reply(
         tool_use("record_location", selector={"room_ids": ["f3-office-302"]}, negate=False, confidence=0.9,
                  certainty=1.0, specificity=1.0, span="it has 302 on it", rationale="Office 302"),
@@ -437,10 +448,12 @@ def test_stubbed_model_grounds_302_in_one_request(building):
     probs, _ = posterior_probs(building, clues=out.evidence)
     assert rank(probs, FIRE_TRUE_ROOM_ID) == 1 and probs[FIRE_TRUE_ROOM_ID] > 0.8
     request = client.calls[0]
-    assert request["model"] == "claude-haiku-5-5" and request["thinking"] == {"type": "disabled"}
+    assert request["model"] == agent.agent_model() == "claude-opus-5-5"
+    assert request["thinking"] == {"type": "adaptive"}  # always on for Opus 5.5
     assert request["output_config"] == {"effort": "low"}
     assert request["system"][0]["cache_control"] == {"type": "ephemeral"}
     assert "f3-office-302 | Office 302" in request["system"][0]["text"]
+    assert "rated by Claude Opus 5.5" in ev.rationale
     assert "<transcript>" in request["messages"][0]["content"]
 
 
@@ -467,16 +480,22 @@ def test_malformed_tool_arguments_never_raise(building):
                  room_id=None, premise_key="front door"),
         tool_use("record_location", selector=["f3-office-302"], negate=False, confidence=0.9,
                  span="it has 302 on it", rationale="a list where an object belongs"),
-        tool_use("record_vocab_clue", type="floor", value=3, polarity="true", confidence=0.8, span="302"),
+        tool_use("record_floor", floor=3, stated_by_caller="no", polarity="true", confidence="0.8", span="302"),
         tool_use("record_location", confidence={"x": 1}, span="plate"),
+        tool_use("record_clue", clue="next door", room_ids="f3-office-301", others_fit="lots", negate="nope",
+                 confidence=0.6, span="by the door", reasoning=None),
+        tool_use("record_clue", clue=None, room_ids={"a": 1}, others_fit=None, confidence=0.6, span="plate"),
+        tool_use("record_floor", floor=None, confidence=0.9, span="plate"),
     )])
     out = agent.interpret(building, PLATE, 1, client=client)
     assert out.source == "agent"
-    [loc] = [e for e in out.evidence if e.kind == "grounded"]
+    [loc] = [e for e in out.evidence if e.kind == "grounded" and e.default_match == 0.0]
     assert loc.matched_room_ids == [FIRE_TRUE_ROOM_ID] and loc.negate is False and loc.selector.unit is None
     assert [f.premise_key for f in out.facts] == [None, None] and all(f.room_id is None for f in out.facts)
     assert [e.clue.value for e in out.evidence if e.kind == "vocab"] == ["3"]
-    assert [t.kept for t in out.trace] == [True, True, True, False, True, False]
+    [clue] = [e for e in out.evidence if e.kind == "grounded" and e.default_match > 0.0]
+    assert clue.matched_room_ids == ["f3-office-301"] and clue.negate is False and clue.default_match == 0.2
+    assert [t.kept for t in out.trace] == [True, True, True, False, True, False, True, False, False]
 
 
 def test_unreadable_records_fall_back_to_the_rules(building, monkeypatch):
@@ -486,7 +505,7 @@ def test_unreadable_records_fall_back_to_the_rules(building, monkeypatch):
     monkeypatch.setattr(agent, "_validate", boom)
     call = turns(("dispatcher", "Where are you?"), ("caller", "I'm in 302"))
     out = agent.interpret(building, call, 1, client=StubClient([reply(
-        tool_use("record_vocab_clue", type="floor", value="3", polarity=True, confidence=0.8, span="302"))]))
+        tool_use("record_floor", floor="3", stated_by_caller=False, polarity=True, confidence=0.8, span="302"))]))
     assert out.source.startswith("rules (agent unavailable: could not read the model's records")
     assert [e.source for e in out.evidence] == ["rules"]  # the caller's "302" is not lost
 
@@ -503,18 +522,25 @@ def test_rooms_worked_out_from_a_description_count_for_less(building):
     assert "description" in out.trace[0].reason
 
 
-def test_model_repeating_what_the_rules_read_is_dropped(building):
+def test_model_reads_the_fire_turn_without_word_rules_and_repeats_are_dropped(building):
     call = turns(("dispatcher", "Okay. Where are you right now? What floor?"), ("caller", FIRE_TURN))
+    loc = dict(selector={"room_ids": ["f3-office-302"]}, negate=False, confidence=0.9, certainty=1.0,
+               specificity=1.0, rationale="Office 302")
     client = StubClient([reply(
-        tool_use("record_location", selector={"room_ids": ["f3-office-302"]}, negate=False, confidence=0.9,
-                 span="I'm in my office, 302", rationale="Office 302"),
-        tool_use("record_vocab_clue", type="floor", value="3", polarity=True, confidence=0.9, span="Third floor"),
+        tool_use("record_location", span="I'm in my office, 302", **loc),
+        tool_use("record_floor", floor="3", stated_by_caller=True, polarity=True, confidence=0.9, certainty=1.0,
+                 specificity=1.0, span="Third floor"),
+        tool_use("record_location", span="302", **loc),  # the same rooms again in the same turn
+        tool_use("record_floor", floor="3", stated_by_caller=True, polarity=True, confidence=0.9, certainty=1.0,
+                 specificity=1.0, span="Third."),
     )])
     out = agent.interpret(building, call, 1, client=client)
     assert len(client.calls) == 1
-    assert [e.source for e in out.evidence] == ["rules", "agent"]  # the rule's 302, then the model's floor
-    assert not out.trace[0].kept and "dialog rules" in out.trace[0].reason
-    assert "Office 302 (f3-office-302)" in client.calls[0]["messages"][0]["content"]  # shown as already read
+    # no rule reading first: everything on the console is the model's
+    assert [e.source for e in out.evidence] == ["agent", "agent"]
+    assert [t.kept for t in out.trace] == [True, True, False, False]
+    assert all("duplicate within this turn" in t.reason for t in out.trace[2:])
+    assert "Already recorded for turn" not in client.calls[0]["messages"][0]["content"]
     probs, _ = posterior_probs(building, clues=out.evidence)
     assert rank(probs, FIRE_TRUE_ROOM_ID) == 1 and probs[FIRE_TRUE_ROOM_ID] > 0.9
 
@@ -601,18 +627,33 @@ def test_claude_haiku_mode_labels_what_it_read_as_llm(building, monkeypatch):
 
 
 def test_model_settings_and_prewarm(building, monkeypatch):
-    assert agent.model_settings() == {"thinking": agent.DEFAULT_THINKING, "effort": agent.DEFAULT_EFFORT, "strict": False}
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    assert agent.model_settings() == {"model": "claude-opus-5-5", "thinking": agent.DEFAULT_THINKING,
+                                      "effort": agent.DEFAULT_EFFORT, "strict": False}
     monkeypatch.setenv("LLM_STRICT_TOOLS", "1")
     assert agent.model_settings()["strict"] is True
+    # thinking stays adaptive on Opus 5.5 whatever is asked; "disabled" is honoured on Haiku 5.5
+    monkeypatch.setenv("LLM_THINKING", "disabled")
+    assert agent.model_settings()["thinking"] == "adaptive"
+    monkeypatch.setenv("LLM_MODEL", "claude-haiku-5-5")
+    assert agent.model_settings()["model"] == "claude-haiku-5-5" and agent.model_settings()["thinking"] == "disabled"
+    assert agent.model_label() == "Claude Haiku 5.5" and agent.model_label("claude-opus-5-5") == "Claude Opus 5.5"
+    monkeypatch.setenv("LLM_EFFORT", "max")
+    assert agent.model_settings()["effort"] == "max"
+    monkeypatch.setenv("LLM_EFFORT", "extreme")
+    assert agent.model_settings()["effort"] == agent.DEFAULT_EFFORT
+    monkeypatch.delenv("LLM_MODEL")
     monkeypatch.setenv("LLM_THINKING", "adaptive")
     monkeypatch.setenv("LLM_EFFORT", "medium")
     monkeypatch.setenv("LLM_STRICT_TOOLS", "0")
-    assert agent.model_settings() == {"thinking": "adaptive", "effort": "medium", "strict": False}
+    assert agent.model_settings() == {"model": "claude-opus-5-5", "thinking": "adaptive", "effort": "medium",
+                                      "strict": False}
     assert all("strict" not in t for t in agent.request_tools(False)) and agent.request_tools(True) is agent.TOOLS
     client = StubClient([reply()])
     usage = agent.prewarm(building, client=client)
     [request] = client.calls
     assert request["max_tokens"] == 0 and request["thinking"] == {"type": "adaptive"}
+    assert request["model"] == "claude-opus-5-5"
     assert request["output_config"] == {"effort": "medium"}
     assert request["system"][0]["cache_control"] == {"type": "ephemeral"}
     assert usage is not None and extract.llm_usage()["prewarm_calls"] == 1
@@ -625,6 +666,9 @@ def test_model_settings_and_prewarm(building, monkeypatch):
     system = agent.build_system_prompt(idx, extract.load_vocab())
     assert agent._cache_key(system, "u") != agent._cache_key(system, "u", {"thinking": "disabled", "effort": "low",
                                                                          "strict": True})
+    # so is the model
+    base = agent.model_settings()
+    assert agent._cache_key(system, "u", base) != agent._cache_key(system, "u", dict(base, model="claude-haiku-5-5"))
 
     class Broken:
         messages = property(lambda self: (_ for _ in ()).throw(RuntimeError("no network")))
