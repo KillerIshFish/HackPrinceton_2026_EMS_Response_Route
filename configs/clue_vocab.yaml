@@ -209,6 +209,9 @@ floors:
   relative:
     top: [top floor, highest floor, the roof level]
     ground: [ground floor, ground level, street level, main floor]
+    # Below ground. Resolved against the building's own floors (core.evidence.basement_floors):
+    # in a building without a below-ground floor the statement is shown as not placed.
+    basement: [basement, cellar, lower level]
   adjacent_floor_match: 0.25   # callers miscount floors: partial credit for +/-1
 
 # Cues that flip polarity when they precede a matched phrase in the same clause.

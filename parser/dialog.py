@@ -14,7 +14,10 @@ extractor (``parser.extract``) cannot:
    as that question, at confidence 0.75.
 2. **Numbers and names printed on rooms.** "I'm in 304", "unit 12B", "suite 860",
    "apartment 4", "my office, 302", "the door says 302" -> grounded evidence with
-   ``selector.unit`` (confidence 0.85), resolved against the building's own labels: the
+   ``selector.unit``. Its confidence is the stated share of ``core.fusion``: 0.95 for a
+   plain, exact statement down to 0.40 for a hesitant, vague one, from the rule rating of
+   the caller's words (``parser.statement_rating.rate_statement``; in Claude Haiku mode the
+   model's rating replaces it). The number is resolved against the building's own labels: the
    sidecar suite records and the numbers in room names ("Office 302", "Unit 202"). Every
    room carrying the number is selected; when no room does, the statement is kept as
    unmatched and a floor clue is added from the leading digits (3+ digit numbers: 304 ->
@@ -47,16 +50,16 @@ from core.evidence import normalize_unit, room_labels, selector_hits
 from core.evidence import room_meta as _room_meta
 from core.schema import Building, Clue, Evidence, EvidenceSource, Question, RoomSelector, TranscriptTurn
 from parser.extract import SECTION_FOR_TYPE, TYPE_FOR_SECTION, extract_clues_rules
+from parser.statement_rating import PLAIN, Rating, rate_statement
 
 ANSWER_CONFIDENCE = 0.85
 BUTTON_CONFIDENCE = 0.9
 INFERRED_QUESTION_CONFIDENCE = 0.75
 HEDGED_YES_FACTOR = 0.7  # "I think so"
-# A number or a name printed on a room: fused as a naming statement (core.fusion), so this is
-# the probability the named rooms get when nothing else is known.
-UNIT_CONFIDENCE = 0.85
-NAME_CONFIDENCE = 0.85
-HEDGE_FACTOR = 0.7  # "I think I'm in 302"
+# A number or a name printed on a room, and a floor, are specific statements (core.fusion):
+# their confidence is the stated share, mapped from how sure and how exact the caller sounds
+# (parser.statement_rating; configs/statements.yaml). A floor read off the leading digits of
+# a number no room carries is an inference, not a statement, and keeps this fixed share.
 UNIT_FLOOR_FALLBACK_CONFIDENCE = 0.5
 
 
@@ -71,6 +74,9 @@ class DialogStatement:
 
     Exactly one of ``clue`` (vocab) / ``selector`` (grounded) is set. ``start`` / ``end``
     are character offsets of ``span`` in the turn text (-1 when it came from a button).
+    ``rating`` is set on a specific statement in the caller's own words (a number, a name, a
+    floor): the rule estimate of how sure and how exact it sounds, which ``confidence`` (the
+    stated share) was mapped from. The model reader may replace it (``with_rating``).
     """
 
     confidence: float
@@ -81,10 +87,25 @@ class DialogStatement:
     rationale: str = ""
     start: int = -1
     end: int = -1
+    rating: Optional[Rating] = None
 
     @property
     def kind(self) -> str:
         return "vocab" if self.clue is not None else "grounded"
+
+    def with_rating(self, rating: Rating) -> "DialogStatement":
+        """This statement with another rating (and the stated share that follows from it)."""
+        share = rating.share()
+        clue = self.clue.model_copy(update={"confidence": share}) if self.clue is not None else None
+        return DialogStatement(confidence=share, span=self.span, source=self.source, clue=clue,
+                               selector=self.selector, rationale=self.rationale, start=self.start, end=self.end,
+                               rating=rating)
+
+
+def rating_note(rating: Rating, by: str) -> str:
+    """Short text for a rationale or a trace: how the stated share came about."""
+    return (f"stated share {rating.share():.2f} (certainty {rating.certainty:g}, specificity {rating.specificity:g}, "
+            f"rated by {by})")
 
 
 @dataclass
@@ -351,8 +372,18 @@ _OTHER_SUBJECT = re.compile(
     re.IGNORECASE,
 )
 _CALLER_WORD = re.compile(r"(?<!\w)(?:my|our|i'?m|i\s+am|we'?re|we\s+are)(?!\w)", re.IGNORECASE)
-_HEDGE = re.compile(r"(?<!\w)(?:i\s+think|i\s+guess|maybe|might\s+be|probably|not\s+sure|could\s+be|i\s+believe)(?!\w)",
-                    re.IGNORECASE)
+# Someone other than the caller going somewhere: "he went up to the third floor", "they ran
+# down to the lobby", "she is heading for the roof". Where they went is not where the caller is.
+_MOVING = (r"(?:went|goes|going|gone|ran|runs|running|headed|heading|walked|walking|fled|fleeing|took\s+off|moved|moving"
+           r"|came|coming|climbed|climbing|left|leaving|took|taking|carried|carrying|brought|bringing)")
+_OTHER_MOVED = re.compile(
+    r"(?<!\w)(?:he|she|they|it|him|her|them|someone|somebody|everyone|everybody|people|the\s+[\w'-]+|a\s+[\w'-]+"
+    r"|(?:this|that|some|my|our|his|her|their)\s+[\w'-]+)(?:'s|\s+is|\s+are|\s+was|\s+were|\s+has|\s+have|\s+just|\s+already)*\s+"
+    + _MOVING + r"(?!\w)",
+    re.IGNORECASE,
+)
+_CALLER_MOVED = re.compile(
+    r"(?<!\w)(?:i|we)(?:'ve|'m|'re|\s+am|\s+are|\s+have|\s+just|\s+already)*\s+" + _MOVING + r"(?!\w)", re.IGNORECASE)
 
 
 def _clause_head(text: str, start: int, window: int = 70) -> str:
@@ -386,14 +417,15 @@ def someone_elses_place(text: str, start: int) -> bool:
 _someone_elses_place = someone_elses_place
 
 
-def _hedged(text: str, start: int, end: int) -> bool:
-    """True when the clause holding ``text[start:end]`` hedges ("I think I'm in 302", "302 maybe").
-
-    Only that clause: in "I'm in 302, I think the fire is in 301" the hedge is about the fire.
-    """
-    nxt = _CLAUSE_BREAK.search(text, end)
-    tail = text[end: nxt.start() if nxt else len(text)]
-    return bool(_HEDGE.search(_clause_head(text, start) + " " + text[start:end] + " " + tail))
+def someone_elses_floor(text: str, start: int) -> bool:
+    """True when the floor mentioned at ``start`` is not a statement of where the caller is:
+    its clause is about the fire, the smoke or the threat ("the fire is on the third floor")
+    or about someone else going there ("he went up to the third floor"). A floor the caller
+    themselves went to ("we ran up to the third floor") is theirs."""
+    head = _clause_head(text, start)
+    if _OTHER_SUBJECT.search(head) and not _CALLER_WORD.search(head):
+        return True
+    return bool(_OTHER_MOVED.search(head)) and not _CALLER_MOVED.search(head)
 
 
 # Numbers as speech recognition writes them: "three oh two", "four seventy five", "six sixty".
@@ -550,10 +582,11 @@ def unit_statements(building: Building, mention: UnitMention, *, meta: dict | No
     label is selected, so a number two rooms share raises both. A number no room carries is
     kept as an unmatched statement (the UI says it could not be placed), plus a floor clue
     from its leading digits at confidence 0.5 when the building has that floor.
+
+    The confidence is the stated share for how the caller said it (``rate_statement``).
     """
-    confidence = UNIT_CONFIDENCE
-    if text and _hedged(text, mention.start, mention.end):
-        confidence = round(UNIT_CONFIDENCE * HEDGE_FACTOR, 3)
+    rating = rate_statement(text, mention.start, mention.end) if text else PLAIN
+    confidence = rating.share()
     selector = RoomSelector(unit=mention.unit)
     hits = selector_hits(building, selector, meta)
     if hits and mention.keyword and mention.keyword != "number":
@@ -566,7 +599,7 @@ def unit_statements(building: Building, mention: UnitMention, *, meta: dict | No
                  else f"no room of this building is numbered {mention.unit}")
     out = [DialogStatement(
         confidence=confidence, span=mention.span, selector=selector, start=mention.start, end=mention.end,
-        rationale=rationale,
+        rationale=rationale, rating=rating if hits else None,
     )]
     if not hits:
         label = unit_floor_label(building, mention.unit)
@@ -598,10 +631,12 @@ def _open_answer_statements(
             if _floor_label_exists(building, label):
                 span = text.strip()
                 start = text.find(span)
+                rating = rate_statement(text, start, start + len(span))  # the caller's own statement of the floor
+                share = rating.share()
                 return [DialogStatement(
-                    confidence=ANSWER_CONFIDENCE, span=span, start=start, end=start + len(span),
-                    clue=Clue(type="floor", value=label, polarity=True, confidence=ANSWER_CONFIDENCE, span=span),
-                    rationale=f"'{span}' answers the floor question just asked",
+                    confidence=share, span=span, start=start, end=start + len(span),
+                    clue=Clue(type="floor", value=label, polarity=True, confidence=share, span=span),
+                    rationale=f"'{span}' answers the floor question just asked", rating=rating,
                 )]
     return []
 
@@ -823,13 +858,12 @@ def find_names(building: Building, text: str, *, meta: Optional[dict] = None, vo
 
 def name_statements(building: Building, mention: NameMention, text: str = "") -> DialogStatement:
     """Grounded evidence for a room or tenant name: the rooms that carry the name."""
-    confidence = NAME_CONFIDENCE
-    if text and _hedged(text, mention.start, mention.end):
-        confidence = round(NAME_CONFIDENCE * HEDGE_FACTOR, 3)
+    rating = rate_statement(text, mention.start, mention.end) if text else PLAIN
     return DialogStatement(
-        confidence=confidence, span=mention.span, selector=RoomSelector(room_ids=list(mention.room_ids)),
+        confidence=rating.share(), span=mention.span, selector=RoomSelector(room_ids=list(mention.room_ids)),
         start=mention.start, end=mention.end,
         rationale=f"'{mention.span}' is the name of {_room_names(building, list(mention.room_ids))}",
+        rating=rating,
     )
 
 

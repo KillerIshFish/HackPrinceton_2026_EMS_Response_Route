@@ -219,17 +219,27 @@ def _outline(source: str, picks: list[dict], match: str, lat: float, lon: float,
     if not picks:
         return None
     box = oriented_box([p for f in picks for p in f["poly"]])
-    return {
+
+    def ring(points) -> list:
+        return [[round(v, 7) for v in local_to_latlng(x, y, (lat, lon))] for x, y in points]
+
+    out = {
         "source": source, "match": match, "detail": detail, "area_m2": round(sum(f["area"] for f in picks), 1),
-        "polygons_latlng": [[[round(v, 7) for v in local_to_latlng(x, y, (lat, lon))] for x, y in f["poly"]] for f in picks],
+        "polygons_latlng": [ring(f["poly"]) for f in picks],
         "centre_latlng": [round(v, 7) for v in local_to_latlng(box["centre"][0], box["centre"][1], (lat, lon))],
         "length_m": box["length_m"], "width_m": box["width_m"], "axis_deg": box["axis_deg"],
     }
+    if any(f.get("holes") for f in picks):
+        # courtyards and light wells, one list of rings per polygon above (same order)
+        out["holes_latlng"] = [[ring(h) for h in f.get("holes") or []] for f in picks]
+    return out
 
 
-def _measure(poly: list) -> dict:
+def _measure(poly: list, holes: Optional[list] = None) -> dict:
+    """An outline ring in metres around the address point. ``holes``: courtyards inside it."""
     inside = _contains(poly, 0.0, 0.0)
-    return {"poly": poly, "area": _area(poly), "inside": inside,
+    holes = [h for h in holes or [] if len(h) >= 3 and _area(h) >= 4.0]
+    return {"poly": poly, "holes": holes, "area": max(_area(poly) - sum(_area(h) for h in holes), 0.0), "inside": inside,
             "distance": 0.0 if inside else _distance_to_outline(poly, 0.0, 0.0)}
 
 
@@ -241,17 +251,23 @@ def building_from_payload(payload: dict, lat: float, lon: float, single: bool = 
     for e in payload.get("elements") or []:
         if "building" not in (e.get("tags") or {}):
             continue
-        rings = []
+        rings, inner = [], []
         if e.get("type") == "way" and e.get("geometry"):
             rings = [e["geometry"]]
         elif e.get("type") == "relation":
             rings = [m["geometry"] for m in e.get("members") or [] if m.get("role") in ("outer", "") and m.get("geometry")]
-        for ring in rings:
+            inner = [m["geometry"] for m in e.get("members") or [] if m.get("role") == "inner" and m.get("geometry")]
+
+        def local(ring) -> list:
             poly = [latlng_to_local(p["lat"], p["lon"], (lat, lon)) for p in ring if "lat" in p]
-            if len(poly) > 1 and poly[0] == poly[-1]:
-                poly = poly[:-1]
+            return poly[:-1] if len(poly) > 1 and poly[0] == poly[-1] else poly
+
+        holes = [h for h in (local(r) for r in inner) if len(h) >= 3]
+        for ring in rings:
+            poly = local(ring)
             if len(poly) >= 3:
-                found.append(_measure(poly))
+                # a courtyard belongs to the outer ring that holds it
+                found.append(_measure(poly, [h for h in holes if _contains(poly, *h[0])]))
     picks, match = _choose(found, single)
     return _outline("OpenStreetMap", picks, match, lat, lon)
 
@@ -264,8 +280,6 @@ def structures_from_property(data: Optional[dict], lat: float, lon: float, singl
     parcel. The newest vintage of the layer the aerial tiles come from is used, so the
     outline matches the picture it is drawn on.
     """
-    from ingest.mp3d.aerial import parse_polygon_wkt
-
     features = [f for f in (data or {}).get("features") or [] if (f.get("properties") or {}).get("structures")]
     if not features:
         return None
@@ -277,12 +291,18 @@ def structures_from_property(data: Optional[dict], lat: float, lon: float, singl
     props = max(features, key=rank).get("properties") or {}
     found = []
     for st in props.get("structures") or []:
-        ring = parse_polygon_wkt(str(st.get("footprint.wkt") or ""))  # (lon, lat) pairs
-        poly = [latlng_to_local(la, lo, (lat, lon)) for lo, la in ring]
-        if len(poly) > 1 and poly[0] == poly[-1]:
-            poly = poly[:-1]
-        if len(poly) >= 3:
-            found.append(_measure(poly))
+        best = None
+        for rings in wkt_polygons(str(st.get("footprint.wkt") or "")):  # (lon, lat) pairs
+            local = []
+            for ring in rings:
+                poly = [latlng_to_local(la, lo, (lat, lon)) for lo, la in ring]
+                local.append(poly[:-1] if len(poly) > 1 and poly[0] == poly[-1] else poly)
+            if local and len(local[0]) >= 3:
+                m = _measure(local[0], local[1:])
+                if best is None or m["area"] > best["area"]:  # a footprint in several parts: its main part
+                    best = m
+        if best is not None:
+            found.append(best)
     picks, match = _choose(found, single)
     if single and not picks and found:  # nothing near the address point: the parcel's main building
         picks, match = [max(found, key=lambda f: f["area"])], "largest building on the parcel"
@@ -290,10 +310,67 @@ def structures_from_property(data: Optional[dict], lat: float, lon: float, singl
     return _outline("Vexcel", picks, match, lat, lon, detail)
 
 
-def fetch_vexcel_outline(lat: float, lon: float, single: bool = True) -> Optional[dict]:
+def wkt_polygons(wkt: str) -> list[list[list[tuple[float, float]]]]:
+    """Every polygon of a WKT POLYGON or MULTIPOLYGON as ``[outer ring, hole, ...]``, points as given. Pure."""
+    out: list[list[list[tuple[float, float]]]] = []
+    current: list[list[tuple[float, float]]] = []
+    ring_depth = 3 if wkt.lstrip().upper().startswith("MULTIPOLYGON") else 2
+    depth = start = 0
+    for i, ch in enumerate(wkt):
+        if ch == "(":
+            depth += 1
+            if depth == ring_depth:
+                start = i + 1
+        elif ch == ")":
+            if depth == ring_depth:
+                ring = []
+                for pair in wkt[start:i].split(","):
+                    bits = pair.split()
+                    if len(bits) >= 2:
+                        try:
+                            ring.append((float(bits[0]), float(bits[1])))
+                        except ValueError:
+                            continue
+                if len(ring) >= 3:
+                    current.append(ring)
+            depth -= 1
+            if depth == ring_depth - 2:  # the polygon is closed
+                if current:
+                    out.append(current)
+                current = []
+    return out
+
+
+def vexcel_cache_path(lat: float, lon: float) -> Path:
+    from ingest.vexcel import vexcel_data_dir
+
+    return vexcel_data_dir() / "property" / f"{lat:.6f}_{lon:.6f}.json"
+
+
+def vexcel_property(lat: float, lon: float, refresh: bool = False) -> Optional[dict]:
+    """Vexcel ``property/extract`` for a point, kept on disk so a building is asked about once.
+
+    An answer of "no parcel here" is kept too; a failed request is not.
+    """
+    path = vexcel_cache_path(lat, lon)
+    if not refresh and path.is_file():
+        try:
+            return json.loads(path.read_text(encoding="utf-8")).get("data")
+        except ValueError:
+            pass
     from ingest.mp3d.aerial import VexcelClient
 
-    return structures_from_property(VexcelClient(timeout_s=VEXCEL_TIMEOUT_S).property_extract(lat, lon), lat, lon, single)
+    data = VexcelClient(timeout_s=VEXCEL_TIMEOUT_S).property_extract(lat, lon)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"lat": lat, "lon": lon, "data": data}), encoding="utf-8")
+    except OSError:  # a read-only data folder only costs the next run a request
+        pass
+    return data
+
+
+def fetch_vexcel_outline(lat: float, lon: float, single: bool = True) -> Optional[dict]:
+    return structures_from_property(vexcel_property(lat, lon), lat, lon, single)
 
 
 # ---------------------------------------------------------------------------

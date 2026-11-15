@@ -17,6 +17,13 @@ Two readers (docs/BUILD_PLAN.md section 6, steps C1 and C2):
 Conventions every path keeps:
 
 * Only caller turns produce evidence. Other speakers return an empty Interpretation.
+* A specific statement of where the caller is (a room, unit or suite number, a room or
+  tenant name, a floor) carries the stated share as its confidence: 0.40 to 0.95 depending
+  on how sure and how exact the caller sounds (``core.fusion.stated_share``). In mode
+  "rules" fixed word patterns rate it (``parser.statement_rating.rate_statement``); in the
+  model modes Claude Haiku does. A floor that is about someone or something else ("he went
+  up to the third floor", "the fire is on four") is not the caller's location and is not
+  recorded as one.
 * Evidence ids are ``evidence_id(index, k)`` = ``"t<index>-e<k>"`` (k counts from 0 within
   the turn), and fact ids ``fact_id(index, k)`` = ``"t<index>-f<k>"``, so ids stay stable
   when a turn is re-read and a dispatcher's reject survives a parser switch.
@@ -29,8 +36,16 @@ from __future__ import annotations
 from typing import Sequence
 
 from core.schema import Building, Clue, Evidence, Fact, Interpretation, TranscriptTurn
-from parser.dialog import DialogStatement, read_dialog, someone_elses_place, superseded_ids
+from parser.dialog import (
+    DialogStatement,
+    rating_note,
+    read_dialog,
+    someone_elses_floor,
+    someone_elses_place,
+    superseded_ids,
+)
 from parser.extract import extract_clues_with_source
+from parser.statement_rating import Rating, rate_statement
 
 PARSER_MODES = ("rules", "llm", "agent")
 # Modes read by the grounded Claude Haiku interpreter (parser.agent). "llm" is the name the
@@ -110,8 +125,10 @@ def _rules_path(
     3. Merge: dialog statements first, then extractor clues; an extractor clue saying the
        same thing as a dialog clue (same type, value, polarity) is dropped, keeping the
        higher confidence. A room-type clue for a place that is not the caller's ("next to
-       the boardroom", "the fire's in the kitchen") is dropped. Ids are ``t<index>-e<k>`` in
-       that order.
+       the boardroom", "the fire's in the kitchen") is dropped, and so is a floor that is
+       about someone or something else ("he went up to the third floor"). A floor the
+       caller states gets the stated share for how they said it. Ids are ``t<index>-e<k>``
+       in that order.
     4. Corrections: earlier evidence of a slot restated after the cue (previous turns via
        ``prior_evidence``, and this turn before the cue) goes into
        ``Interpretation.supersedes``; this turn's own superseded items also carry
@@ -130,6 +147,7 @@ def _rules_path(
         if isinstance(s, DialogStatement) and s.clue is not None:
             by_key.setdefault((s.clue.type, s.clue.value, s.clue.polarity), pos)
     cursor = 0
+    floor_ratings: dict[tuple[str, int], Rating] = {}  # (floor value, offset) -> the rule rating behind its share
     for clue in clues:
         start = text.find(clue.span, cursor) if clue.span else -1
         if start < 0 and clue.span:
@@ -140,6 +158,13 @@ def _rules_path(
             # "next to the boardroom", "just off the lobby", "the fire's in the kitchen": the
             # room named is not the one the caller is in, so its type says nothing about theirs.
             continue
+        if clue.type == "floor" and clue.polarity and start >= 0 and source != "llm":
+            if someone_elses_floor(text, start):
+                continue  # "he went up to the third floor": not where the caller is
+            # the caller's own statement of their floor: a specific statement (core.fusion)
+            rating = rate_statement(text, start, start + len(clue.span))
+            clue = clue.model_copy(update={"confidence": rating.share()})
+            floor_ratings[(clue.value, start)] = rating
         key = (clue.type, clue.value, clue.polarity)
         if key in by_key:
             pos = by_key[key]
@@ -158,11 +183,17 @@ def _rules_path(
     for k, (item, start) in enumerate(items):
         if isinstance(item, Clue):
             e = wrap_clue(item, index, k, source)
+            rated = floor_ratings.get((item.value, start)) if item.type == "floor" else None
+            if rated is not None:
+                e = e.model_copy(update={"rationale": rating_note(rated, "rules")})
         else:
+            rationale = item.rationale
+            if item.rating is not None:
+                rationale = "; ".join(x for x in (rationale, rating_note(item.rating, "rules")) if x)
             e = Evidence(
                 id=evidence_id(index, k), kind=item.kind, clue=item.clue, selector=item.selector,
                 default_match=0.0, confidence=item.confidence, span=item.span, turn=index,
-                source=item.source, rationale=item.rationale,
+                source=item.source, rationale=rationale,
             )
         evidence.append(e)
         offsets.append(start)

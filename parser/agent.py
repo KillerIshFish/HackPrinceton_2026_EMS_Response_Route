@@ -22,11 +22,19 @@ How it works
 * Validation in code after the loop: the model cannot invent. A record is dropped (and the
   trace says why) when its span is not in the newest caller turn word for word, a room id
   does not exist, a selector matches no room, confidence is below 0.4, a vocabulary value is
-  unknown, or a fact asserts something as verified / safe. A location record names rooms
-  (``default_match`` 0, fused with ``core.fusion.naming_floor``); its confidence is capped
-  at 0.85 when the caller's words carry the number or a distinctive name word of every
-  selected room, and at 0.7 when the rooms were worked out from a description. Every Fact
-  has verified=False.
+  unknown, or a fact asserts something as verified / safe. Every Fact has verified=False.
+* How much a specific statement weighs. The model rates each statement of where the caller
+  is for how sure the caller sounds (``certainty``) and how exactly the words pin the place
+  down (``specificity``), both 0 to 1: on ``record_location``, on a ``floor`` clue, and with
+  ``rate_statement`` for the statements the dialog rules read (labelled ``s1``, ``s2`` in
+  the message). ``parser.statement_rating.clean_rating`` clamps the two numbers and fills a
+  missing one conservatively; ``core.fusion.stated_share`` maps them to the statement's
+  confidence, the share of the probability the named rooms get when the statement stands
+  alone: 0.40 (hesitant, vague) to 0.95 (plain, exact), settings in
+  ``configs/statements.yaml``. That holds for a location whose rooms the caller named (the
+  span carries the number or a distinctive name word of every selected room) and for a
+  stated floor. A location worked out from a description keeps the model's own confidence,
+  capped at 0.7; a denial keeps it capped at 0.85.
 * The deterministic dialog rules (``parser.dialog``) run first and are kept: yes / no
   answers to the question just asked, numbers and names printed on rooms, corrections. The
   model is shown what they read and adds to it; a record selecting the same rooms as a rule
@@ -78,10 +86,12 @@ from core.schema import (
     RoomSelector,
     TranscriptTurn,
 )
-from parser.dialog import DialogReading, DialogStatement, read_dialog, superseded_ids
+from parser.dialog import DialogReading, DialogStatement, rating_note, read_dialog, superseded_ids
+from parser.statement_rating import clean_rating, rate_span
 from parser.building_tools import (
     LOOKUP_TOOLS,
     PREMISE_KEYS,
+    RATE_TOOLS,
     RECORD_TOOLS,
     TOOLS,
     BuildingIndex,
@@ -103,7 +113,9 @@ AGENT_MAX_REQUESTS_PER_TURN = 4
 # A live call cannot wait long for one turn: past this the rule path's reading is used.
 AGENT_TIMEOUT_S = 20.0
 AGENT_MIN_CONFIDENCE = 0.4
-# A location the caller named by a number or name the building has (checked against the span).
+# Cap on a denial ("we're not in 304"). A location the caller named by a number or name the
+# building has (checked against the span) is no longer capped here: its confidence is the
+# stated share mapped from the model's rating of the caller's words (core.fusion.stated_share).
 GROUNDED_CONFIDENCE_CAP = 0.85
 # A location worked out from a description ("the conference room facing the parking lot").
 DESCRIBED_CONFIDENCE_CAP = 0.7
@@ -203,14 +215,24 @@ def _evidence_summary(ev: Evidence, building: Optional[Building] = None) -> str:
     return f'- {ev.id} [{ev.status}] {what} span "{ev.span}"'
 
 
-def _statement_summary(st: DialogStatement, building: Optional[Building] = None) -> str:
+def statement_labels(reading: Optional[DialogReading]) -> dict[str, int]:
+    """``label -> index in reading.statements`` for the rule-read statements the model is
+    asked to rate (``rate_statement``): the specific ones in the caller's own words."""
+    if reading is None:
+        return {}
+    rated = [i for i, st in enumerate(reading.statements) if st.rating is not None]
+    return {f"s{n + 1}": i for n, i in enumerate(rated)}
+
+
+def _statement_summary(st: DialogStatement, building: Optional[Building] = None, label: str = "") -> str:
     if st.clue is not None:
         what = f"vocab {st.clue.type}={st.clue.value}" + ("" if st.clue.polarity else " (denied)")
     elif building is not None:
         what = _location_text(building, st.selector)
     else:
         what = f"location {json.dumps(st.selector.model_dump(exclude_none=True), sort_keys=True)}" if st.selector else "?"
-    return f'- {what} span "{st.span}"'
+    head = f"{label}: " if label else ""
+    return f'- {head}{what} span "{st.span}"'
 
 
 def build_user_message(building: Building, transcript: Sequence[TranscriptTurn], index: int,
@@ -239,8 +261,11 @@ def build_user_message(building: Building, transcript: Sequence[TranscriptTurn],
         lines.append(f"{marker}[{i}] {who}: {t.text}")
     lines.append("</transcript>")
     if reading is not None and reading.statements:
+        labels = {i: label for label, i in statement_labels(reading).items()}
         lines += ["", f"Already read from turn [{index}] by fixed rules (leave as is, do not record again):"]
-        lines.extend(_statement_summary(st, building) for st in reading.statements)
+        lines.extend(_statement_summary(st, building, labels.get(i, "")) for i, st in enumerate(reading.statements))
+        if labels:
+            lines.append(f"Rate each labelled statement with rate_statement ({', '.join(labels.values())}).")
     lines += ["", f"Read caller turn [{index}] (marked >>>) and record what it adds."]
     return "\n".join(lines)
 
@@ -344,7 +369,7 @@ class _Run:
 
     @property
     def records(self) -> int:
-        return sum(1 for c in self.calls if c["tool"] in RECORD_TOOLS)
+        return sum(1 for c in self.calls if c["tool"] in RECORD_TOOLS or c["tool"] in RATE_TOOLS)
 
 
 def _block_attr(block: Any, name: str) -> Any:
@@ -460,6 +485,8 @@ def _loop(run: _Run, client: Any, idx: BuildingIndex, system: str, user: str, tu
             if name in LOOKUP_TOOLS:
                 result = run_lookup(idx, name, args)
                 needs_reply = True
+            elif name in RATE_TOOLS:
+                result = {"noted": "rating"}
             elif name in RECORD_TOOLS:
                 record_no += 1
                 result = record_ack(idx, name, _clean_record_args(name, args)[0], record_no, turn_text, earlier_texts)
@@ -709,12 +736,29 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
     dialog_rooms: dict[frozenset, tuple[str, str]] = {}  # rooms selected -> (evidence id, span)
 
     # 1. The deterministic dialog rules run first and are kept as they are (one exception
-    #    below: the agent's denial of the very place a rule read as positive).
-    for st in reading.statements:
+    #    below: the agent's denial of the very place a rule read as positive). How much a
+    #    specific statement weighs is the model's call: its rate_statement for the label
+    #    replaces the rule estimate (the first usable rating per label counts).
+    labels = statement_labels(reading)
+    rated_by_model: dict[int, tuple[Any, list[str]]] = {}
+    for call in run_calls:
+        if call["tool"] not in RATE_TOOLS:
+            continue
+        i = labels.get(str(call["args"].get("statement", "")).strip().lower())
+        if i is not None and i not in rated_by_model:
+            rated_by_model[i] = clean_rating(call["args"].get("certainty"), call["args"].get("specificity"),
+                                             reading.statements[i].rating)
+    for i, st in enumerate(reading.statements):
+        rationale = st.rationale
+        if i in rated_by_model:
+            st = st.with_rating(rated_by_model[i][0])
+            rationale = "; ".join(x for x in (rationale, rating_note(st.rating, "Claude Haiku")) if x)
+        elif st.rating is not None:
+            rationale = "; ".join(x for x in (rationale, rating_note(st.rating, "rules")) if x)
         evidence.append(Evidence(
             id=evidence_id(index, len(evidence)), kind=st.kind, clue=st.clue, selector=st.selector,  # type: ignore[arg-type]
             default_match=0.0, confidence=st.confidence, span=st.span, turn=index, source=st.source,
-            rationale=st.rationale,
+            rationale=rationale,
         ))
         offsets.append(st.start)
         if st.clue is not None:
@@ -738,6 +782,17 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
         name, args = call["tool"], call["args"]
         entry = AgentTraceEntry(turn=index, tool=name, args=args, result_size=call["result_size"])
         trace.append(entry)
+        if name in RATE_TOOLS:
+            label = str(args.get("statement", "")).strip().lower()
+            i = labels.get(label)
+            if i is None:
+                entry.kept = False
+                entry.reason = f"unknown statement label '{label}'"
+            else:
+                rating, fixes = clean_rating(args.get("certainty"), args.get("specificity"), reading.statements[i].rating)
+                entry.reason = "; ".join([f"{label} ({reading.statements[i].span!r}): {rating_note(rating, 'Claude Haiku')}"]
+                                         + fixes)
+            continue
         if name not in RECORD_TOOLS:
             continue
 
@@ -817,17 +872,27 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
             if ctype not in _extract._CLUE_TYPES or not _extract._known_value(ctype, value, vocab):
                 drop(f"'{ctype}={value}' is not in the vocabulary")
                 continue
-            if (ctype, value) in prior_vocab:
+            polarity = False if ctype == "negative" else _as_bool(args.get("polarity"), True)
+            stated_floor = ctype == "floor" and polarity  # a specific statement (core.fusion)
+            if (ctype, value) in prior_vocab and not stated_floor:
                 drop(f"duplicate of earlier evidence {prior_vocab[(ctype, value)]}")
                 continue
             if (ctype, value) in seen_vocab:
                 drop("duplicate within this turn (or already read by the dialog rules)")
                 continue
             seen_vocab.add((ctype, value))
-            polarity = False if ctype == "negative" else _as_bool(args.get("polarity"), True)
+            rationale = ""
+            if stated_floor:
+                # The caller's own statement of their floor: its weight is the stated share for
+                # how they said it. Said again in a later turn it is kept: agreement reinforces.
+                rating, fixes = clean_rating(args.get("certainty"), args.get("specificity"), rate_span(turn.text, span))
+                conf = rating.share()
+                rationale = rating_note(rating, "Claude Haiku")
+                note("; ".join([rationale] + fixes))
             clue = Clue(type=ctype, value=value, polarity=polarity, confidence=round(conf, 3), span=span)  # type: ignore[arg-type]
             evidence.append(Evidence(id=evidence_id(index, len(evidence)), kind="vocab", clue=clue,
-                                     confidence=clue.confidence, span=span, turn=index, source=source))  # type: ignore[arg-type]
+                                     confidence=clue.confidence, span=span, turn=index, source=source,  # type: ignore[arg-type]
+                                     rationale=rationale))
             offsets.append(offset_of(span))
             continue
 
@@ -869,7 +934,9 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
             default_match = 1.0  # a denial leaves every other room as it was
         key = (json.dumps(selector.model_dump(exclude_none=True), sort_keys=True), negate)
         rooms_key = (frozenset(hits), negate)
-        if key in prior_grounded or rooms_key in prior_rooms:
+        named = negate or name_check.names(span, hits)
+        stated = named and not negate and default_match <= 0.0  # a specific statement (core.fusion)
+        if (key in prior_grounded or rooms_key in prior_rooms) and not stated:
             drop(f"duplicate of earlier evidence {prior_grounded.get(key) or prior_rooms[rooms_key]}")
             continue
         if key in seen_grounded or rooms_key in seen_rooms:
@@ -877,12 +944,20 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
             continue
         seen_grounded.add(key)
         seen_rooms.add(rooms_key)
-        named = negate or name_check.names(span, hits)
-        cap = GROUNDED_CONFIDENCE_CAP if named else DESCRIBED_CONFIDENCE_CAP
-        capped = min(conf, cap)
-        if capped < conf:
-            note(f"confidence capped at {cap}" + ("" if named else
-                                                   " (rooms worked out from a description, not named by the caller)"))
+        rationale = str(args.get("rationale", ""))[:300]
+        if stated:
+            # The caller named these rooms: the weight is the stated share for how they said
+            # it. Named again in a later turn the statement is kept: agreement reinforces.
+            rating, fixes = clean_rating(args.get("certainty"), args.get("specificity"), rate_span(turn.text, span))
+            capped = rating.share()
+            rationale = "; ".join(x for x in (rationale, rating_note(rating, "Claude Haiku")) if x)
+            note("; ".join([rating_note(rating, "Claude Haiku")] + fixes))
+        else:
+            cap = GROUNDED_CONFIDENCE_CAP if named else DESCRIBED_CONFIDENCE_CAP
+            capped = min(conf, cap)
+            if capped < conf:
+                note(f"confidence capped at {cap}" + ("" if named else
+                                                       " (rooms worked out from a description, not named by the caller)"))
         # "we're not in suite 304": a unit rule that read the same words as a positive
         # statement misread a denial. Keep the denial, mark the rule's reading superseded.
         misread = (dialog_grounded.get(key[0]) or dialog_rooms.get(frozenset(hits))) if negate else None
@@ -892,7 +967,7 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
         evidence.append(Evidence(
             id=evidence_id(index, len(evidence)), kind="grounded", selector=selector, default_match=default_match,
             negate=negate, confidence=round(capped, 3), span=span, turn=index, source=source,  # type: ignore[arg-type]
-            rationale=str(args.get("rationale", ""))[:300], matched_room_ids=hits,
+            rationale=rationale[:400], matched_room_ids=hits,
         ))
         offsets.append(offset_of(span))
 

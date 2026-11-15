@@ -407,6 +407,12 @@ PREMISE_KEYS = ["means_of_entry", "meet_person", "elevator", "defibrillator"]
 
 _SPAN = {"type": "string", "description": "The caller's exact words, copied character for character from a caller turn."}
 _CONF = {"type": "number", "description": "0 to 1. How sure the statement places / describes what you record."}
+_CERTAINTY = {"type": "number",
+              "description": "0 to 1. How sure the CALLER sounds about this statement: 1.0 said plainly, about 0.5 "
+                             "one hedge or a questioning tone, 0.2 or less when they are guessing."}
+_SPECIFICITY = {"type": "number",
+                "description": "0 to 1. How exactly the caller's words pin the place down: 1.0 a number or name "
+                               "given in full, about 0.5 approximate, partial or garbled, lower when barely narrowed."}
 
 _SELECTOR_SCHEMA = {
     "type": "object",
@@ -481,32 +487,50 @@ TOOLS: list[dict] = [
     ),
     _tool(
         "record_location",
-        "Record where the caller is: the rooms their words point at. confidence is the chance the caller really "
-        "is in one of those rooms. For a denial ('we're not in 304') set negate=true and select the rooms they "
-        "ruled out; otherwise negate=false.",
+        "Record where the caller is: the rooms their words point at. confidence is your own reading: the chance "
+        "these are the rooms the words point at. certainty and specificity rate the caller's statement and set "
+        "how much it weighs. For a denial ('we're not in 304') set negate=true and select the rooms they ruled "
+        "out; otherwise negate=false.",
         {
             "selector": _SELECTOR_SCHEMA,
             "negate": {"type": "boolean"},
             "confidence": _CONF,
+            "certainty": _CERTAINTY,
+            "specificity": _SPECIFICITY,
             "span": _SPAN,
             "rationale": {"type": "string", "description": "A few words: why these rooms."},
         },
-        ["selector", "negate", "confidence", "span", "rationale"],
+        ["selector", "negate", "confidence", "certainty", "specificity", "span", "rationale"],
     ),
     _tool(
         "record_vocab_clue",
         "Record a clue from the controlled vocabulary in the briefing (type + key): a floor, a view, a sound, a "
         "smell, a landmark, a route, or a room type that many rooms share. It narrows the picture without naming "
         "a room. For a denial use type 'negative' with value '<section>:<key>' (e.g. 'views:parking_lot') and "
-        "polarity false.",
+        "polarity false. For type 'floor' also give certainty and specificity (the caller's statement of their "
+        "floor is weighed by them); leave both out for every other type.",
         {
             "type": {"type": "string", "enum": CLUE_TYPES},
             "value": {"type": "string"},
             "polarity": {"type": "boolean"},
             "confidence": _CONF,
+            "certainty": _CERTAINTY,
+            "specificity": _SPECIFICITY,
             "span": _SPAN,
         },
         ["type", "value", "polarity", "confidence", "span"],
+    ),
+    _tool(
+        "rate_statement",
+        "Rate a location statement the fixed rules already read from the newest caller turn. The message lists "
+        "each with a label (s1, s2, ...). The rules matched the number or name; you say how sure the caller "
+        "sounded and how exact the words were. One call per label.",
+        {
+            "statement": {"type": "string", "description": "The label from the message, e.g. 's1'."},
+            "certainty": _CERTAINTY,
+            "specificity": _SPECIFICITY,
+        },
+        ["statement", "certainty", "specificity"],
     ),
     _tool(
         "record_fact",
@@ -540,6 +564,8 @@ TOOLS: list[dict] = [
 
 LOOKUP_TOOLS = ("search_rooms", "rooms_near", "floor_summary")
 RECORD_TOOLS = ("record_location", "record_vocab_clue", "record_fact", "suggest_incident_type", "supersede")
+# Rates a statement the dialog rules read (no span of its own, nothing to look up).
+RATE_TOOLS = ("rate_statement",)
 
 
 def run_lookup(idx: BuildingIndex, name: str, args: dict) -> dict:

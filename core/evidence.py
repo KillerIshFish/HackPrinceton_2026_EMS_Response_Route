@@ -1,6 +1,8 @@
 """Match values for Evidence items: how well each room fits one statement.
 
-* ``kind="vocab"``    -> ``core.clue_likelihood.clue_match`` (exactly the older numbers).
+* ``kind="vocab"``    -> ``core.clue_likelihood.clue_match`` (exactly the older numbers). One
+  addition: a ``floor`` clue with value ``basement`` selects the rooms on the building's
+  below-ground floors (``basement_floors``); in a building without one it is unmatched.
 * ``kind="grounded"`` -> rooms satisfying *every* set condition of the ``RoomSelector``
   get 1.0 (0.0 with ``evidence.negate``), every other room ``evidence.default_match``.
 
@@ -162,6 +164,43 @@ def unit_room_ids(building: Building, unit: object, meta: Mapping[str, Mapping[s
 
 
 # ---------------------------------------------------------------------------
+# "Basement": a floor a caller names without a number
+# ---------------------------------------------------------------------------
+
+BASEMENT_VALUES = ("basement", "cellar", "lower_level")
+_BELOW_GROUND_LABEL = re.compile(
+    r"^(?:b\d*|bsmt|basement|ll\d*|lower[ _-]?level|cellar|sub[ _-]?basement|sb\d*|-\d+)$", re.IGNORECASE)
+
+
+def basement_floors(building: Building) -> list[int]:
+    """Floor indices of the building's below-ground floors: a floor label such as "B", "B1",
+    "LL", "Basement" or "-1", or a negative floor index. Empty for a building without one."""
+    out: set[int] = set()
+    for r in building.rooms:
+        if r.floor < 0 or _BELOW_GROUND_LABEL.match(str(r.floor_label).strip()):
+            out.add(r.floor)
+    return sorted(out)
+
+
+def is_basement_clue(clue: object) -> bool:
+    """True for a ``floor`` vocabulary clue whose value is "basement" (or "cellar", "lower_level")."""
+    return (getattr(clue, "type", None) == "floor"
+            and _norm_token(getattr(clue, "value", "")) in BASEMENT_VALUES)
+
+
+def basement_match(building: Building, polarity: bool = True) -> EvidenceMatch:
+    """Match for "I'm in the basement": 1.0 on the below-ground floors, 0.0 elsewhere (the
+    other way round for a denial). Unmatched (1.0 everywhere) in a building without one."""
+    room_ids = [r.id for r in building.rooms]
+    floors = set(basement_floors(building))
+    if not floors:
+        return EvidenceMatch({rid: 1.0 for rid in room_ids}, unmatched=True)
+    on, off = (1.0, 0.0) if polarity else (0.0, 1.0)
+    m = {r.id: (on if r.floor in floors else off) for r in building.rooms}
+    return EvidenceMatch(m, False, [rid for rid in room_ids if m[rid] > VOCAB_MATCHED_ABOVE])
+
+
+# ---------------------------------------------------------------------------
 # Selector evaluation
 # ---------------------------------------------------------------------------
 
@@ -264,6 +303,8 @@ def evidence_match(
     if evidence.kind == "vocab":
         if evidence.clue is None:
             return EvidenceMatch({rid: 1.0 for rid in room_ids}, unmatched=True)
+        if is_basement_clue(evidence.clue):
+            return basement_match(building, bool(evidence.clue.polarity))
         m = clue_match(building, evidence.clue, vocab)
         return EvidenceMatch(m, False, [rid for rid in room_ids if m.get(rid, 1.0) > VOCAB_MATCHED_ABOVE])
 

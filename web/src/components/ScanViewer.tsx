@@ -4,9 +4,112 @@ import type { Building, BuildingMeta, Posterior } from "../types";
 import { pct, roomIndex } from "../lib";
 import { Panel } from "./Panel";
 
+/**
+ * Whether Matterport will show a tour. Checked from the browser, where the tour itself would
+ * load: Matterport's own viewer asks this address first and shows "model not available" when
+ * it answers 404 (a tour that was removed or made private). The answer does not need a key.
+ */
+const TOUR_INFO = "https://my.matterport.com/api/v1/player/models/";
+/** viewable: Matterport serves it. unavailable: Matterport says it has no such public tour. unknown: no answer. */
+type TourAnswer = "viewable" | "unavailable" | "unknown";
+export type TourState = TourAnswer | "checking";
+const tourAnswers = new Map<string, TourAnswer>();
+const tourChecks = new Map<string, Promise<TourAnswer>>();
+
+function checkTour(modelId: string): Promise<TourAnswer> {
+  let check = tourChecks.get(modelId);
+  if (!check) {
+    check = fetch(`${TOUR_INFO}${encodeURIComponent(modelId)}`, { credentials: "omit", signal: AbortSignal.timeout(8000) }).then(
+      (res): TourAnswer => (res.ok ? "viewable" : [401, 403, 404, 410].includes(res.status) ? "unavailable" : "unknown"),
+      (): TourAnswer => "unknown",
+    );
+    void check.then((answer) => {
+      // no answer (offline, a timeout, a server error) is not remembered: the next building load asks again
+      if (answer === "unknown") tourChecks.delete(modelId);
+      else tourAnswers.set(modelId, answer);
+    });
+    tourChecks.set(modelId, check);
+  }
+  return check;
+}
+
+/** What the Scan tab and the "Show 3D scan" actions may offer for a building. */
+export interface ScanAvailability {
+  /** the viewer has at least one tour it can show */
+  available: boolean;
+  /** why not, for the greyed-out tab's tooltip; null when available */
+  reason: string | null;
+  /** tours the viewer can show (Matterport serves them, or could not be asked) */
+  modelIds: Set<string>;
+  /** rooms that open one of those tours */
+  roomIds: Set<string>;
+  /** tours on file that Matterport does not serve */
+  unavailable: number;
+}
+
+/**
+ * Which of a building's Matterport tours the viewer can show. A tour counts when a room of
+ * this building opens it (the viewer reaches a tour through a room) and Matterport serves it.
+ * A generated building's unit-type tours count: the viewer says they show the unit type. While
+ * Matterport has not answered yet nothing is offered; if it cannot be asked at all (offline),
+ * the tours on file are offered as before.
+ */
+export function useScanAvailability(building: Building | null, meta: BuildingMeta | null): ScanAvailability {
+  const roomModel = useMemo(() => {
+    const out = new Map<string, string>();
+    if (!building || !meta || meta.building_id !== building.id) return out;
+    for (const r of building.rooms) {
+      const id = meta.rooms[r.id]?.model_id;
+      if (id) out.set(r.id, id);
+    }
+    return out;
+  }, [building, meta]);
+  const idsKey = useMemo(() => [...new Set(roomModel.values())].sort().join("|"), [roomModel]);
+  const [answers, setAnswers] = useState<Record<string, TourAnswer>>({});
+  useEffect(() => {
+    let cancelled = false;
+    for (const id of idsKey ? idsKey.split("|") : []) {
+      if (tourAnswers.has(id)) continue;
+      void checkTour(id).then((answer) => {
+        if (!cancelled) setAnswers((a) => ({ ...a, [id]: answer }));
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [idsKey]);
+
+  return useMemo(() => {
+    const ids = idsKey ? idsKey.split("|") : [];
+    const state = (id: string): TourState => tourAnswers.get(id) ?? answers[id] ?? "checking";
+    const modelIds = new Set(ids.filter((id) => state(id) === "viewable" || state(id) === "unknown"));
+    const roomIds = new Set([...roomModel].filter(([, id]) => modelIds.has(id)).map(([roomId]) => roomId));
+    const unavailable = ids.filter((id) => state(id) === "unavailable").length;
+    let reason: string | null = null;
+    if (modelIds.size === 0) {
+      if (ids.length === 0) {
+        reason =
+          meta && meta.matterport_models.length > 0
+            ? "The 3D scans on file are not tied to any room of this building"
+            : "No 3D scan is on file for this building";
+      } else if (ids.some((id) => state(id) === "checking")) {
+        reason = "Asking Matterport whether this building's 3D scan can be opened…";
+      } else {
+        reason =
+          ids.length === 1
+            ? "The 3D scan on file for this building cannot be opened: Matterport no longer serves it (removed or made private)"
+            : `None of the ${ids.length} 3D scans on file for this building can be opened: Matterport no longer serves them (removed or made private)`;
+      }
+    }
+    return { available: modelIds.size > 0, reason, modelIds, roomIds, unavailable };
+  }, [idsKey, roomModel, answers, meta]);
+}
+
 interface Props {
   building: Building;
   meta: BuildingMeta;
+  /** what `useScanAvailability` found: only these tours and rooms are offered */
+  scan: ScanAvailability;
   posterior: Posterior;
   /** Matterport SDK key from the backend config; without it the viewer still embeds but cannot be steered */
   sdkKey: string | null;
@@ -70,12 +173,9 @@ function loadSdk(sdkKey: string): Promise<MpSdkModule> {
  * Matterport's own viewer, embedded. It shows the scan of whichever scanned room is most
  * probable right now (or the room the dispatcher pinned) and flies to that room's sweep.
  */
-export function ScanViewer({ building, meta, posterior, sdkKey, pinnedRoomId, onPin }: Props) {
+export function ScanViewer({ building, meta, scan, posterior, sdkKey, pinnedRoomId, onPin }: Props) {
   const rooms = useMemo(() => roomIndex(building), [building]);
-  const scanned = useMemo(
-    () => building.rooms.filter((r) => meta.rooms[r.id]?.model_id),
-    [building, meta],
-  );
+  const scanned = useMemo(() => building.rooms.filter((r) => scan.roomIds.has(r.id)), [building, scan]);
 
   // Follow mode: the scanned room with the highest posterior probability.
   const topScanned = useMemo(() => {
@@ -88,7 +188,7 @@ export function ScanViewer({ building, meta, posterior, sdkKey, pinnedRoomId, on
     return best;
   }, [scanned, posterior]);
 
-  const pinned = pinnedRoomId && meta.rooms[pinnedRoomId]?.model_id ? pinnedRoomId : null;
+  const pinned = pinnedRoomId && scan.roomIds.has(pinnedRoomId) ? pinnedRoomId : null;
   const roomId = pinned ?? topScanned;
   const room = roomId ? rooms.get(roomId) : undefined;
   const rm = roomId ? meta.rooms[roomId] : undefined;
@@ -250,10 +350,12 @@ export function ScanViewer({ building, meta, posterior, sdkKey, pinnedRoomId, on
   const modeOff = (key: ViewMode) =>
     (key === "dollhouse" && model?.dollhouse_enabled === false) || (key === "floorplan" && model?.floorplan_enabled === false);
   // one option per scan: its largest room is the entry point
-  const options = meta.matterport_models.map((m) => ({
-    model: m,
-    roomId: scanned.find((r) => meta.rooms[r.id]?.model_id === m.model_id)?.id ?? null,
-  }));
+  const options = meta.matterport_models
+    .filter((m) => scan.modelIds.has(m.model_id))
+    .map((m) => ({
+      model: m,
+      roomId: scanned.find((r) => meta.rooms[r.id]?.model_id === m.model_id)?.id ?? null,
+    }));
 
   return (
     <Panel
@@ -355,6 +457,11 @@ export function ScanViewer({ building, meta, posterior, sdkKey, pinnedRoomId, on
           {unitTypeScans
             ? `${scanned.length} of ${building.rooms.length} units have a scan of their unit type`
             : `${scanned.length} of ${building.rooms.length} rooms are scanned`}
+          {scan.unavailable > 0
+            ? ` - ${scan.unavailable} more scan${scan.unavailable === 1 ? "" : "s"} on file cannot be opened (Matterport no longer serves ${
+                scan.unavailable === 1 ? "it" : "them"
+              })`
+            : ""}
           {steer === "ready"
             ? mode !== "inside"
               ? inMode
@@ -377,7 +484,9 @@ export function ScanViewer({ building, meta, posterior, sdkKey, pinnedRoomId, on
                 ? " - connecting to viewer…"
                 : steer === "unavailable"
                   ? " - viewer loaded, room steering unavailable"
-                  : ""}
+                  : !sdkKey
+                    ? " - no Matterport SDK key is configured: the viewer cannot be moved to the room from here"
+                    : ""}
         </span>
       </div>
     </Panel>
