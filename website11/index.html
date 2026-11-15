@@ -211,7 +211,9 @@
       <nav class="links">
         <a href="#how">How it works</a>
         <a href="#method">Methodology</a>
+        <a href="#results">Results</a>
         <a href="#tour">Console tour</a>
+        <a href="/benchmark">Benchmark</a>
       </nav>
     </div>
   </header>
@@ -256,9 +258,9 @@
             <p>Horizontal fix plus barometric height (the z-axis). Height is compared with each floor, so a 12.6 m reading narrows the call to floors 3 and 4.</p>
           </div>
           <div class="card">
-            <span class="tag">parser/ · core/clue_likelihood.py</span>
+            <span class="tag">parser/agent.py · parser/layout.py</span>
             <h3>What the caller says</h3>
-            <p>Room types, window views and routes ("came up the stairs and turned right"). Parsed by keyword rules offline or by Claude Haiku, then checked against a fixed vocabulary.</p>
+            <p>Claude Sonnet 5.5 reads each turn against a map of the building's layout and works out which rooms the words fit: "the last door past the stairs", "a big corner room", "up high, the name starts with a B". No fixed word list. Offline, keyword rules take over.</p>
           </div>
           <div class="card">
             <span class="tag">ingest/ · core/prior.py</span>
@@ -306,11 +308,33 @@
 
           <div class="m-block">
             <div>
+              <span class="tag">parser/agent.py · parser/layout.py · parser/prompts/reason_call.md</span>
+              <h3>Reading the caller</h3>
+              <p>Callers rarely give a room number. They say what they can see, hear or remember, in fragments spread across the call. The reader is <b>Claude Sonnet 5.5</b>, given a layout map of the building: every hallway with its rooms in door order and what sits at each end, and for each room its size and size rank on the floor, whether it is a corner, on an outside wall or interior, which door it is along which hallway, the walking distance to the stairs, the elevator and the nearest entrance, its windows, its neighbours, and its suite and tenant.</p>
+              <p>There is no fixed vocabulary. The model reasons from the layout to the rooms the words fit, and it keeps a running picture of the whole call: "up high", then "far from where I came in", then "the name starts with a B" narrows a 208-room building to one suite on the top floor. Besides the location it records facts for the crew (hazards, a door code, who will meet them) and suggests the kind of emergency.</p>
+              <p><b>Code checks every record.</b> The quoted words must appear in what the caller actually said, room ids must exist, and nothing is ever written as verified. If the model cannot be reached, the offline keyword rules read the turn instead.</p>
+            </div>
+            <div>
+              <table class="vals">
+                <thead><tr><th>What it records</th><th>How the console weighs it</th></tr></thead>
+                <tbody>
+                  <tr><td><b>Named place</b><br>"suite 304", "Dr. Patel's office"</td><td>Those rooms get 40–95% of the probability, depending on how sure and how exact the caller sounds; at most 70% when the words don't carry the room's number or name</td></tr>
+                  <tr><td><b>Clue</b><br>"end of the hall", "I can hear the elevator"</td><td>The rooms it fits gain; any other room loses at most a factor of 10</td></tr>
+                  <tr><td><b>Floor</b><br>"third floor", "top floor"</td><td>40–95% on that floor; at most 70% when worked out rather than said</td></tr>
+                  <tr><td><b>Conclusion</b><br>the model's overall judgment from the whole call</td><td>Its own probability, 20–90%, applied last; it never lowers a room and never rules one out</td></tr>
+                </tbody>
+              </table>
+              <p class="note">The dispatcher sees every record with the caller's words highlighted and can reject any of them.</p>
+            </div>
+          </div>
+
+          <div class="m-block">
+            <div>
               <span class="tag">core/fusion.py · core/clue_likelihood.py · core/phone_likelihood.py</span>
               <h3>Weighing the phone fix and what the caller says</h3>
               <p>Each piece of evidence scores every room between 0 and 1 for how well it fits, and the scores are multiplied onto the prior (Bayes' rule).</p>
               <p><b>Phone.</b> The barometric height is compared with each floor's height plus 1.2 m for a held phone, with a spread of 2.34 m (±3 m covers 80% of readings). The horizontal fix is scored by distance to the room.</p>
-              <p><b>Speech.</b> "I'm in a bathroom" scores restrooms 1 and other rooms 0. A stated floor scores 1 on that floor and 0.25 on the floors next to it, because callers miscount. A route ("up the stairs, then right") is scored by walking the route to each room and comparing the turns.</p>
+              <p><b>Speech.</b> A clue scores 1 on the rooms the reader says it fits and a small "could still be" value (5–50%) on the rest. A stated floor scores 1 on that floor and 0.25 on the floors next to it, because callers miscount. In the offline keyword reader, "I'm in a bathroom" scores restrooms 1, and a route ("up the stairs, then right") is scored by walking it to each room and comparing the turns.</p>
             </div>
             <div>
               <div class="formula">p(r | E) ∝ π(r) × L_phone(r) × ∏ F_i(r)
@@ -328,7 +352,7 @@ L_height(r) = exp(−½ ((z − floor_r − 1.2) / 2.34)²)</div>
               <p>Callers are frightened, and speech gets misheard, so no single statement is allowed to rule a room out.</p>
               <p><b>A floor under every factor.</b> A room that does not match a statement keeps 10% of its weight. One wrong clue can cost a room at most a factor of 10, and later evidence can win it back.</p>
               <p><b>Confidence as an exponent.</b> Each statement carries a confidence c between 0 and 1. A room type said outright counts in full; a smell counts half as much, so its worst case is a factor of 3.2, not 10.</p>
-              <p><b>Named rooms.</b> "I'm in 302" moves room 302 to at most 95%, whatever its prior was. Statements interpreted by the language model are capped at 0.85 confidence, and the dispatcher can reject any statement, which removes it entirely.</p>
+              <p><b>Named rooms.</b> "I'm in 302" moves room 302 to at most 95%, whatever its prior was; a hesitant "maybe 302, I'm not sure" gets about 50%. The reader's overall conclusion is applied last and capped at 90%. The dispatcher can reject any statement, which removes it entirely.</p>
             </div>
             <div>
               <div class="formula">F_i(r) = [0.1 + 0.9 × m_i(r)]^c_i</div>
@@ -343,7 +367,7 @@ L_height(r) = exp(−½ ((z − floor_r − 1.2) / 2.34)²)</div>
                   <tr><td>Smell</td><td class="num">0.5</td><td class="num">÷3.2</td></tr>
                 </tbody>
               </table>
-              <p class="note">Worst case: how much a room that does not match can lose from that one statement.</p>
+              <p class="note">Confidences of the offline keyword reader. The Claude reader sets its own confidence per clue, at most 0.9 (÷7.9). Worst case: how much a room that does not match can lose from that one statement.</p>
             </div>
           </div>
 
@@ -418,6 +442,35 @@ greedy index = p_find(k) / (travel + look time)</div>
       </div>
     </section>
 
+    <section id="results">
+      <div class="wrap">
+        <h2>How well it reads callers</h2>
+        <p class="section-lede">78 test calls written the way people talk: room numbers and tenant names, misheard words, corrections, yes and no answers, descriptions of the layout, and vague fragments that only place the caller when put together. Each call has a known true room. The reader is scored on where that room ends up in the console's ranking.</p>
+        <div class="method">
+          <div class="m-block">
+            <div>
+              <table class="vals">
+                <thead><tr><th>Test calls</th><th class="num">Keyword rules<br>top room</th><th class="num">Claude Sonnet 5.5<br>top room</th><th class="num">Claude<br>top 3</th></tr></thead>
+                <tbody>
+                  <tr><td>Numbers, names, corrections, yes/no (57)</td><td class="num">74%</td><td class="num">96%</td><td class="num">100%</td></tr>
+                  <tr><td>Layout descriptions: end of the hall, door order, corner, size (14)</td><td class="num">8%</td><td class="num">85%</td><td class="num">100%</td></tr>
+                  <tr><td>Vague fragments across turns (7)</td><td class="num">0%</td><td class="num">86%</td><td class="num">86%</td></tr>
+                  <tr><td><b>All 78 calls</b></td><td class="num">54%</td><td class="num">93%</td><td class="num">99%</td></tr>
+                </tbody>
+              </table>
+              <p class="note">Probability on the true room at the end of the call: 0.81 with Claude, 0.54 with keyword rules. Calls with no usable location stay empty in 7 of 8 cases for both. Model time per caller turn: 3.2 s on average, 5.0 s at the 90th percentile.</p>
+            </div>
+            <div>
+              <p><b>An example of fragments adding up.</b> A caller in the Julis Romo Rabinowitz Building (208 rooms, five levels) says, over three turns, <em>"I'm up high, like one of the upper floors"</em>, <em>"it was really far from where I came in"</em> and <em>"the name on the door starts with a B"</em>. None of those names a room. Together they leave the Bendheim Center for Finance on the top level, which the console ranks first.</p>
+              <p><b>Why this model.</b> Claude Opus 5.5 and Claude Sonnet 5.5 were run on the same calls. Sonnet placed the caller as often (both 90% top room in the first round), was more often in the top three, answered about a second faster per turn and cost half as much, so it is the default. Raising its reasoning effort to medium changed the results by one call and added more than a second at the slow end, so it runs at low effort.</p>
+              <p class="note">Where it still misses: one caller described the stairs they came in by, and the model read that as where they are. Results and the exact calls are in <code>eval/results/</code>; rerun with <code>uv run python -m eval.run_agent_eval --modes rules,llm</code>.</p>
+            </div>
+          </div>
+        </div>
+        <p style="margin-top:20px"><a class="btn btn-ghost" href="/benchmark">Simulation benchmark: how much sooner the search plan reaches the patient →</a></p>
+      </div>
+    </section>
+
     <section id="tour">
       <div class="wrap">
         <h2>Console tour</h2>
@@ -425,7 +478,7 @@ greedy index = p_find(k) / (travel + look time)</div>
         <ol class="steps">
           <li><b>Pick a building</b><span>Use the building menu in the header. The synthetic <em>100 Princeton Tech Center</em> needs no data or keys; real buildings appear once they're built.</span></li>
           <li><b>Step through the call</b><span>Press <kbd>Next Call Turn</kbd> to add evidence one turn at a time and watch the heatmap and search plan change.</span></li>
-          <li><b>Type what the caller said</b><span>Use the <kbd>Caller said</kbd> box for anything free-form. Switch the parser between <kbd>Rules</kbd> and <kbd>Claude Haiku</kbd>.</span></li>
+          <li><b>Type what the caller said</b><span>Use the <kbd>Caller said</kbd> box for anything free-form. With an Anthropic key configured, Claude reads each turn against the building's layout and every record shows the caller's words it rests on; without one, the offline keyword rules read it. Reject any record you don't trust.</span></li>
           <li><b>Mark a room searched</b><span><kbd>Mark Cleared</kbd> on a stop means the crew searched it and didn't find the caller. That room's probability drops and the plan is rebuilt from where the crew is standing.</span></li>
           <li><b>Look inside and around</b><span>On real buildings, <kbd>3D</kbd> opens the Matterport scan of a room and <kbd>Approach</kbd> shows aerial imagery with entrances and staging spots.</span></li>
         </ol>
@@ -435,7 +488,7 @@ greedy index = p_find(k) / (travel + look time)</div>
 
   <footer>
     <div class="wrap">
-      <span>ELC — Emergency Location Console. Built at HackPrinceton 2026.</span>
+      <span>ELC — Emergency Location Console. Built at HackPrinceton 2026. <a href="/benchmark">Simulation benchmark</a></span>
       <span>A decision aid for dispatchers. It ranks where to look; it does not replace a search.</span>
     </div>
   </footer>
