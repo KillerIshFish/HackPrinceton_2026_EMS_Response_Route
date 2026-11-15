@@ -22,10 +22,11 @@ from __future__ import annotations
 import math
 from typing import Optional
 
+from core.phone_likelihood import point_in_polygon
 from core.schema import Building, Room
 from ingest.georegister import latlng_to_local, local_to_latlng
 from ingest.mp3d.walls import solid_panels
-from ingest.unified.schema import BuildingModel
+from ingest.unified.schema import SELF_PLACED, BuildingModel
 from ingest.unified.surroundings import facing_for_windows, local_features
 
 ROOM_TYPE_BY_KIND = {"unit": "unit", "tenant": "suite", "floor": "suite", "corridor": "corridor", "stair": "stairwell",
@@ -51,8 +52,13 @@ def placement(bm: BuildingModel, context: Optional[dict] = None) -> dict:
     the real building's outline box; it is (1, 1) unless the sidecar supplies a fit. It only
     affects where things are drawn on the map: the model's own metres are not changed.
     """
+    shape = bm.stats.get("shape") or {}
+    if shape.get("kind") == "outline":
+        # generated inside the real outline: the model's frame is the outline's own, nothing to fit
+        return {"origin_latlng": list(shape["origin_latlng"]), "yaw_deg": float(bm.yaw_deg), "centre": (0.0, 0.0),
+                "scale": (1.0, 1.0)}
     x0, y0, x1, y1 = _bounds(bm)
-    scan = bm.archetype in ("whole_scan", "scan_clusters")
+    scan = bm.archetype in SELF_PLACED
     # the sidecar's anchor (the real building's centre, when OpenStreetMap has its outline)
     # beats the bare address point
     geo = (None if scan else (context or {}).get("anchor_latlng")) or (context or {}).get("geolocation") or bm.geolocation
@@ -97,6 +103,7 @@ def to_building(bm: BuildingModel, context: Optional[dict] = None) -> Building:
     place = placement(bm, context)
     street = ((context or {}).get("street") or {}).get("bearing_deg")
     multi_block = len({s.block for s in top if s.block}) > 1
+    drawn = (bm.stats.get("shape") or {}).get("kind") == "outline"
 
     # what stands around the building, in metres around the model's origin on the map; unused
     # when the layout's place on the map is invented (several buildings on a grid)
@@ -118,7 +125,12 @@ def to_building(bm: BuildingModel, context: Optional[dict] = None) -> Building:
             ex, ey = w.b[0] - w.a[0], w.b[1] - w.a[1]
             n = math.hypot(ex, ey) or 1.0
             nx, ny = -ey / n, ex / n
-            if (mx + nx - c[0]) ** 2 + (my + ny - c[1]) ** 2 < (mx - nx - c[0]) ** 2 + (my - ny - c[1]) ** 2:
+            if drawn:
+                # a unit cut from a real outline can wrap a corner, so its middle does not say which
+                # side of a wall is inside: step off the wall and see
+                if point_in_polygon(mx + nx * 0.2, my + ny * 0.2, by_id[rid].polygon):
+                    nx, ny = -nx, -ny
+            elif (mx + nx - c[0]) ** 2 + (my + ny - c[1]) ** 2 < (mx - nx - c[0]) ** 2 + (my - ny - c[1]) ** 2:
                 nx, ny = -nx, -ny
             bearing = _compass(nx, ny, place["yaw_deg"])
             window_dirs.setdefault(rid, []).append(bearing)
@@ -238,6 +250,7 @@ def viewer_payload(bm: BuildingModel, room_of: Optional[dict[str, str]] = None) 
             "g": [[o.t0, o.t1, o.z0, o.z1] for o in w.openings if o.kind == "window"],
         })
     x0, y0, x1, y1 = _bounds(bm)
+    level_of = {s.id: s.level for s in bm.spaces}  # an entrance is on the level of the room it opens into
     return {
         "schema": bm.schema, "id": bm.id, "name": bm.name, "tier": bm.tier, "archetype": bm.archetype,
         "notes": list(bm.notes),
@@ -247,7 +260,7 @@ def viewer_payload(bm: BuildingModel, room_of: Optional[dict[str, str]] = None) 
         "walls": walls,
         # o: unit vector pointing out of the building at the door (the viewer faces that side by default);
         # r: the app room the door opens into
-        "entrances": [{"id": e.id, "n": e.name, "xy": list(e.xy), "l": slab and min(slab), "o": list(e.outward),
+        "entrances": [{"id": e.id, "n": e.name, "xy": list(e.xy), "l": level_of.get(e.space_id, slab and min(slab)), "o": list(e.outward),
                        "r": app_room(e.space_id)} for e in bm.entrances],
         "bounds": {"x0": x0, "y0": y0, "x1": x1, "y1": y1,
                    "z1": max((lv.z0 + lv.height_m for lv in bm.levels), default=3.0)},

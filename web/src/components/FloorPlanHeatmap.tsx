@@ -65,6 +65,7 @@ const SOURCE_LABEL: Record<RoomMeta["source"], string> = {
   matterport: "Matterport scan",
   costar: "CoStar suite record - interior not scanned",
   inferred: "Inferred - not in any dataset",
+  floor_plan: "Traced from the building's published floor plan",
 };
 
 // The viewBox is the measured size of the drawing area, so one svg unit is one CSS pixel and the

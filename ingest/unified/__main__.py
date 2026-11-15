@@ -3,6 +3,7 @@
     uv run python -m ingest.unified "11900 W Olympic Blvd"      # address or building name
     uv run python -m ingest.unified 246948                       # property id
     uv run python -m ingest.unified mp:1FTnLNf1sBz               # one whole-building Matterport scan
+    uv run python -m ingest.unified plan:jrr-princeton           # a building traced from its floor plans
     uv run python -m ingest.unified --lookup "olympic"           # list matching properties only
     uv run python -m ingest.unified --index                      # (re)build the address index
 

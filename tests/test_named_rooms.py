@@ -121,12 +121,13 @@ def test_a_number_two_rooms_carry_selects_both(building):
 # ---------------------------------------------------------------------------
 
 
-def test_naming_floor_gives_the_named_rooms_the_stated_confidence():
-    # Jeffrey's rule: named rooms end at rho + (1 - rho) * q of the modelled rooms
-    for rho, q in ((0.85, 0.018), (0.85, 0.003), (0.6, 0.2)):
+def test_naming_floor_gives_the_named_rooms_the_stated_share():
+    # Jeffrey's rule: the named rooms end at exactly rho, whatever their prior share q
+    for rho, q in ((0.85, 0.018), (0.85, 0.003), (0.6, 0.2), (0.4, 0.25)):
         lam = naming_floor(rho, q)
-        assert q / (q + (1 - q) * lam) == pytest.approx(rho + (1 - rho) * q)
+        assert q / (q + (1 - q) * lam) == pytest.approx(rho)
     assert naming_floor(0.0, 0.3) == 1.0  # confidence 0: the statement is ignored
+    assert naming_floor(0.4, 0.6) == 1.0  # the rooms already hold more: a statement never lowers them
     assert naming_floor(1.0, 0.02) == naming_floor(RHO_MAX, 0.02) > 0.0  # never zero
 
 
@@ -138,7 +139,7 @@ def test_named_room_is_the_clear_first_choice_whatever_its_prior(building):
         assert names_rooms(ev)
         probs, nim = posterior_probs(building, clues=[ev])
         assert rank(probs, room_id) == 1
-        assert probs[room_id] / (1.0 - nim) == pytest.approx(0.85 + 0.15 * prior[room_id] / sum(prior.values()), abs=1e-6)
+        assert probs[room_id] == pytest.approx(0.85, abs=1e-9)  # the stated share, whatever the prior
         runner_up = max(p for rid, p in probs.items() if rid != room_id)
         assert probs[room_id] > 20 * runner_up
         assert min(probs.values()) > 0.0  # one statement never zeroes a room
@@ -154,12 +155,16 @@ def test_rejecting_a_naming_statement_undoes_it(building):
     assert superseded == before
 
 
-def test_two_conflicting_naming_statements_leave_both_rooms_up(building):
-    a = Evidence(id="a", kind="grounded", selector=RoomSelector(unit="302"), confidence=0.85)
-    b = Evidence(id="b", kind="grounded", selector=RoomSelector(unit="303"), confidence=0.85)
+def test_of_two_conflicting_naming_statements_the_later_one_is_used(building):
+    """Was: both rooms stay up. Now the later statement wins and the console shows a notice
+    (tests/test_statement_weight.py); the earlier one comes back when the later is rejected."""
+    a = Evidence(id="a", kind="grounded", selector=RoomSelector(unit="302"), confidence=0.85, turn=1)
+    b = Evidence(id="b", kind="grounded", selector=RoomSelector(unit="303"), confidence=0.85, turn=3)
     probs, _ = posterior_probs(building, clues=[a, b])
-    assert {rank(probs, "f3-office-302"), rank(probs, "f3-office-303")} == {1, 2}
-    assert probs["f3-office-302"] > 0.3 and probs["f3-office-303"] > 0.3
+    assert rank(probs, "f3-office-303") == 1 and probs["f3-office-303"] == pytest.approx(0.85)
+    assert probs["f3-office-302"] < 0.01 and probs["f3-office-302"] > 0.0
+    back, _ = posterior_probs(building, clues=[a, b.model_copy(update={"status": "rejected"})])
+    assert back["f3-office-302"] == pytest.approx(0.85)
 
 
 def test_later_evidence_can_overturn_a_wrong_naming_statement(building):
@@ -207,7 +212,7 @@ def test_unmatched_selector_moves_nothing(building):
 def test_fire_scenario_turn_resolves_to_office_302_in_rules_mode(building):
     it, probs = read(building, ("dispatcher", "Okay. Where are you right now? What floor?"), ("caller", FIRE_TURN))
     [unit] = grounded(it)
-    assert unit.source == "rules" and unit.span == "office, 302" and unit.confidence == 0.85
+    assert unit.source == "rules" and unit.span == "office, 302" and unit.confidence == 0.95  # plain and exact
     assert selector_hits(building, unit.selector) == [FIRE_TRUE_ROOM_ID]
     assert rank(probs, FIRE_TRUE_ROOM_ID) == 1 and probs[FIRE_TRUE_ROOM_ID] > 0.9
 
@@ -247,11 +252,11 @@ def test_a_number_that_is_not_the_callers_room_is_left_alone(building, text):
 
 def test_hedged_number_counts_for_less_but_only_in_its_own_clause(building):
     it, probs = read(building, ("caller", "I think I'm in 302"))
-    assert grounded(it)[0].confidence == pytest.approx(0.595)
-    assert rank(probs, FIRE_TRUE_ROOM_ID) == 1 and 0.5 < probs[FIRE_TRUE_ROOM_ID] < 0.7
+    assert grounded(it)[0].confidence == pytest.approx(0.675)  # one hedge: certainty 0.5, 0.40 + 0.55 * 0.5
+    assert rank(probs, FIRE_TRUE_ROOM_ID) == 1 and probs[FIRE_TRUE_ROOM_ID] == pytest.approx(0.675)
     it, _ = read(building, ("caller", "I'm in 302, I think the fire is in 301"))
     [unit] = grounded(it)
-    assert unit.confidence == 0.85 and selector_hits(building, unit.selector) == [FIRE_TRUE_ROOM_ID]
+    assert unit.confidence == 0.95 and selector_hits(building, unit.selector) == [FIRE_TRUE_ROOM_ID]
 
 
 def test_number_no_room_carries_is_unmatched_and_moves_nothing(building):
@@ -422,13 +427,13 @@ def test_room_list_is_in_the_cached_system_block(building):
 def test_stubbed_model_grounds_302_in_one_request(building):
     client = StubClient([reply(
         tool_use("record_location", selector={"room_ids": ["f3-office-302"]}, negate=False, confidence=0.9,
-                 span="it has 302 on it", rationale="Office 302"),
+                 certainty=1.0, specificity=1.0, span="it has 302 on it", rationale="Office 302"),
     )])
     out = agent.interpret(building, PLATE, 1, client=client)
     assert out.source == "agent" and len(client.calls) == 1  # no look-up, no closing request
     [ev] = out.evidence
     assert ev.source == "agent" and ev.matched_room_ids == [FIRE_TRUE_ROOM_ID]
-    assert ev.confidence == 0.85 and ev.default_match == 0.0  # named by its number: named-room cap
+    assert ev.confidence == 0.95 and ev.default_match == 0.0  # named by its number, rated plain and exact
     probs, _ = posterior_probs(building, clues=out.evidence)
     assert rank(probs, FIRE_TRUE_ROOM_ID) == 1 and probs[FIRE_TRUE_ROOM_ID] > 0.8
     request = client.calls[0]
@@ -582,7 +587,10 @@ def test_claude_haiku_mode_labels_what_it_read_as_llm(building, monkeypatch):
     assert out.source == "llm" and out.evidence[0].source == "llm" and out.facts[0].source == "llm"
     from core.fusion import evidence_confidence
 
-    assert evidence_confidence(out.evidence[0].model_copy(update={"confidence": 0.99})) == 0.85  # capped like "agent"
+    # no separate cap for the model's records any more: fusion caps every specific statement at RHO_MAX
+    loud = out.evidence[0].model_copy(update={"confidence": 0.99})
+    assert evidence_confidence(loud) == 0.99
+    assert posterior_probs(building, clues=[loud])[0][FIRE_TRUE_ROOM_ID] == pytest.approx(RHO_MAX)
     # the same reply read under the older mode name comes from the disk cache with the other label
     again = agent.interpret(building, PLATE, 1, client=StubClient(), source="agent")
     assert again.source == "agent" and again.evidence[0].source == "agent"

@@ -37,6 +37,7 @@ than its walls can front); the caller then falls back to the bar and says so.
 
 from __future__ import annotations
 
+import itertools
 import math
 import re
 from collections import defaultdict
@@ -104,17 +105,31 @@ def _lines(geom) -> list[LineString]:
     return []
 
 
+def _areal(geom):
+    """The polygons of an overlay result: stray points and lines (edges that only touch) are dropped."""
+    if geom.geom_type in ("Polygon", "MultiPolygon"):
+        return geom
+    polys = _all_polygons(geom)
+    return shapely.multipolygons(polys) if polys else Polygon()
+
+
+def _all_polygons(geom) -> list[Polygon]:
+    if geom.geom_type == "Polygon":
+        return [] if geom.is_empty else [geom]
+    return [p for g in getattr(geom, "geoms", ()) for p in _all_polygons(g)]
+
+
 def _diff(a, b):
-    return shapely.difference(a, b, grid_size=GRID)
+    return _areal(shapely.difference(a, b, grid_size=GRID))
 
 
 def _inter(a, b):
-    return shapely.intersection(a, b, grid_size=GRID)
+    return _areal(shapely.intersection(a, b, grid_size=GRID))
 
 
 def _union(geoms):
     geoms = [g for g in geoms if g is not None and not g.is_empty]
-    return shapely.union_all(geoms, grid_size=GRID) if geoms else Polygon()
+    return _areal(shapely.union_all(geoms, grid_size=GRID)) if geoms else Polygon()
 
 
 def _buf(poly):
@@ -152,6 +167,18 @@ def _ring(poly: Polygon) -> list[tuple[float, float]]:
     return ring
 
 
+def _no_holes(poly: Polygon) -> list[Polygon]:
+    """``poly`` cut into pieces that have no hole (a ring of leftover floor around a courtyard)."""
+    if not poly.interiors:
+        return [poly]
+    c = Polygon(poly.interiors[0]).representative_point()
+    out = []
+    for half in (box(-BIG, -BIG, c.x, BIG), box(c.x, -BIG, BIG, BIG)):
+        for part in _parts(_inter(poly, half)):
+            out.extend(_no_holes(part) if part.interiors and part.area < poly.area - 1e-6 else [part])
+    return out
+
+
 def _clean(poly) -> Optional[Polygon]:
     """A valid polygon on the grid: its largest part, light wells filled, near-straight vertices dropped."""
     parts = _parts(shapely.make_valid(poly))
@@ -164,8 +191,13 @@ def _clean(poly) -> Optional[Polygon]:
     return orient(max(parts, key=lambda p: p.area)) if parts else None
 
 
-def _largest_rect(mask: np.ndarray) -> Optional[tuple[int, int, int, int]]:
-    """Largest all-true rectangle of a boolean grid as ``(row0, col0, row1, col1)``, ends exclusive."""
+def _largest_rect(mask: np.ndarray, cap: int) -> Optional[tuple[int, int, int, int]]:
+    """Best all-true rectangle of a boolean grid as ``(row0, col0, row1, col1)``, ends exclusive.
+
+    Best is largest, except that the short side counts for little beyond ``cap`` cells: a wing
+    deeper than a corridor with rooms on both sides gains little from the extra depth, so a
+    longer rectangle is preferred to a fatter one.
+    """
     rows, cols = mask.shape
     heights = np.zeros(cols, dtype=int)
     best_area, best = 0, None
@@ -178,14 +210,17 @@ def _largest_rect(mask: np.ndarray) -> Optional[tuple[int, int, int, int]]:
             start = col
             while stack and stack[-1][1] >= cur:
                 s0, hh = stack.pop()
-                if hh * (col - s0) > best_area:
-                    best_area, best = hh * (col - s0), (row - hh + 1, s0, row + 1, col)
+                # (of two equally long, the deeper: its extra depth becomes a second corridor)
+                short = min(hh, col - s0)
+                score = max(hh, col - s0) * min(short, cap) * (1.0 + 0.15 * min(short / cap, 2.0))
+                if score > best_area:
+                    best_area, best = score, (row - hh + 1, s0, row + 1, col)
                 start = s0
             stack.append((start, cur))
     return best
 
 
-def _rects(P: Polygon, min_short: float, min_area: float) -> list[tuple[float, float, float, float]]:
+def _rects(P: Polygon, min_short: float, min_long: float, min_area: float, deep: float) -> list[tuple[float, float, float, float]]:
     """Rectangles inside ``P``, largest first, that do not overlap: the candidate wings."""
     x0, y0, x1, y1 = P.bounds
     c = min(max(max(x1 - x0, y1 - y0) / 160.0, 0.4), 1.5)
@@ -198,17 +233,44 @@ def _rects(P: Polygon, min_short: float, min_area: float) -> list[tuple[float, f
     gx, gy = np.meshgrid(xs, ys)
     mask = shapely.contains_xy(core, gx.ravel(), gy.ravel()).reshape(ny, nx)
     out: list[tuple[float, float, float, float]] = []
+    inside = prep(P.buffer(0.005))
+
+    def snug(rect: tuple) -> tuple:
+        """Grow a rectangle of whole cells out to the walls it stops just short of."""
+        rect = list(rect)
+        for a in out:  # a rectangle grown earlier may have taken the edge of this one: step back from it
+            if a[2] > rect[0] and a[0] < rect[2] and a[3] > rect[1] and a[1] < rect[3]:
+                side, to = min(((0, a[2]), (2, a[0]), (1, a[3]), (3, a[1])), key=lambda st: abs(st[1] - rect[st[0]]))
+                rect[side] = to
+
+        def free(t: list) -> bool:  # inside the outline and clear of the rectangles already taken
+            return inside.covers(box(*t)) and not any(
+                a[2] > t[0] + 1e-6 and a[0] < t[2] - 1e-6 and a[3] > t[1] + 1e-6 and a[1] < t[3] - 1e-6 for a in out)
+
+        for side, sgn in ((0, -1), (2, 1), (1, -1), (3, 1)):
+            lo, hi = 0.0, 1.6 * c
+            trial = list(rect)
+            trial[side] = rect[side] + sgn * hi
+            if not free(trial):
+                for _ in range(8):
+                    mid = (lo + hi) / 2
+                    trial[side] = rect[side] + sgn * mid
+                    lo, hi = (mid, hi) if free(trial) else (lo, mid)
+                trial[side] = rect[side] + sgn * lo
+            rect = trial
+        return tuple(round(v, 3) for v in rect)
+
     for _ in range(4 * MAX_WINGS):
-        rc = _largest_rect(mask)
+        rc = _largest_rect(mask, max(1, int(deep / c)))
         if rc is None:
             break
         r0, c0, r1, c1 = rc
-        rect = (x0 + c0 * c, y0 + r0 * c, x0 + c1 * c, y0 + r1 * c)
+        rect = snug((x0 + c0 * c, y0 + r0 * c, x0 + c1 * c, y0 + r1 * c))
         mask[r0:r1, c0:c1] = False
         w, h = rect[2] - rect[0], rect[3] - rect[1]
         if out and w * h < min_area:
             break
-        if out and min(w, h) < min_short:
+        if out and (min(w, h) < min_short or max(w, h) < min_long):
             continue
         out.append(rect)
         if len(out) >= MAX_WINGS:
@@ -240,14 +302,17 @@ def _seg_line(s: dict) -> LineString:
 
 
 def _skeleton(P: Polygon, depth: float, cw: float, archetype: str, busiest: int, front: tuple[float, float],
-              stories: int) -> dict:
+              stories: int, unit_w: float = 3.2) -> dict:
     """Wings, corridor centrelines, stairs at dead ends, corridor polygons and the cells
     (rectangles) the rest of the plate is first cut along. All in the plate's own frame."""
     h = cw / 2
     if archetype == "bays":  # one row of bays that each open to the front: no corridor at all
         return {"segs": [], "corridors": [], "corr_seg": [], "stairs": [], "cells": [], "wings": [],
                 "side_stairs": 0, "end_band": None}
-    rects = _rects(P, cw + 2 * MIN_DEPTH_M, max(40.0, 0.07 * P.area))
+    bar = 2 * depth + cw  # a corridor with a row of rooms either side
+    # a further wing must be long enough to be worth a corridor of its own; anything less is a
+    # bump on its neighbour, whose rooms simply run deeper there
+    rects = _rects(P, cw + MIN_DEPTH_M, max(15.0, 0.8 * bar), max(60.0, 0.08 * P.area), 1.3 * bar)
     if not rects or min(rects[0][2] - rects[0][0], rects[0][3] - rects[0][1]) < cw + MIN_DEPTH_M:
         raise ShapeError("is too narrow to hold a corridor and a row of rooms")
     cover = P.buffer(0.01)
@@ -255,28 +320,36 @@ def _skeleton(P: Polygon, depth: float, cw: float, archetype: str, busiest: int,
     wings: list[dict] = []
     end_band = None
 
-    def try_wing(i: int, rect, a: int) -> Optional[dict]:
+    def plan_wing(i: int, rect, a: int) -> Optional[dict]:
+        """A wing along axis ``a`` of ``rect`` and how it joins the corridors already there; nothing is changed."""
         U0, U1 = (rect[0], rect[2]) if a == 0 else (rect[1], rect[3])
         V0, V1 = (rect[1], rect[3]) if a == 0 else (rect[0], rect[2])
-        L, S = U1 - U0, V1 - V0
+        S = V1 - V0
         if S < cw + MIN_DEPTH_M:
             return None
         if S >= cw + 2 * MIN_DEPTH_M:
-            k = max(1, round(S / (1.3 * (2 * depth + cw))))
-            k = min(k, max(1, busiest // 6))
-            while k > 1 and S / k < cw + 2 * MIN_DEPTH_M:
+            # corridors side by side: as many as the wing's depth suggests, and enough of them
+            # that the busiest floor's units each get a sensible width of corridor wall
+            here = busiest * (U1 - U0) * S / P.area  # the wing's share of the busiest floor's units
+            k = max(1, round(S / (1.3 * (2 * depth + cw))), math.ceil(here * unit_w / (2.0 * (U1 - U0)) - 0.25))
+            k = min(k, max(1, int(here) // 6))
+            while k > 1 and S / k < cw + 2 * 3.5:
                 k -= 1
             vs = [V0 + S * (j + 0.5) / k for j in range(k)]
+            wall = 0
         else:  # too thin for rooms on both sides: the corridor runs along the side away from the front
-            vs = [V1 - h] if front[1 - a] <= 0 else [V0 + h]
-        new = [{"a": a, "v": v, "u0": U0, "u1": U1, "wing": i, "role": "spine", "joined": set(), "open": set()}
-               for v in vs]
+            wall = 1 if front[1 - a] <= 0 else -1
+            vs = [V1 - h] if wall > 0 else [V0 + h]
+        new = [{"a": a, "v": v, "u0": U0, "u1": U1, "wing": i, "role": "spine", "joined": set(), "open": set(),
+                "wall": wall} for v in vs]
         extra: list[dict] = []
+        grow: list[tuple] = []
+        joins = 2
         if segs:
             net = shapely.union_all([_seg_line(s) for s in segs])
-            if not any(_seg_line(s).intersects(net) for s in new):
-                best = None
-                for s in new:  # run a corridor on along its own line until it meets the others
+            joins = 2 if any(_seg_line(s).intersects(net) for s in new) else 0
+            if not joins:
+                for s in new:  # run each corridor on along its own line until it meets the others
                     for sgn in (-1, 1):
                         ue = U1 if sgn > 0 else U0
                         wall = _reach(P, a, s["v"], ue, sgn)
@@ -287,79 +360,128 @@ def _skeleton(P: Polygon, depth: float, cw: float, archetype: str, busiest: int,
                         if hit.is_empty:
                             continue
                         d = hit.distance(SPoint(start))
-                        if d <= MAX_LINK_M and (best is None or d < best[0]):
-                            best = (d, s, sgn)
-                if best is not None:
-                    d, s, sgn = best
-                    s["u1" if sgn > 0 else "u0"] = (U1 + d) if sgn > 0 else (U0 - d)
-                    s["joined"].add(sgn)
-                else:  # a wing lying beside or behind another: a short cross corridor joins the two
-                    jog = None
-                    for s in (new[0], new[-1]):
-                        for sgn in (-1, 1):
-                            ue = (U1 - h - 0.05) if sgn > 0 else (U0 + h + 0.05)
-                            for e in segs:
-                                dv = abs(e["v"] - s["v"])
-                                if e["a"] != a or e["role"] != "spine" or dv < 1e-6 or dv > MAX_LINK_M:
-                                    continue
-                                if not cover.covers(LineString([_pt(a, ue, s["v"]), _pt(a, ue, e["v"])])):
-                                    continue
-                                grow = None
-                                if ue < e["u0"] - 1e-6:
-                                    grow = ("u0", LineString([_pt(a, ue, e["v"]), _pt(a, e["u0"], e["v"])]))
-                                elif ue > e["u1"] + 1e-6:
-                                    grow = ("u1", LineString([_pt(a, e["u1"], e["v"]), _pt(a, ue, e["v"])]))
-                                if grow is not None and not cover.covers(grow[1]):
-                                    continue
-                                if jog is None or dv < jog[0]:
-                                    jog = (dv, s, sgn, e, ue, grow)
-                    if jog is None:
-                        return None
-                    _, s, sgn, e, ue, grow = jog
-                    if grow is not None:
-                        e[grow[0]] = ue
-                        e["joined"].add(-1 if grow[0] == "u0" else 1)
+                        if d <= MAX_LINK_M:
+                            s["u1" if sgn > 0 else "u0"] = (U1 + d) if sgn > 0 else (U0 - d)
+                            s["joined"].add(sgn)
+                joins = max((len(s["joined"]) for s in new), default=0)
+            if not joins:  # a wing lying beside or behind another: a short cross corridor joins the two
+                jog = None
+                beside = False
+                for s in (new[0], new[-1]):
+                    for e in segs:  # lying against it: joined across the middle of the stretch they share
+                        dv = abs(e["v"] - s["v"])
+                        lo, hi = max(U0, e["u0"]), min(U1, e["u1"])
+                        if e["a"] != a or e["role"] != "spine" or dv < 1e-6 or dv > MAX_LINK_M:
+                            continue
+                        if hi - lo < 0.5 * min(U1 - U0, e["u1"] - e["u0"]):
+                            continue
+                        if not cover.covers(LineString([_pt(a, (lo + hi) / 2, s["v"]), _pt(a, (lo + hi) / 2, e["v"])])):
+                            continue  # open air between them: two arms, joined at an end below
+                        beside = True
+                        # a strip much thinner than a full wing is extra depth for its neighbour, not a wing
+                        if S >= 0.6 * bar and (jog is None or dv < jog[0]):
+                            jog = (dv, s, 0, e, (lo + hi) / 2, None)
+                for s in (new[0], new[-1]) if not beside else ():
+                    for sgn in (-1, 1):
+                        ue = (U1 - h - 0.05) if sgn > 0 else (U0 + h + 0.05)
+                        for e in segs:
+                            dv = abs(e["v"] - s["v"])
+                            if e["a"] != a or e["role"] != "spine" or dv < 1e-6 or dv > MAX_LINK_M:
+                                continue
+                            if not cover.covers(LineString([_pt(a, ue, s["v"]), _pt(a, ue, e["v"])])):
+                                continue
+                            g = None
+                            if ue < e["u0"] - 1e-6:
+                                g = ("u0", LineString([_pt(a, ue, e["v"]), _pt(a, e["u0"], e["v"])]))
+                            elif ue > e["u1"] + 1e-6:
+                                g = ("u1", LineString([_pt(a, e["u1"], e["v"]), _pt(a, ue, e["v"])]))
+                            if g is not None and not cover.covers(g[1]):
+                                continue
+                            if jog is None or dv < jog[0]:
+                                jog = (dv, s, sgn, e, ue, g)
+                if jog is None:
+                    return None
+                _, s, sgn, e, ue, g = jog
+                if g is not None:
+                    grow.append((e, g[0], ue))
+                if sgn:
                     s["u1" if sgn > 0 else "u0"] = ue
                     s["joined"].add(sgn)
-                    extra.append({"a": 1 - a, "v": ue, "u0": min(s["v"], e["v"]), "u1": max(s["v"], e["v"]),
-                                  "wing": i, "role": "link", "joined": {-1, 1}, "open": set()})
+                extra.append({"a": 1 - a, "v": ue, "u0": min(s["v"], e["v"]), "u1": max(s["v"], e["v"]),
+                              "wing": i, "role": "link", "joined": {-1, 1}, "open": set()})
         for s in new:
             for sgn, key, ue in ((-1, "u0", U0), (1, "u1", U1)):
                 if sgn not in s["joined"]:
                     s[key] = _reach(P, a, s["v"], ue, sgn)
-        if len(vs) > 1:
-            extra.append({"a": 1 - a, "v": (U0 + U1) / 2, "u0": vs[0], "u1": vs[-1], "wing": i, "role": "cross",
+        for lo, hi in zip(vs, vs[1:]):  # corridors side by side are joined across the middle of the wing
+            extra.append({"a": 1 - a, "v": (U0 + U1) / 2, "u0": lo, "u1": hi, "wing": i, "role": "cross",
                           "joined": {-1, 1}, "open": set()})
-        segs.extend(new + extra)
-        return {"rect": rect, "a": a, "U0": U0, "U1": U1, "V0": V0, "V1": V1, "vs": vs, "index": i}
+        return {"rect": rect, "a": a, "U0": U0, "U1": U1, "V0": V0, "V1": V1, "vs": vs, "index": i,
+                "segs": new + extra, "grow": grow, "joins": joins, "long": (U1 - U0) >= S}
 
-    for i, rect in enumerate(rects):
-        w, hgt = rect[2] - rect[0], rect[3] - rect[1]
-        axes = [0, 1] if w >= hgt else [1, 0]
-        if wings and min(w, hgt) / max(w, hgt) < 0.67:
-            axes = axes[:1]
-        for a in axes:
-            wing = try_wing(len(wings), rect, a)
-            if wing is not None:
-                wings.append(wing)
-                break
-        if not wings:
-            raise ShapeError("is too narrow to hold a corridor and a row of rooms")
-        if len(wings) == 1 and i == 0:
-            # the street lies off the end of the main wing: its corridor stops short of that end wall,
-            # leaving room there for the way in
-            w0 = wings[0]
-            f = front[w0["a"]]
-            L = w0["U1"] - w0["U0"]
-            if abs(f) >= 0.75 and L >= 14.0:
-                sgn = 1 if f > 0 else -1
-                E = min(max(0.8 * depth, 5.0), 0.3 * L)
-                stop = w0["U1"] - E if sgn > 0 else w0["U0"] + E
-                for s in segs:
-                    if s["role"] == "spine":
-                        s["u1" if sgn > 0 else "u0"] = stop
-                        s["open"].add(sgn)
-                end_band = {"sgn": sgn, "stop": stop}
+    todo = list(rects)
+    for attempt in (0, 1):  # wings that can only be reached by a jog wait until the others are in place
+        later = []
+        for rect in todo:
+            w, hgt = rect[2] - rect[0], rect[3] - rect[1]
+            axes = [0, 1] if w >= hgt else [1, 0]
+            if min(w, hgt) / max(w, hgt) < 0.67:
+                axes = axes[:1]
+            plans = [pl for pl in (plan_wing(len(wings), rect, a) for a in axes) if pl is not None]
+            if not plans:
+                if not wings:
+                    raise ShapeError("is too narrow to hold a corridor and a row of rooms")
+                continue
+            # a corridor that runs straight into the others at both ends beats one that needs a jog
+            wing = max(plans, key=lambda pl: (pl["joins"], pl["long"]))
+            if attempt == 0 and wings and not wing["joins"]:
+                later.append(rect)
+                continue
+            for e, key, ue in wing.pop("grow"):
+                e[key] = ue
+                e["joined"].add(-1 if key == "u0" else 1)
+            segs.extend(wing.pop("segs"))
+            wings.append(wing)
+            if len(wings) == 1:
+                # the street lies off the end of the main wing: its corridor stops short of that end wall,
+                # leaving room there for the way in
+                w0 = wings[0]
+                f = front[w0["a"]]
+                L = w0["U1"] - w0["U0"]
+                if abs(f) >= 0.75 and L >= 14.0:
+                    sgn = 1 if f > 0 else -1
+                    E = min(max(0.8 * depth, 5.0), 0.3 * L)
+                    stop = w0["U1"] - E if sgn > 0 else w0["U0"] + E
+                    for s in segs:
+                        if s["role"] == "spine":
+                            s["u1" if sgn > 0 else "u0"] = stop
+                            s["open"].add(sgn)
+                    end_band = {"sgn": sgn, "stop": stop}
+        todo = later
+
+    # a corridor that runs only a little way past its last junction stops at the junction: an L
+    # gets an L of corridor, a courtyard block a ring, with no stub into each corner
+    lines = [_seg_line(s) for s in segs]
+    for si, s in enumerate(segs):
+        if s["role"] != "spine":
+            continue
+        us = []
+        for j, ln in enumerate(lines):
+            if j == si:
+                continue
+            hit = lines[si].intersection(ln)
+            pts = [hit] if hit.geom_type == "Point" else [SPoint(c) for g in getattr(hit, "geoms", [hit]) if not g.is_empty
+                                                          for c in g.coords]
+            us.extend(pt.coords[0][s["a"]] for pt in pts if not pt.is_empty)
+        if not us:
+            continue
+        for sgn, key in ((-1, "u0"), (1, "u1")):
+            if sgn in s["joined"] or sgn in s["open"]:
+                continue
+            last = min(us) if sgn < 0 else max(us)
+            if 1e-6 < abs(s[key] - last) <= 1.2 * depth + cw and (s["u1"] - s["u0"]) - abs(s[key] - last) >= 3.0:
+                s[key] = last
+                s["joined"].add(sgn)
 
     # ---- stairs at dead ends --------------------------------------------------
     lines = [_seg_line(s) for s in segs]
@@ -414,9 +536,14 @@ def _skeleton(P: Polygon, depth: float, cw: float, archetype: str, busiest: int,
     for si, s in enumerate(segs):
         if s["u1"] - s["u0"] < 0.3:
             continue
-        ext = h if s["role"] != "spine" else 0.0
+        # an end that meets another corridor runs on by half a width, so the corner between them is filled
+        lo = s["u0"] - (h if -1 in s["joined"] else 0.0)
+        hi = s["u1"] + (h if 1 in s["joined"] else 0.0)
         mid = SPoint(_pt(s["a"], (s["u0"] + s["u1"]) / 2, s["v"]))
-        parts = _parts(_diff(_inter(_rect(s["a"], s["u0"] - ext, s["u1"] + ext, s["v"] - h, s["v"] + h), P), taken))
+        # a corridor against a wall takes the sliver between the wing's rectangle and that wall
+        wall = s.get("wall", 0)
+        parts = _parts(_diff(_inter(_rect(s["a"], lo, hi, s["v"] - h - (1.2 if wall < 0 else 0.0),
+                                          s["v"] + h + (1.2 if wall > 0 else 0.0)), P), taken))
         if not parts:
             continue
         main = min(parts, key=lambda p: (p.distance(mid), -p.area))
@@ -425,23 +552,25 @@ def _skeleton(P: Polygon, depth: float, cw: float, archetype: str, busiest: int,
         taken = _union([taken, main])
 
     # ---- cells: the bands either side of each corridor --------------------------
-    cells = []
+    # each cell comes with the rectangle it may grow into: on from the wing's rectangle to the wall behind it
+    cells: list[tuple] = []
     for w in wings:
         a, vs = w["a"], w["vs"]
         U0, U1 = w["U0"], w["U1"]
         if w["index"] == 0 and end_band is not None:
             if end_band["sgn"] > 0:
-                cells.append(_rect(a, end_band["stop"], U1, w["V0"], w["V1"]))
+                cells.append((_rect(a, end_band["stop"], U1, w["V0"], w["V1"]), _rect(a, end_band["stop"], BIG, w["V0"], w["V1"])))
                 U1 = end_band["stop"]
             else:
-                cells.append(_rect(a, U0, end_band["stop"], w["V0"], w["V1"]))
+                cells.append((_rect(a, U0, end_band["stop"], w["V0"], w["V1"]), _rect(a, -BIG, end_band["stop"], w["V0"], w["V1"])))
                 U0 = end_band["stop"]
-        edges = [(w["V0"], vs[0] - h)]
+        edges = [(w["V0"], vs[0] - h, (-BIG, vs[0] - h))]
         for j in range(len(vs) - 1):
             vm = (vs[j] + vs[j + 1]) / 2
-            edges += [(vs[j] + h, vm), (vm, vs[j + 1] - h)]
-        edges.append((vs[-1] + h, w["V1"]))
-        cells.extend(_rect(a, U0, U1, lo, hi) for lo, hi in edges if hi - lo > 0.3)
+            edges += [(vs[j] + h, vm, None), (vm, vs[j + 1] - h, None)]
+        edges.append((vs[-1] + h, w["V1"], (vs[-1] + h, BIG)))
+        cells.extend((_rect(a, U0, U1, lo, hi), _rect(a, U0, U1, *ext) if ext else None)
+                     for lo, hi, ext in edges if hi - lo > 0.3)
     side = 0
     if stories > 1:
         side = 2 if archetype == "central_core" else max(0, 2 - len(stairs))
@@ -458,13 +587,13 @@ class _Plate:
     """One building's plate in its own frame: corridors, vertical cores and the strips between."""
 
     def __init__(self, P: Polygon, depth: float, cw: float, archetype: str, has_core: bool, busiest: int,
-                 front: tuple[float, float], stories: int) -> None:
+                 front: tuple[float, float], stories: int, unit_w: float = 3.2) -> None:
         from ingest.unified.layout import STAIR_D, STAIR_W
 
         self.P, self.depth, self.cw, self.archetype, self.has_core, self.front = P, depth, cw, archetype, has_core, front
         self.shell = Polygon(P.exterior)
         self.dropped = 0.0
-        sk = _skeleton(P, depth, cw, archetype, busiest, front, stories)
+        sk = _skeleton(P, depth, cw, archetype, busiest, front, stories, unit_w)
         self.sk = sk
         self.corridors: list[Polygon] = list(sk["corridors"])
         self.stairs: list[Polygon] = list(sk["stairs"])
@@ -480,17 +609,32 @@ class _Plate:
             return
         blocked = _union(self.corridors + self.stairs)
         rest = _diff(P, blocked)
-        pieces = [p for cell in sk["cells"] for p in _parts(_inter(cell, rest))]
-        left = _parts(_diff(rest, _union(sk["cells"])))
-        regions, orphans = self._sort(pieces + left)
+        left = _diff(rest, _union([c for c, _ in sk["cells"]]))
+        pieces: list[Polygon] = []
+        for cell, grow in sk["cells"]:
+            mine = _parts(_inter(cell, rest))
+            for g in (_parts(_inter(grow, left)) if grow is not None and mine else []):
+                gb = _buf(g)  # the sliver or bump between this band and the wall behind it
+                j = max(range(len(mine)), key=lambda j: _contact(mine[j], gb))
+                merged = _union([mine[j], g]) if _contact(mine[j], gb) >= 0.3 else None
+                if merged is not None and merged.geom_type == "Polygon" and not merged.interiors:
+                    mine[j] = merged
+                    left = _diff(left, g)
+            pieces.extend(mine)
+        regions, orphans = self._sort(pieces)
+        # what the bands did not cover (corners, the floor past the end of a corridor) joins a band
+        # it touches; only a piece that touches no band becomes a strip of its own
+        orphans += [q for p in _parts(left) for q in _no_holes(p)]
         regions = self._absorb(regions, orphans, [])
         # stairs beside the corridor, where the dead ends do not give two
         if sk["side_stairs"]:
             regions = self._side_stairs(regions, sk["side_stairs"], STAIR_W, STAIR_D)
-        if stories > 1 and not self.stairs and not has_core:
+        if stories > 1 and not self.stairs:
             raise ShapeError("leaves no room for a stair")
         self.base = [self._describe(p) for p in regions]
         self.base = [d for d in self.base if d is not None]
+        if self.dropped > 0.02 * P.area:
+            raise ShapeError(f"leaves {self.dropped:.0f} m2 that no corridor reaches")
         with_entry = self._entry(regions)
         self.variants = {False: (self.base, None, None), True: with_entry}
 
@@ -519,7 +663,7 @@ class _Plate:
         regions, orphans = [], []
         for p in polys:
             f = self._front_of(p)
-            (regions if f is not None and f[1] >= MIN_FRONT_M else orphans).append(p)
+            (regions if f is not None and f[1] >= MIN_FRONT_M and p.area >= 2.0 else orphans).append(p)
         return regions, orphans
 
     def _absorb(self, regions: list[Polygon], orphans: list[Polygon], others: list[Polygon]) -> list[Polygon]:
@@ -527,10 +671,11 @@ class _Plate:
         circulation becomes a strip of its own when it is big enough, otherwise part of that
         circulation space (``others`` first: the lobby, then a corridor)."""
         orphans = sorted(orphans, key=lambda p: -p.area)
-        for _ in range(len(orphans) + 2):
+        for _ in range(len(orphans) + 8):
             if not orphans:
                 break
             pending = []
+            progress = False
             for o in orphans:
                 ob = _buf(o)
                 done = False
@@ -538,21 +683,40 @@ class _Plate:
                     if _contact(regions[i], ob) < 0.3:
                         break
                     merged = _union([regions[i], o])
-                    if merged.geom_type == "Polygon":
+                    if merged.geom_type == "Polygon" and not merged.interiors:
                         regions[i] = merged
-                        done = True
+                        done = progress = True
                         break
+                    if merged.geom_type == "Polygon" and merged.interiors:
+                        # joining would close a ring round a courtyard: cut the scrap beside the
+                        # courtyard and place its halves separately
+                        c = Polygon(merged.interiors[0]).representative_point()
+                        for cutter in ((box(-BIG, -BIG, c.x, BIG), box(c.x, -BIG, BIG, BIG)),
+                                       (box(-BIG, -BIG, BIG, c.y), box(-BIG, c.y, BIG, BIG))):
+                            halves = [q for half in cutter for q in _parts(_inter(o, half))]
+                            if len(halves) > 1:
+                                pending.extend(halves)
+                                done = progress = True
+                                break
+                        if done:
+                            break
                 if not done:
                     pending.append(o)
-            if len(pending) == len(orphans):
+            if not progress:
                 break
-            orphans = pending
+            orphans = sorted(pending, key=lambda p: -p.area)
         for o in orphans:
             ob = _buf(o)
             f = self._front_of(o)
-            if f is not None and f[1] >= MIN_FRONT_M and o.area >= 6.0:
+            if f is not None and f[1] >= MIN_FRONT_M and o.area >= 6.0 and o.area / f[1] >= 1.2:
                 regions.append(o)
                 continue
+            if regions:  # last resort: a strip that closes round a courtyard (drawn with a cut to the hole)
+                i = max(range(len(regions)), key=lambda i: _contact(regions[i], ob))
+                merged = _union([regions[i], o]) if _contact(regions[i], ob) >= 0.3 else None
+                if merged is not None and merged.geom_type == "Polygon":
+                    regions[i] = merged
+                    continue
             for group in (others, self.corridors, self.stairs):
                 if not group:
                     continue
@@ -573,16 +737,18 @@ class _Plate:
             return None
         ci = f[0]
         touch = poly.boundary.intersection(_buf(self.corridors[ci]))
-        pts = [p for ln in _lines(touch) for p in ln.coords]
-        if not pts:
+        runs = [(p, q) for ln in _lines(touch) for p, q in zip(ln.coords, ln.coords[1:]) if math.dist(p, q) > 0.05]
+        if not runs:
             return None
-        xs, ys = [p[0] for p in pts], [p[1] for p in pts]
-        axis = 0 if (max(xs) - min(xs)) >= (max(ys) - min(ys)) else 1
-        along = xs if axis == 0 else ys
-        across = sorted(ys if axis == 0 else xs)
-        vedge = across[len(across) // 2]
-        rep = poly.representative_point()
-        sign = 1 if (rep.y if axis == 0 else rep.x) >= vedge else -1
+        # the strip is cut across the direction in which most of its wall onto the corridor runs
+        span = [sum(abs(q[k] - p[k]) for p, q in runs) for k in (0, 1)]
+        axis = 0 if span[0] >= span[1] else 1
+        along_runs = [(p, q) for p, q in runs if abs(q[axis] - p[axis]) >= abs(q[1 - axis] - p[1 - axis])]
+        longest = max(along_runs, key=lambda pq: math.dist(*pq))
+        vedge = (longest[0][1 - axis] + longest[1][1 - axis]) / 2
+        along = [c[axis] for p, q in along_runs for c in (p, q) if abs((p[1 - axis] + q[1 - axis]) / 2 - vedge) < 0.3]
+        c = poly.centroid
+        sign = 1 if (c.y if axis == 0 else c.x) >= vedge else -1
         seg = self.sk["segs"][self.sk["corr_seg"][ci]]
         fa, fb = min(along), max(along)
         if seg["a"] == axis:
@@ -777,23 +943,39 @@ def _deal(units: list[dict], regions: list[dict], weight: Callable[[dict], float
     n, m = len(units), len(regions)
     if not n or not m:
         return {}
-    caps = [max(1, int((reg["fb"] - reg["fa"]) // UNIT_FRONT_M)) for reg in regions]
-    if sum(caps) < n:
+    for need in (UNIT_FRONT_M, 1.5, 1.2):  # narrower doors-and-walls before giving up on the outline
+        caps = [max(1, int((reg["fb"] - reg["fa"]) // need)) for reg in regions]
+        if sum(caps) >= n:
+            break
+    else:
         raise ShapeError(f"has corridor walls for {sum(caps)} units on a floor where the record lists {n}")
     areas = [reg["poly"].area for reg in regions]
     by_area = sorted(range(m), key=lambda i: (-areas[i], i))
     counts = [0] * m
     if n <= m:
-        for i in by_area[:n]:
-            counts[i] = 1
+        # fewer units than strips: each unit takes a whole strip. Which strips, keeping the units in
+        # order along the corridors: the choice that fills most of the plate among those that keep
+        # the units' proportions within a factor of two and a half (or, failing that, the choice
+        # that keeps them best); the strips left over stay undivided
+        tour = sorted(range(m), key=lambda i: ((regions[i]["t0"] + regions[i]["t1"]) / 2, i))
+        ws = [weight(u) for u in units]
+        options = []
+        for pick in itertools.islice(itertools.combinations(range(m), n), 20000):
+            scale = [areas[tour[j]] / ws[q] for q, j in enumerate(pick)]
+            options.append((max(scale) / min(scale), sum(areas[tour[j]] for j in pick), pick))
+        fair = [o for o in options if o[0] <= 2.5]
+        pick = max(fair, key=lambda o: (o[1], -o[0]))[2] if fair else min(options, key=lambda o: (o[0], -o[1]))[2]
+        for j in pick:
+            counts[tour[j]] = 1
     else:
+        # a strip too small for half a unit gets none and stays undivided
         quota = [n * a / sum(areas) for a in areas]
-        counts = [min(caps[i], max(1, int(quota[i]))) for i in range(m)]
+        counts = [min(caps[i], int(quota[i] + 0.5)) for i in range(m)]
         while sum(counts) < n:
             i = max((i for i in range(m) if counts[i] < caps[i]), key=lambda i: (quota[i] - counts[i], -i))
             counts[i] += 1
         while sum(counts) > n:
-            i = max((i for i in range(m) if counts[i] > 1), key=lambda i: (counts[i] - quota[i], -i))
+            i = max((i for i in range(m) if counts[i] > 0), key=lambda i: (counts[i] - quota[i], -i))
             counts[i] -= 1
 
     def deal(counts: list[int]) -> dict[int, list[dict]]:
@@ -812,7 +994,7 @@ def _deal(units: list[dict], regions: list[dict], weight: Callable[[dict], float
     if n > m:  # even out how much each strip stretches its units
         for _ in range(2 * m):
             scale = {i: areas[i] / sum(weight(u) for u in us) for i, us in got.items()}
-            tight = min((i for i in scale if counts[i] > 1), key=lambda i: scale[i], default=None)
+            tight = min((i for i in scale if counts[i] > 1 or quota[i] < 1.0), key=lambda i: scale[i], default=None)
             loose = max((i for i in scale if counts[i] < caps[i]), key=lambda i: scale[i], default=None)
             if tight is None or loose is None or tight == loose:
                 break
@@ -1024,7 +1206,9 @@ def build_outline_layout(facts: dict, roster: dict, site: dict, interior=None) -
         need = max((sum(weight(s) for s in v) for v in per_floor.values()), default=0.0)
         if need and P.area < MIN_AREA_SHARE * need:
             raise ShapeError(f"({P.area:.0f} m2) is far smaller than the units recorded on one floor ({need:.0f} m2)")
-        plate = _Plate(P, depth, cw, archetype, has_core, busiest, front, stories)
+        # the corridor wall a unit should get: a unit about one and a half times as deep as it is wide
+        unit_w = min(max(_min_w, math.sqrt(0.85 * P.area / busiest / 1.5)), 9.0) if busiest else _min_w
+        plate = _Plate(P, depth, cw, archetype, has_core, busiest, front, stories, unit_w)
         outline_area += P.area
         wing_count += max(1, len(plate.corridors))
         block_entrances: list[Entrance] = []
@@ -1311,6 +1495,24 @@ def build_outline_layout(facts: dict, roster: dict, site: dict, interior=None) -
             near = min(joined, key=lambda j: math.dist(centre[j], centre[pid]))
             link(near, pid, "walkway")
             joined.append(pid)
+
+    # every room must be reachable on foot from a way in; an outline that leaves one cut off is not used
+    top = {sp.id for sp in spaces if sp.parent is None}
+    nbrs: dict[str, set[str]] = defaultdict(set)
+    for ln in links:
+        nbrs[ln.a].add(ln.b)
+        nbrs[ln.b].add(ln.a)
+    seen = {e.space_id for e in entrances} or set(list(top)[:1])
+    queue = list(seen)
+    while queue:
+        for nb in nbrs[queue.pop()]:
+            if nb not in seen:
+                seen.add(nb)
+                queue.append(nb)
+    if top - seen:
+        raise ShapeError(f"leaves {len(top - seen)} rooms that cannot be reached")
+    if not entrances:
+        raise ShapeError("leaves no outer wall for a way in")
 
     if roster["stats"].get("floor_spread"):
         notes.append(f"{roster['stats']['floor_spread']} unit(s) have no floor in their number; "

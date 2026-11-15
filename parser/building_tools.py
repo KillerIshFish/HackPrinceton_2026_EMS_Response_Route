@@ -523,8 +523,9 @@ TOOLS: list[dict] = [
     _tool(
         "rate_statement",
         "Rate a location statement the fixed rules already read from the newest caller turn. The message lists "
-        "each with a label (s1, s2, ...). The rules matched the number or name; you say how sure the caller "
-        "sounded and how exact the words were. One call per label.",
+        "each with a label (s1, s2, ...). The rules matched the full number or name, so specificity is 1.0 "
+        "unless the caller's own words were approximate or garbled ('around 302', 'three oh something'); how "
+        "many rooms carry the name does not lower it. You say how sure the caller sounded. One call per label.",
         {
             "statement": {"type": "string", "description": "The label from the message, e.g. 's1'."},
             "certainty": _CERTAINTY,
