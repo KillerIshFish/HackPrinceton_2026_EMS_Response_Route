@@ -60,6 +60,7 @@ from typing import Any, Optional, Sequence
 
 import parser.extract as _extract
 from core.evidence import normalize_unit, room_labels
+from core.fusion import CONCLUSION_TAG, is_conclusion
 from core.schema import (
     INCIDENT_TYPES,
     AgentTraceEntry,
@@ -109,11 +110,12 @@ DESCRIBED_CONFIDENCE_CAP = 0.7
 CLUE_CONFIDENCE_CAP = 0.9
 CLUE_OTHERS_FIT_MIN = 0.05  # > 0 keeps a clue descriptive (core.fusion.names_rooms)
 CLUE_OTHERS_FIT_MAX = 0.5
-# A clue that rules the other rooms out (others_fit at most this) and leaves at most this many
-# rooms places the caller like a room worked out from a description: a stated share of at most
-# DESCRIBED_CONFIDENCE_CAP instead of a soft factor.
-PINPOINT_OTHERS_FIT = 0.1
-PINPOINT_MAX_ROOMS = 5
+# record_conclusion: the model's overall judgment of where the caller is, from everything said.
+# Its probability is the share the rooms get (core.fusion: never lowers rooms that already hold
+# more, never zeroes another room). Only the floor and the ceiling are fixed here.
+CONCLUSION_MIN_SHARE = 0.2
+CONCLUSION_SHARE_CAP = 0.9
+# CONCLUSION_TAG / is_conclusion live in core.fusion, which applies a conclusion last.
 RELATIVE_FLOORS = ("top", "ground", "basement")
 
 # Model settings (see the module docstring); the default model is the eval winner
@@ -222,7 +224,13 @@ def _evidence_summary(ev: Evidence, building: Optional[Building] = None) -> str:
     else:
         sel = ev.selector.model_dump(exclude_none=True) if ev.selector is not None else {}
         what = f"location {'NOT ' if ev.negate else ''}{json.dumps(sel, sort_keys=True)}"
-    return f'- {ev.id} [{ev.status}] {what} span "{ev.span}"'
+    if is_conclusion(ev):
+        kind = f"your conclusion, probability {ev.confidence:.2f}"
+    elif ev.kind == "grounded" and (ev.negate or ev.default_match > 0.0):
+        kind = f"clue, confidence {ev.confidence:.2f}"
+    else:
+        kind = f"statement, share {ev.confidence:.2f}"
+    return f'- {ev.id} [{ev.status}; {kind}] {what} span "{ev.span}"'
 
 
 def statement_labels(reading: Optional[DialogReading]) -> dict[str, int]:
@@ -510,7 +518,8 @@ def _loop(run: _Run, client: Any, idx: BuildingIndex, system: str, user: str, tu
                 record_no += 1
                 result = record_ack(idx, name, _clean_record_args(name, args)[0], record_no, turn_text, earlier_texts)
                 # Only a location that cannot be kept is worth a second request on a live call.
-                fixable = fixable or (name == "record_location" and ("warning" in result or "error" in result))
+                fixable = fixable or (name in ("record_location", "record_conclusion")
+                                      and ("warning" in result or "error" in result))
             else:
                 result = {"error": f"unknown tool '{name}'"}
                 needs_reply = True
@@ -717,6 +726,12 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
                    and ev.status == "active"}
     prior_rooms.pop((frozenset(), False), None)
     prior_rooms.pop((frozenset(), True), None)
+    # rooms of earlier statements that place the caller, other than earlier conclusions (which a
+    # new conclusion replaces): a conclusion repeating one of them adds nothing
+    prior_named_rooms = {(frozenset(select_rooms(idx, ev.selector)), False) for ev in prior_evidence
+                         if ev.kind == "grounded" and ev.selector is not None and ev.status == "active"
+                         and not ev.negate and ev.default_match <= 0.0 and not is_conclusion(ev)}
+    conclusion_kept = False
     observed = turn.at or datetime.now(timezone.utc)
     name_check = _NameCheck(idx)
     who = model_label(model)
@@ -803,6 +818,59 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
         def drop(reason: str) -> None:
             entry.kept = False
             entry.reason = "; ".join([reason] + notes)
+
+        if name == "record_conclusion":
+            # The model's overall judgment from the whole call: it may rest on words from any turn.
+            raw = args.get("spans")
+            raws = [raw] if isinstance(raw, str) else [str(x) for x in (raw or []) if x is not None]
+            if not raws and args.get("span"):
+                raws = [str(args["span"])]
+            spans = [s for s in (_verbatim(r, caller_texts) for r in raws) if s]
+            ids = list(dict.fromkeys(clue_room_ids(args)))
+            bad = [i for i in ids if i not in idx.rooms]
+            try:
+                share = float(args.get("probability"))
+            except (TypeError, ValueError):
+                share = None
+            if conclusion_kept:
+                drop("one conclusion per turn (the first is kept)")
+            elif not spans:
+                drop("none of its spans is verbatim in a caller turn")
+            elif bad:
+                drop(f"unknown room id(s) {bad}")
+            elif not ids:
+                drop("conclusion lists no room")
+            elif share is None:
+                drop("missing probability")
+            elif share < CONCLUSION_MIN_SHARE:
+                drop(f"probability {share:.2f} below {CONCLUSION_MIN_SHARE}")
+            elif (frozenset(ids), False) in seen_rooms or (frozenset(ids), False) in prior_named_rooms:
+                drop("the same rooms are already on the console as a statement")
+            else:
+                conclusion_kept = True
+                if share > CONCLUSION_SHARE_CAP:
+                    note(f"probability capped at {CONCLUSION_SHARE_CAP}")
+                share = min(share, CONCLUSION_SHARE_CAP)
+                if len(spans) < len(raws):
+                    note(f"{len(raws) - len(spans)} span(s) not verbatim in a caller turn left out")
+                in_turn = [s for s in spans if _verbatim(s, [turn.text])]
+                span = (in_turn or spans)[0]
+                seen_rooms.add((frozenset(ids), False))
+                what = str(args.get("summary", "")).strip()
+                why = str(args.get("reasoning", "")).strip()
+                quoted = " · ".join(f'"{s}"' for s in spans)
+                rationale = f"{CONCLUSION_TAG}: " + "; ".join(x for x in (what, why, f"from {quoted}") if x)
+                evidence.append(Evidence(
+                    id=evidence_id(index, len(evidence)), kind="grounded", selector=RoomSelector(room_ids=ids),
+                    default_match=0.0, confidence=round(share, 3), span=span, turn=index, source=source,  # type: ignore[arg-type]
+                    rationale=rationale[:400], matched_room_ids=ids,
+                ))
+                offsets.append(offset_of(span))
+                for ev in prior_evidence:  # a new conclusion replaces the earlier one
+                    if is_conclusion(ev) and ev.status == "active" and ev.id not in supersedes:
+                        supersedes.append(ev.id)
+                        note(f"replaces the earlier conclusion {ev.id}")
+            continue
 
         raw_span = str(args.get("span", ""))
         span = _verbatim(raw_span, [turn.text])
@@ -927,17 +995,9 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
                 drop("duplicate within this turn")
                 continue
             seen_rooms.add(rooms_key)
-            if not negate and others <= PINPOINT_OTHERS_FIT and len(ids) <= PINPOINT_MAX_ROOMS:
-                # The clue rules the other rooms out and leaves a handful: like a room worked out
-                # from a description, it places the caller (a stated share, capped at 0.7).
-                default_match = 0.0
-                if conf > DESCRIBED_CONFIDENCE_CAP:
-                    note(f"pinpointing clue: share capped at {DESCRIBED_CONFIDENCE_CAP}")
-                conf = min(conf, DESCRIBED_CONFIDENCE_CAP)
-            else:
-                if conf > CLUE_CONFIDENCE_CAP:
-                    note(f"confidence capped at {CLUE_CONFIDENCE_CAP}")
-                conf = min(conf, CLUE_CONFIDENCE_CAP)
+            if conf > CLUE_CONFIDENCE_CAP:
+                note(f"confidence capped at {CLUE_CONFIDENCE_CAP}")
+            conf = min(conf, CLUE_CONFIDENCE_CAP)
             what = str(args.get("clue", "")).strip()
             why = str(args.get("reasoning", "")).strip()
             rationale = (f"{what}: {why}" if what and why else what or why)[:400]

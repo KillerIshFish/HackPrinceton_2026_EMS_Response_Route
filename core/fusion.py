@@ -80,6 +80,8 @@ EPS = 0.1
 STATEMENTS_PATH = Path(__file__).resolve().parents[1] / "configs" / "statements.yaml"
 # A room counts as named by a statement when its match value is at least this.
 _NAMED_AT = 1.0 - 1e-9
+# Rationale prefix of the interpreter's overall conclusion (parser.agent record_conclusion).
+CONCLUSION_TAG = "Conclusion"
 # A floor is inside the phone's height fix when its likelihood is at least this share of the
 # best floor's: exp(-0.5 * 1.28^2), the 80 % bound the fix is quoted with (+/- 3 m).
 PHONE_BAND = math.exp(-0.5 * 1.28 ** 2)
@@ -190,6 +192,10 @@ class Statement(NamedTuple):
     * ``names``       True: a specific statement naming the rooms whose match is 1.0
     * ``turn``        transcript turn it came from (None: its position in the list counts)
     * ``key``         evidence id, for notices
+    * ``final``       True: the interpreter's overall conclusion (``is_conclusion``). It already
+                      weighs every other statement, so it is applied last, to the whole
+                      posterior: its rooms end at its share (raised to it, never lowered) and
+                      everything else keeps its proportions.
     """
 
     match: Mapping[str, float]
@@ -197,6 +203,7 @@ class Statement(NamedTuple):
     names: bool = False
     turn: Optional[int] = None
     key: str = ""
+    final: bool = False
 
 
 StatementTerm = Union[Statement, tuple[Mapping[str, float], float], tuple[Mapping[str, float], float, bool]]
@@ -341,6 +348,26 @@ def _normalised(scores: Mapping[str, float], nim: float, prior: Mapping[str, flo
     return {rid: s / total for rid, s in scores.items()}, nim / total
 
 
+def _apply_finals(probs: dict[str, float], nim: float, finals: Sequence[Statement], rho_max: float
+                  ) -> tuple[dict[str, float], float]:
+    """Apply the interpreter's overall conclusion(s) last (``Statement.final``), latest turn last.
+
+    The named rooms end at the conclusion's share rho when they hold less (never lowered);
+    every other room and the "not in model" bucket are scaled together, so the phone, the prior
+    and the other statements still order them. No room reaches zero (rho <= ``rho_max``).
+    """
+    for t in sorted(finals, key=lambda f: (f.turn if f.turn is not None else -1)):
+        rooms = {rid for rid in probs if t.match.get(rid, 0.0) >= _NAMED_AT}
+        c = sum(probs[r] for r in rooms)
+        rho = min(rho_max, max(0.0, t.confidence))
+        if not rooms or c <= 0.0 or c >= rho or c >= 1.0:
+            continue
+        k_in, k_out = rho / c, (1.0 - rho) / (1.0 - c)
+        probs = {rid: p * (k_in if rid in rooms else k_out) for rid, p in probs.items()}
+        nim *= k_out
+    return probs, nim
+
+
 def fuse_detail(
     prior: Mapping[str, float],
     p_nim_prior: float,
@@ -354,7 +381,9 @@ def fuse_detail(
     """``fuse`` with what it decided along the way (see ``Fused``)."""
     cfg = settings or statement_settings()
     rho_max = cfg.share_high
-    terms = [_as_statement(t) for t in clue_matches]
+    all_terms = [_as_statement(t) for t in clue_matches]
+    terms = [t for t in all_terms if not t.final]
+    finals = [t for t in all_terms if t.final]
     pri = {rid: float(p) for rid, p in prior.items()}
     nim0 = float(p_nim_prior)
     prior_rooms = sum(pri.values())
@@ -405,6 +434,7 @@ def fuse_detail(
             band = frozenset()  # the height fix does not tell the floors apart
     if not conflicts:
         probs, nim = posterior(kept, phone_lik)
+        probs, nim = _apply_finals(probs, nim, finals, rho_max)
         return Fused(probs, nim, set_aside, [], 0.0, band)
 
     # Reading 1, the caller is right: the height fix is left out (any horizontal fix stays).
@@ -424,6 +454,7 @@ def fuse_detail(
             k = min(k, lead / (lead + gap))
     probs = {rid: (1.0 - k) * caller[rid] + k * device[rid] for rid in pri}
     nim = (1.0 - k) * caller_nim + k * device_nim
+    probs, nim = _apply_finals(probs, nim, finals, rho_max)
     return Fused(probs, nim, set_aside, sorted(n.index for n in conflicts), k, band)
 
 
@@ -486,10 +517,16 @@ def names_rooms(evidence: Evidence, match: EvidenceMatch | None = None) -> bool:
     return not (match is not None and match.unmatched)
 
 
+def is_conclusion(evidence: Evidence) -> bool:
+    """True for the interpreter's overall conclusion (``parser.agent`` ``record_conclusion``)."""
+    return evidence.kind == "grounded" and (evidence.rationale or "").startswith(CONCLUSION_TAG + ":")
+
+
 def statement_term(evidence: Evidence, match: EvidenceMatch) -> Statement:
     """The ``fuse`` term for one Evidence item, given its ``evidence_match`` result."""
-    return Statement(match.match, evidence_confidence(evidence), names_rooms(evidence, match),
-                     int(evidence.turn), evidence.id)
+    final = is_conclusion(evidence) and names_rooms(evidence, match)
+    return Statement(match.match, evidence_confidence(evidence), names_rooms(evidence, match) and not final,
+                     int(evidence.turn), evidence.id, final)
 
 
 def statement_matches(

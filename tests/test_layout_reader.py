@@ -137,23 +137,70 @@ def test_record_clue_is_descriptive_grounded_evidence(building):
                                          (0.3, 0.3), (0.9, agent.CLUE_OTHERS_FIT_MAX), ("loose", 0.2)])
 def test_record_clue_others_fit_is_clamped(building, given, kept):
     call = [*CORNER[:1], CORNER[1].model_copy(update={"text": CORNER[1].text + f" ({given})"})]  # distinct cache key
-    many = [r.id for r in building.rooms if r.floor_label == "3" and r.room_type not in CIRCULATION][:8]
-    assert len(many) > agent.PINPOINT_MAX_ROOMS  # more rooms than a pinpointing clue may leave: stays descriptive
-    out, _ = read(building, call, tool_use("record_clue", **clue_args(others_fit=given, room_ids=many)))
+    out, _ = read(building, call, tool_use("record_clue", **clue_args(others_fit=given)))
     [ev] = out.evidence
     assert ev.default_match == pytest.approx(kept) and ev.default_match > 0.0 and not names_rooms(ev)
 
 
-def test_a_clue_that_rules_the_others_out_places_the_caller(building):
-    # others_fit <= 0.1 and at most five rooms: a room worked out from a description (share <= 0.7)
-    out, _ = read(building, CORNER, tool_use("record_clue", **clue_args(others_fit=0.05, confidence=0.85)))
+# ---------------------------------------------------------------------------
+# record_conclusion
+# ---------------------------------------------------------------------------
+
+FRAGMENTS = turns(("dispatcher", "Where are you?"),
+                  ("caller", "we're up high, I think the top floor"),
+                  ("dispatcher", "Do you know the office name?"),
+                  ("caller", "it starts with a B, it was a long walk from the door"))
+
+
+def conclusion_args(**over):
+    args = dict(room_ids=["f4-boardroom"], probability=0.75,
+                spans=["we're up high, I think the top floor", "it starts with a B"],
+                summary="the boardroom on the top floor", reasoning="top floor plus a name starting with B")
+    args.update(over)
+    return args
+
+
+def test_a_conclusion_rests_on_words_from_several_turns_and_places_the_caller(building):
+    out, _ = read(building, FRAGMENTS, tool_use("record_conclusion", **conclusion_args()))
     [ev] = out.evidence
-    assert ev.default_match == 0.0 and names_rooms(ev) and ev.matched_room_ids == CORNER_ROOMS
-    assert ev.confidence == agent.DESCRIBED_CONFIDENCE_CAP == 0.7 and "pinpointing clue" in out.trace[0].reason
-    # a loose clue over the same rooms stays a soft factor
-    call = [*CORNER[:1], CORNER[1].model_copy(update={"text": CORNER[1].text + " ok"})]
-    out, _ = read(building, call, tool_use("record_clue", **clue_args(others_fit=0.11)))
-    assert not names_rooms(out.evidence[0]) and out.evidence[0].default_match == pytest.approx(0.11)
+    assert ev.kind == "grounded" and ev.default_match == 0.0 and names_rooms(ev)
+    assert ev.confidence == pytest.approx(0.75) and ev.matched_room_ids == ["f4-boardroom"]
+    assert ev.span == "it starts with a B" and ev.turn == 3  # the newest turn's words are the span shown
+    assert agent.is_conclusion(ev) and "we're up high" in ev.rationale
+
+
+def test_conclusion_probability_is_capped_and_floored(building):
+    out, _ = read(building, FRAGMENTS, tool_use("record_conclusion", **conclusion_args(probability=1.0)))
+    assert out.evidence[0].confidence == agent.CONCLUSION_SHARE_CAP == 0.9
+    call = [*FRAGMENTS[:3], FRAGMENTS[3].model_copy(update={"text": FRAGMENTS[3].text + "."})]
+    out, _ = read(building, call, tool_use("record_conclusion", **conclusion_args(probability=0.1)))
+    assert out.evidence == [] and "below" in out.trace[0].reason
+
+
+def test_conclusion_needs_real_words_and_real_rooms(building):
+    out, _ = read(building, FRAGMENTS,
+                  tool_use("record_conclusion", **conclusion_args(spans=["I am in the boardroom"])),
+                  tool_use("record_conclusion", **conclusion_args(room_ids=["nowhere"])))
+    assert out.evidence == []
+    assert "verbatim" in out.trace[0].reason and "unknown room id" in out.trace[1].reason
+
+
+def test_one_conclusion_per_turn_and_a_new_one_replaces_the_old(building):
+    old = Evidence(id="t1-e1", kind="grounded", selector=RoomSelector(room_ids=["f4-break-room"]), default_match=0.0,
+                   confidence=0.5, span="up high", turn=1, source="agent",
+                   rationale=f"{agent.CONCLUSION_TAG}: break room")
+    out, _ = read(building, FRAGMENTS, tool_use("record_conclusion", **conclusion_args()),
+                  tool_use("record_conclusion", **conclusion_args(room_ids=["f4-break-room"])),
+                  prior_evidence=[old])
+    assert [t.kept for t in out.trace] == [True, False]
+    assert out.supersedes == ["t1-e1"]
+
+
+def test_a_conclusion_repeating_a_named_statement_is_dropped(building):
+    named = Evidence(id="t1-e0", kind="grounded", selector=RoomSelector(room_ids=["f4-boardroom"]), default_match=0.0,
+                     confidence=0.95, span="boardroom", turn=1, source="agent")
+    out, _ = read(building, FRAGMENTS, tool_use("record_conclusion", **conclusion_args()), prior_evidence=[named])
+    assert out.evidence == [] and "already on the console" in out.trace[0].reason
 
 
 def test_record_clue_denial_leaves_the_other_rooms_alone(building):
@@ -390,3 +437,18 @@ def test_layout_roster_lists_every_room_and_hallway(idx, building):
     assert "=== Floor 3:" in roster and "plan SW corner" in roster
     system = agent.build_system_prompt(idx)
     assert roster in system and "{{" not in system
+
+
+def test_a_conclusion_is_applied_last_and_ends_at_its_share():
+    from core.fusion import Statement, fuse
+
+    prior = {"a": 0.25, "b": 0.25, "c": 0.25, "d": 0.25}
+    clue = Statement({"a": 1.0, "b": 1.0, "c": 0.1, "d": 0.1}, 0.9)  # soft: a and b fit
+    conclusion = Statement({"a": 1.0, "b": 0.0, "c": 0.0, "d": 0.0}, 0.7, False, 2, "t2-e0", True)
+    probs, nim = fuse(prior, 0.0, None, [clue, conclusion])
+    assert probs["a"] == pytest.approx(0.7)  # the conclusion's share, not compounded with the clue
+    assert probs["b"] > probs["c"] > 0.0  # the rest keeps the clue's ordering; nothing is zeroed
+    # a conclusion never lowers rooms that already hold more
+    strong = Statement({"a": 1.0, "b": 0.0, "c": 0.0, "d": 0.0}, 0.95, True, 1, "t1-e0")
+    probs, _ = fuse(prior, 0.0, None, [strong, conclusion._replace(confidence=0.3)])
+    assert probs["a"] == pytest.approx(0.95)

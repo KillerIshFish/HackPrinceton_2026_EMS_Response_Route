@@ -623,6 +623,26 @@ TOOLS: list[dict] = [
         ["floor", "stated_by_caller", "polarity", "confidence", "certainty", "specificity", "span"],
     ),
     _tool(
+        "record_conclusion",
+        "Your overall judgment of where the caller is, putting together everything said in the call so far "
+        "with the layout: the rooms you believe they are in and the probability you put on those rooms "
+        "together. Use it whenever your combined reading of the call points somewhere more sharply than the "
+        "individual records do, including from vague or partial fragments said across several turns. "
+        "probability is your honest, calibrated belief (0.2 to 0.9): it becomes the share of the console's "
+        "probability on these rooms, and the console keeps the rest on the other rooms. spans quote the "
+        "caller's words, from any caller turn, that it rests on. A new conclusion replaces your earlier one.",
+        {
+            "room_ids": {"type": "array", "items": {"type": "string"},
+                         "description": "Room ids from the layout or a tool result."},
+            "probability": {"type": "number", "description": "0.2 to 0.9: your belief that the caller is in one of these rooms."},
+            "spans": {"type": "array", "items": {"type": "string"},
+                      "description": "The caller's exact words it rests on, each copied from a caller turn."},
+            "summary": {"type": "string", "description": "A few words, e.g. 'the finance suite on one of the top floors'."},
+            "reasoning": {"type": "string", "description": "Two or three sentences: how the fragments and the layout lead here."},
+        },
+        ["room_ids", "probability", "spans", "summary", "reasoning"],
+    ),
+    _tool(
         "record_fact",
         "Record something that matters to the response but is not the caller's location: hazard, access, "
         "patient, people, threat or resource. Write text as what the caller reported ('Caller reports ...'), "
@@ -653,7 +673,8 @@ TOOLS: list[dict] = [
 ]
 
 LOOKUP_TOOLS = ("find_rooms", "room_details", "rooms_near", "search_rooms", "floor_summary")
-RECORD_TOOLS = ("record_location", "record_clue", "record_floor", "record_fact", "suggest_incident_type", "supersede")
+RECORD_TOOLS = ("record_location", "record_clue", "record_floor", "record_conclusion", "record_fact",
+                "suggest_incident_type", "supersede")
 # Rates a statement the dialog rules read. The reasoning reader runs no word rules, so the tool
 # is no longer offered; the name is kept so an older cached run still validates.
 RATE_TOOLS = ("rate_statement",)
@@ -804,6 +825,24 @@ def record_ack(idx: BuildingIndex, name: str, args: dict, record_no: int, turn_t
     correct that record; otherwise one request is enough.
     """
     ack: dict[str, Any] = {"noted": f"r{record_no}", "note": "checked against the transcript and building after you finish"}
+    if name == "record_conclusion":
+        ids = clue_room_ids(args)
+        bad = [i for i in ids if i not in idx.rooms]
+        if bad:
+            ack["warning"] = f"unknown room ids {bad}: send the conclusion again with ids from the layout"
+        elif not ids:
+            ack["warning"] = "no room ids: this conclusion will be dropped"
+        elif turn_text is not None:
+            def flat(text: str) -> str:
+                return " ".join(text.split()).lower().replace("’", "'")
+
+            raw = args.get("spans")
+            spans = [raw] if isinstance(raw, str) else [str(s) for s in (raw or [])]
+            texts = [flat(t) for t in [turn_text, *earlier_texts]]
+            if not any(flat(s) and any(flat(s) in t for t in texts) for s in spans):
+                ack["warning"] = ("none of the spans is word for word in a caller turn: this conclusion will be "
+                                  "dropped. Send it again quoting the caller's exact words.")
+        return ack
     if turn_text is not None:
         def flat(text: str) -> str:
             return " ".join(text.split()).lower().replace("’", "'")

@@ -111,7 +111,8 @@ class RoomLayout:
     halls: list[HallSlot] = field(default_factory=list)
     stairs_m: Optional[float] = None
     elevator_m: Optional[float] = None
-    entrance_m: Optional[float] = None
+    entrance_m: Optional[float] = None  # walking metres from the nearest entrance, any floor (stairs counted)
+    entrance: str = ""  # that entrance's name
     next_to: list[str] = field(default_factory=list)
     across: list[str] = field(default_factory=list)
 
@@ -267,6 +268,16 @@ def build_layout(idx) -> BuildingLayout:
         if rid in idx.rooms:
             entrance_rooms[idx.rooms[rid].floor].append(rid)
 
+    # walking metres from the nearest entrance over the whole building (stairs, no elevators)
+    ent_names = {e.get("room_id"): (e.get("name") or "entrance") for e in b.entrances or [] if e.get("room_id") in graph}
+    from_ent: dict[str, float] = {}
+    via: dict[str, str] = {}
+    if ent_names:
+        dist_all, paths = nx.multi_source_dijkstra(graph, set(ent_names), weight="length_m")
+        for rid, d in dist_all.items():
+            from_ent[rid] = d
+            via[rid] = ent_names.get(paths[rid][0], "entrance")
+
     layouts: dict[str, RoomLayout] = {}
     halls: dict[str, HallLayout] = {}
     floors: list[FloorLayout] = []
@@ -282,7 +293,6 @@ def build_layout(idx) -> BuildingLayout:
         ents = sorted(set(entrance_rooms.get(floor, [])))
         d_stairs = _floor_distances(graph, floor, stairs)
         d_elev = _floor_distances(graph, floor, elevators)
-        d_ent = _floor_distances(graph, floor, ents)
 
         ranked = sorted((r for r in rooms if r.room_type not in CIRCULATION), key=lambda r: (-r.area_m2, r.id))
         rank_of = {r.id: i + 1 for i, r in enumerate(ranked)}
@@ -307,7 +317,8 @@ def build_layout(idx) -> BuildingLayout:
 
             lay.stairs_m = dist(d_stairs, stairs)
             lay.elevator_m = dist(d_elev, elevators)
-            lay.entrance_m = dist(d_ent, ents)
+            if r.id in from_ent:
+                lay.entrance_m, lay.entrance = round(from_ent[r.id]), via[r.id]
 
             def centre_m(o: str) -> float:
                 return round(_straight_m(r, by_id[o]), 3)
@@ -381,7 +392,7 @@ def room_layout_text(idx, layout: BuildingLayout, room: Room, *, compact: bool =
     if lay.elevator_m is not None and room.room_type != "elevator":
         dists.append(f"elevator {_metres(lay.elevator_m)}")
     if lay.entrance_m is not None:
-        dists.append(f"entrance {_metres(lay.entrance_m)}")
+        dists.append(f"nearest entrance {_metres(lay.entrance_m)} ({lay.entrance})")
     if dists:
         parts.append("walk to " + ", ".join(dists))
     facts: list[str] = []
