@@ -24,9 +24,9 @@
     "n": 32,
     "n_location": 27,
     "n_no_info": 5,
-    "top1": 0.8888888888888888,
-    "top3": 0.9259259259259259,
-    "p_true": 0.8208200648296815,
+    "top1": 0.9629629629629629,
+    "top3": 1.0,
+    "p_true": 0.8456250138844505,
     "no_info_empty": 1.0,
     "req_sent_per_call": 0.0,
     "req_produce_per_call": 1.1875,
@@ -35,10 +35,10 @@
     "tok_in_per_call": 0.0,
     "tok_out_per_call": 0.0,
     "secs_per_turn": {
-     "mean": 2.587105263157895,
-     "median": 2.317,
-     "p90": 3.327,
-     "max": 6.091,
+     "mean": 2.6430526315789473,
+     "median": 2.5885,
+     "p90": 3.463,
+     "max": 6.492,
      "n": 38
     },
     "fallback": 0
@@ -70,8 +70,8 @@
     "n_no_info": 2,
     "top1": 0.9565217391304348,
     "top3": 1.0,
-    "p_true": 0.8161592079249188,
-    "no_info_empty": 1.0,
+    "p_true": 0.8660189176217807,
+    "no_info_empty": 0.5,
     "req_sent_per_call": 0.0,
     "req_produce_per_call": 1.12,
     "req_per_turn": 1.0,
@@ -79,10 +79,10 @@
     "tok_in_per_call": 0.0,
     "tok_out_per_call": 0.0,
     "secs_per_turn": {
-     "mean": 2.4772142857142856,
-     "median": 2.3455000000000004,
-     "p90": 2.929,
-     "max": 4.678,
+     "mean": 2.4389642857142855,
+     "median": 2.2640000000000002,
+     "p90": 3.456,
+     "max": 4.223,
      "n": 28
     },
     "fallback": 0
@@ -114,20 +114,64 @@
     "n_no_info": 1,
     "top1": 0.8461538461538461,
     "top3": 1.0,
-    "p_true": 0.6514089688020085,
+    "p_true": 0.6854804069230506,
     "no_info_empty": 1.0,
-    "req_sent_per_call": 0.0,
+    "req_sent_per_call": 0.2857142857142857,
     "req_produce_per_call": 1.9285714285714286,
     "req_per_turn": 1.0,
     "one_request_turns": 1.0,
+    "tok_in_per_call": 10834.285714285714,
+    "tok_out_per_call": 176.28571428571428,
+    "secs_per_turn": {
+     "mean": 4.469444444444444,
+     "median": 4.333,
+     "p90": 6.351,
+     "max": 8.957,
+     "n": 27
+    },
+    "fallback": 0
+   }
+  ],
+  "fuzzy": [
+   {
+    "mode": "rules",
+    "n": 7,
+    "n_location": 7,
+    "n_no_info": 0,
+    "top1": 0.0,
+    "top3": 0.14285714285714285,
+    "p_true": 0.021822799464437968,
+    "no_info_empty": null,
+    "req_sent_per_call": 0.0,
+    "req_produce_per_call": 0.0,
+    "req_per_turn": null,
+    "one_request_turns": null,
     "tok_in_per_call": 0.0,
     "tok_out_per_call": 0.0,
+    "secs_per_turn": null,
+    "fallback": 0
+   },
+   {
+    "mode": "llm",
+    "n": 7,
+    "n_location": 7,
+    "n_no_info": 0,
+    "top1": 0.8571428571428571,
+    "top3": 0.8571428571428571,
+    "p_true": 0.7182398882926844,
+    "no_info_empty": null,
+    "req_sent_per_call": 0.5714285714285714,
+    "req_produce_per_call": 4.0,
+    "req_per_turn": 1.0,
+    "one_request_turns": 1.0,
+    "tok_in_per_call": 25557.85714285714,
+    "tok_out_per_call": 355.42857142857144,
     "secs_per_turn": {
-     "mean": 3.7684814814814813,
-     "median": 3.157,
-     "p90": 5.712,
-     "max": 9.103,
-     "n": 27
+     "mean": 3.5693214285714285,
+     "median": 3.3419999999999996,
+     "p90": 4.871,
+     "max": 7.042,
+     "n": 28
     },
     "fallback": 0
    }
@@ -135,12 +179,12 @@
   "all": [
    {
     "mode": "rules",
-    "n": 71,
-    "n_location": 63,
+    "n": 78,
+    "n_location": 70,
     "n_no_info": 8,
-    "top1": 0.6031746031746031,
-    "top3": 0.7936507936507936,
-    "p_true": 0.5942496496982587,
+    "top1": 0.5428571428571428,
+    "top3": 0.7285714285714285,
+    "p_true": 0.5370069646748766,
     "no_info_empty": 0.875,
     "req_sent_per_call": 0.0,
     "req_produce_per_call": 0.0,
@@ -153,25 +197,25 @@
    },
    {
     "mode": "llm",
-    "n": 71,
-    "n_location": 63,
+    "n": 78,
+    "n_location": 70,
     "n_no_info": 8,
-    "top1": 0.9047619047619048,
-    "top3": 0.9682539682539683,
-    "p_true": 0.7841606369381054,
-    "no_info_empty": 1.0,
-    "req_sent_per_call": 0.0,
-    "req_produce_per_call": 1.3098591549295775,
+    "top1": 0.9285714285714286,
+    "top3": 0.9857142857142858,
+    "p_true": 0.8098462141175653,
+    "no_info_empty": 0.875,
+    "req_sent_per_call": 0.10256410256410256,
+    "req_produce_per_call": 1.5512820512820513,
     "req_per_turn": 1.0,
     "one_request_turns": 1.0,
-    "tok_in_per_call": 0.0,
-    "tok_out_per_call": 0.0,
+    "tok_in_per_call": 4238.2692307692305,
+    "tok_out_per_call": 63.53846153846154,
     "secs_per_turn": {
-     "mean": 2.897,
-     "median": 2.628,
-     "p90": 4.678,
-     "max": 9.103,
-     "n": 93
+     "mean": 3.217710743801653,
+     "median": 2.958,
+     "p90": 5.032,
+     "max": 8.957,
+     "n": 121
     },
     "fallback": 0
    }
@@ -231,7 +275,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.289
+    2.958
    ],
    "turn_requests": [
     1
@@ -311,7 +355,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.859
+    2.998
    ],
    "turn_requests": [
     1
@@ -381,16 +425,16 @@
    "no_info": false,
    "scenario": false,
    "status": "ok",
-   "rank": 2,
-   "p_true": 0.3164015450381549,
+   "rank": 1,
+   "p_true": 0.34251764576833305,
    "n_rooms": 100,
-   "active_location": 2,
+   "active_location": 3,
    "facts": 0,
    "suggested_type": null,
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    3.296
+    5.249
    ],
    "turn_requests": [
     1
@@ -406,13 +450,14 @@
    ],
    "evidence": [
     "floor=2@0.95[llm]",
-    "room_ids=['f2-open-office-n2', 'f2-open-office-s1', 'f2-open-office-s2'] -> Open Office 2 North-Centre, Open Office 2 South-Centre, Open Office 2 South-East@0.70[llm]"
+    "room_ids=['f2-open-office-n2', 'f2-open-office-s2', 'f2-open-office-s1'] -> Open Office 2 North-Centre, Open Office 2 South-Centre, Open Office 2 South-East@0.70[llm]",
+    "room_ids=['f2-open-office-n2', 'f2-open-office-s2'] -> Open Office 2 North-Centre, Open Office 2 South-East@0.65[llm]"
    ],
    "trajectory": [
     [
      1,
-     2,
-     0.3164
+     1,
+     0.3425
     ]
    ],
    "note": ""
@@ -477,8 +522,8 @@
    "requests_sent": 0,
    "requests_to_produce": 2,
    "turn_secs": [
-    2.619,
-    3.115
+    2.821,
+    3.525
    ],
    "turn_requests": [
     1,
@@ -557,7 +602,7 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.3218749941654401,
+   "p_true": 0.8,
    "n_rooms": 100,
    "active_location": 2,
    "facts": 0,
@@ -565,7 +610,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    6.091
+    3.463
    ],
    "turn_requests": [
     1
@@ -580,14 +625,14 @@
     "llm"
    ],
    "evidence": [
-    "room_ids=['f1-restroom-core', 'f2-restroom-core', 'f3-restroom-core', 'f4-restroom-core', 'f4-restroom-north'] -> Restroom (Core), Restroom (Core), Restroom (Core) +2@0.70[llm]",
-    "room_ids=['f1-office-101', 'f1-office-102', 'f1-conference-b', 'f1-open-office-n', 'f2-open-office-n1', 'f2-open-office-n2', 'f2-break-room', 'f2-conference-n', 'f3-suite-vacant', 'f3-open-office-n1', 'f3-break-room', 'f3-conference-n', 'f4-suite-vacant', 'f4-office-405', 'f4-boardroom', 'f4-break-room', 'f4-restroom-north', 'f4-office-406'] -> Office 101, Office 102, Training Room 1B +15@0.85[llm]"
+    "room_ids=['f4-restroom-north'] -> Restroom (North, window)@0.85[llm]",
+    "room_ids=['f4-restroom-north'] -> Restroom (North, window)@0.80[llm]"
    ],
    "trajectory": [
     [
      1,
      1,
-     0.3219
+     0.8
     ]
    ],
    "note": ""
@@ -645,17 +690,17 @@
    "no_info": false,
    "scenario": false,
    "status": "ok",
-   "rank": 5,
-   "p_true": 0.17555097723740326,
+   "rank": 3,
+   "p_true": 0.2391484801007265,
    "n_rooms": 100,
-   "active_location": 3,
+   "active_location": 4,
    "facts": 0,
    "suggested_type": null,
    "requests_sent": 0,
    "requests_to_produce": 2,
    "turn_secs": [
-    3.554,
-    2.167
+    3.1,
+    4.081
    ],
    "turn_requests": [
     1,
@@ -674,18 +719,19 @@
    "evidence": [
     "floor=3@0.95[llm]",
     "room_ids=['f3-office-301', 'f3-office-302', 'f3-office-303'] -> Office 301, Office 302, Office 303@0.60[llm]",
-    "room_ids=['f3-office-301', 'f3-office-302', 'f3-office-303', 'f3-open-office-s1', 'f3-open-office-s2'] -> Office 301, Office 302, Open Office 3 South-Centre +2@0.70[llm]"
+    "room_ids=['f3-office-301', 'f3-office-302', 'f3-office-303', 'f3-open-office-s1', 'f3-open-office-s2'] -> Office 301, Office 302, Open Office 3 South-Centre +2@0.85[llm]",
+    "room_ids=['f3-office-301', 'f3-office-302', 'f3-office-303'] -> Office 301, Office 302, Office 303@0.75[llm]"
    ],
    "trajectory": [
     [
      1,
      6,
-     0.1082
+     0.1139
     ],
     [
      3,
-     5,
-     0.1756
+     3,
+     0.2391
     ]
    ],
    "note": ""
@@ -740,7 +786,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.836
+    2.559
    ],
    "turn_requests": [
     1
@@ -755,8 +801,8 @@
     "llm"
    ],
    "evidence": [
-    "floor=4@0.95[llm]",
-    "room_ids=['f4-break-room'] -> Executive Lounge@0.70[llm]"
+    "room_ids=['f4-break-room'] -> Executive Lounge@0.70[llm]",
+    "floor=4@0.95[llm]"
    ],
    "trajectory": [
     [
@@ -813,7 +859,7 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.9672730993580351,
+   "p_true": 0.9588097969908158,
    "n_rooms": 100,
    "active_location": 2,
    "facts": 0,
@@ -821,7 +867,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.633
+    2.595
    ],
    "turn_requests": [
     1
@@ -836,14 +882,14 @@
     "llm"
    ],
    "evidence": [
-    "floor=3@0.95[llm]",
-    "room_ids=['f3-storage-supply'] -> Supply & Copy Room 3@0.90[llm]"
+    "room_ids=['f3-storage-supply'] -> Supply & Copy Room 3@0.87[llm]",
+    "floor=3@0.95[llm]"
    ],
    "trajectory": [
     [
      1,
      1,
-     0.9673
+     0.9588
     ]
    ],
    "note": ""
@@ -901,7 +947,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.173
+    1.945
    ],
    "turn_requests": [
     1
@@ -977,7 +1023,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    1.775
+    1.819
    ],
    "turn_requests": [
     1
@@ -1052,13 +1098,13 @@
    "p_true": 0.0022777426199187896,
    "n_rooms": 100,
    "active_location": 0,
-   "facts": 1,
+   "facts": 0,
    "suggested_type": null,
    "requests_sent": 0,
    "requests_to_produce": 2,
    "turn_secs": [
-    1.03,
-    1.807
+    1.263,
+    1.202
    ],
    "turn_requests": [
     1,
@@ -1142,7 +1188,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    3.191
+    3.122
    ],
    "turn_requests": [
     1
@@ -1221,7 +1267,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.345
+    2.374
    ],
    "turn_requests": [
     1
@@ -1291,7 +1337,7 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.84,
+   "p_true": 0.8949999999999999,
    "n_rooms": 148,
    "active_location": 1,
    "facts": 0,
@@ -1299,7 +1345,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.289
+    1.923
    ],
    "turn_requests": [
     1
@@ -1314,13 +1360,13 @@
     "llm"
    ],
    "evidence": [
-    "room_ids=['f4-s475'] -> Suite 475@0.84[llm]"
+    "room_ids=['f4-s475'] -> Suite 475@0.90[llm]"
    ],
    "trajectory": [
     [
      1,
      1,
-     0.84
+     0.895
     ]
    ],
    "note": ""
@@ -1377,7 +1423,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.872
+    3.052
    ],
    "turn_requests": [
     1
@@ -1461,8 +1507,8 @@
    "requests_sent": 0,
    "requests_to_produce": 2,
    "turn_secs": [
-    2.166,
-    2.207
+    2.526,
+    2.582
    ],
    "turn_requests": [
     1,
@@ -1548,7 +1594,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.626
+    2.994
    ],
    "turn_requests": [
     1
@@ -1563,8 +1609,8 @@
     "llm"
    ],
    "evidence": [
-    "NOT room_ids=['f5-s520-r1'] -> Suite 520 open area@0.85[llm]",
-    "room_ids=['f5-s530'] -> Suite 530@0.95[llm]"
+    "room_ids=['f5-s530'] -> Suite 530@0.95[llm]",
+    "NOT room_ids=['f5-s520-r1'] -> Suite 520 open area@0.85[llm]"
    ],
    "trajectory": [
     [
@@ -1620,7 +1666,7 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.5461044774028652,
+   "p_true": 0.5665941405159729,
    "n_rooms": 148,
    "active_location": 2,
    "facts": 0,
@@ -1628,7 +1674,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    3.327
+    3.091
    ],
    "turn_requests": [
     1
@@ -1643,14 +1689,14 @@
     "llm"
    ],
    "evidence": [
-    "room_ids=['f1-s101-r6', 'f1-s101-r10'] -> Suite 101 reception 1, Suite 101 reception 2@0.60[llm]",
-    "floor=1@0.95[llm]"
+    "floor=1@0.95[llm]",
+    "room_ids=['f1-s101-r6', 'f1-s101-r10'] -> Suite 101 reception 1, Suite 101 reception 2@0.70[llm]"
    ],
    "trajectory": [
     [
      1,
      1,
-     0.5461
+     0.5666
     ]
    ],
    "note": ""
@@ -1715,8 +1761,8 @@
    "requests_sent": 0,
    "requests_to_produce": 2,
    "turn_secs": [
-    1.916,
-    1.875
+    2.017,
+    1.214
    ],
    "turn_requests": [
     1,
@@ -1804,7 +1850,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.659
+    2.81
    ],
    "turn_requests": [
     1
@@ -1950,7 +1996,7 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.9533659040226707,
+   "p_true": 0.9581483082985766,
    "n_rooms": 38,
    "active_location": 2,
    "facts": 0,
@@ -1958,7 +2004,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.837
+    2.894
    ],
    "turn_requests": [
     1
@@ -1974,13 +2020,13 @@
    ],
    "evidence": [
     "room_ids=['f1-r20'] -> Kitchen@0.95[llm]",
-    "floor=1@0.70[llm]"
+    "floor=1@0.80[llm]"
    ],
    "trajectory": [
     [
      1,
      1,
-     0.9534
+     0.9581
     ]
    ],
    "note": ""
@@ -2037,7 +2083,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.669
+    2.764
    ],
    "turn_requests": [
     1
@@ -2109,8 +2155,8 @@
    "no_info": false,
    "scenario": false,
    "status": "ok",
-   "rank": 5,
-   "p_true": 0.05189557580192628,
+   "rank": 1,
+   "p_true": 0.11287677010030123,
    "n_rooms": 38,
    "active_location": 2,
    "facts": 0,
@@ -2118,7 +2164,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    5.833
+    6.492
    ],
    "turn_requests": [
     1
@@ -2133,14 +2179,14 @@
     "llm"
    ],
    "evidence": [
-    "room_ids=['f2-r27', 'f2-r34', 'f2-r25'] -> Office 3, Office 5, Office 8@0.60[llm]",
-    "room_ids=['f2-r24', 'f2-r26', 'f2-r33', 'f2-r35', 'f2-r27'] -> Office 2, Office 4, Office 5 +2@0.65[llm]"
+    "floor=2@0.80[llm]",
+    "room_ids=['f2-r26', 'f2-r33', 'f2-r27'] -> Office 4, Office 5, Office 7@0.55[llm]"
    ],
    "trajectory": [
     [
      1,
-     5,
-     0.0519
+     1,
+     0.1129
     ]
    ],
    "note": ""
@@ -2195,7 +2241,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    1.82
+    2.086
    ],
    "turn_requests": [
     1
@@ -2271,7 +2317,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    0.989
+    1.331
    ],
    "turn_requests": [
     1
@@ -2347,7 +2393,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    1.851
+    1.997
    ],
    "turn_requests": [
     1
@@ -2431,8 +2477,8 @@
    "requests_sent": 0,
    "requests_to_produce": 2,
    "turn_secs": [
-    1.792,
-    1.971
+    1.427,
+    2.193
    ],
    "turn_requests": [
     1,
@@ -2515,7 +2561,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    1.931
+    2.062
    ],
    "turn_requests": [
     1
@@ -2591,7 +2637,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.724
+    2.914
    ],
    "turn_requests": [
     1
@@ -2662,15 +2708,15 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.9704368453000942,
+   "p_true": 0.9395419010306281,
    "n_rooms": 99,
-   "active_location": 3,
+   "active_location": 2,
    "facts": 0,
    "suggested_type": null,
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    4.063
+    3.112
    ],
    "turn_requests": [
     1
@@ -2686,14 +2732,13 @@
    ],
    "evidence": [
     "room_ids=['t244889771'] -> 150 Garden Cafe@0.90[llm]",
-    "room_ids=['b1w1f1-lob', 'b1f1-p6', 't219898491', 't244889771'] -> Floor 1 (no unit data), Lobby, 125 Beverly Hills Fencers' Club +1@0.50[llm]",
-    "floor=1@0.70[llm]"
+    "room_ids=['t244889771', 'b1f1-p6', 't219898491', 'b1w1f1-lob'] -> Floor 1 (no unit data), Lobby, 125 Beverly Hills Fencers' Club +1@0.50[llm]"
    ],
    "trajectory": [
     [
      1,
      1,
-     0.9704
+     0.9395
     ]
    ],
    "note": ""
@@ -2750,7 +2795,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.134
+    1.902
    ],
    "turn_requests": [
     1
@@ -2828,7 +2873,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.242
+    1.956
    ],
    "turn_requests": [
     1
@@ -2908,7 +2953,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    3.451
+    3.299
    ],
    "turn_requests": [
     1
@@ -2987,7 +3032,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.676
+    2.725
    ],
    "turn_requests": [
     1
@@ -3063,11 +3108,11 @@
    "n_rooms": 100,
    "active_location": 1,
    "facts": 1,
-   "suggested_type": null,
+   "suggested_type": "other_medical",
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.725
+    2.304
    ],
    "turn_requests": [
     1
@@ -3146,7 +3191,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    1.765
+    1.862
    ],
    "turn_requests": [
     1
@@ -3224,7 +3269,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.675
+    2.639
    ],
    "turn_requests": [
     1
@@ -3296,7 +3341,7 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.8950000000000001,
+   "p_true": 0.95,
    "n_rooms": 100,
    "active_location": 1,
    "facts": 0,
@@ -3304,7 +3349,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    3.988
+    2.976
    ],
    "turn_requests": [
     1
@@ -3319,13 +3364,13 @@
     "llm"
    ],
    "evidence": [
-    "room_ids=['f3-storage-supply'] -> Supply & Copy Room 3@0.90[llm]"
+    "room_ids=['f3-storage-supply'] -> Supply & Copy Room 3@0.95[llm]"
    ],
    "trajectory": [
     [
      1,
      1,
-     0.895
+     0.95
     ]
    ],
    "note": ""
@@ -3383,7 +3428,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    1.937
+    1.93
    ],
    "turn_requests": [
     1
@@ -3453,15 +3498,15 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.2050264392713087,
+   "p_true": 0.85,
    "n_rooms": 100,
-   "active_location": 2,
+   "active_location": 3,
    "facts": 0,
    "suggested_type": null,
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.929
+    3.456
    ],
    "turn_requests": [
     1
@@ -3477,13 +3522,14 @@
    ],
    "evidence": [
     "floor=3@0.95[llm]",
-    "room_ids=['f3-conference-n'] -> Conference Room 3N@0.80[llm]"
+    "room_ids=['f3-conference-n'] -> Conference Room 3N@0.90[llm]",
+    "room_ids=['f3-conference-n'] -> Conference Room 3N@0.85[llm]"
    ],
    "trajectory": [
     [
      1,
      1,
-     0.205
+     0.85
     ]
    ],
    "note": ""
@@ -3541,7 +3587,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    1.932
+    2.01
    ],
    "turn_requests": [
     1
@@ -3621,7 +3667,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.886
+    2.838
    ],
    "turn_requests": [
     1
@@ -3707,8 +3753,8 @@
    "requests_sent": 0,
    "requests_to_produce": 2,
    "turn_secs": [
-    1.751,
-    2.275
+    2.331,
+    2.507
    ],
    "turn_requests": [
     1,
@@ -3800,8 +3846,8 @@
    "requests_sent": 0,
    "requests_to_produce": 2,
    "turn_secs": [
-    2.004,
-    1.861
+    1.831,
+    1.072
    ],
    "turn_requests": [
     1,
@@ -3884,7 +3930,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    1.554
+    1.745
    ],
    "turn_requests": [
     1
@@ -3961,7 +4007,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    1.948
+    1.952
    ],
    "turn_requests": [
     1
@@ -4031,15 +4077,15 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.97842215615778,
+   "p_true": 0.895,
    "n_rooms": 148,
-   "active_location": 2,
+   "active_location": 1,
    "facts": 0,
    "suggested_type": null,
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.852
+    1.966
    ],
    "turn_requests": [
     1
@@ -4054,14 +4100,13 @@
     "llm"
    ],
    "evidence": [
-    "tenant_contains=Zytrade -> Suite 860 open area, Suite 860 office 1, Suite 860 office 2 +3@0.95[llm]",
-    "room_ids=['f8-s860-r1'] -> Suite 860 open area@0.70[llm]"
+    "room_ids=['f8-s860-r1'] -> Suite 860 open area@0.90[llm]"
    ],
    "trajectory": [
     [
      1,
      1,
-     0.9784
+     0.895
     ]
    ],
    "note": ""
@@ -4108,7 +4153,7 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.25600615074057625,
+   "p_true": 0.7,
    "n_rooms": 148,
    "active_location": 2,
    "facts": 0,
@@ -4116,7 +4161,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    4.678
+    4.194
    ],
    "turn_requests": [
     1
@@ -4131,14 +4176,14 @@
     "llm"
    ],
    "evidence": [
-    "room_ids=['f8-s850-r1'] -> Suite 850 open area@0.75[llm]",
-    "floor=8@0.70[llm]"
+    "room_ids=['f8-s850-r1'] -> Suite 850 open area@0.80[llm]",
+    "room_ids=['f8-s850-r1'] -> Suite 850 open area@0.70[llm]"
    ],
    "trajectory": [
     [
      1,
      1,
-     0.256
+     0.7
     ]
    ],
    "note": ""
@@ -4186,16 +4231,16 @@
    "no_info": true,
    "scenario": false,
    "status": "ok",
-   "rank": 19,
-   "p_true": 0.022372174139884078,
+   "rank": 5,
+   "p_true": 0.053015033110692306,
    "n_rooms": 148,
-   "active_location": 0,
+   "active_location": 1,
    "facts": 0,
    "suggested_type": null,
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.152
+    3.67
    ],
    "turn_requests": [
     1
@@ -4209,12 +4254,14 @@
    "sources": [
     "llm"
    ],
-   "evidence": [],
+   "evidence": [
+    "floor=top@0.40[llm]"
+   ],
    "trajectory": [
     [
      1,
-     19,
-     0.0224
+     5,
+     0.053
     ]
    ],
    "note": ""
@@ -4279,8 +4326,8 @@
    "requests_sent": 0,
    "requests_to_produce": 2,
    "turn_secs": [
-    2.373,
-    1.882
+    2.299,
+    1.821
    ],
    "turn_requests": [
     1,
@@ -4367,7 +4414,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.318
+    2.223
    ],
    "turn_requests": [
     1
@@ -4446,7 +4493,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.628
+    2.018
    ],
    "turn_requests": [
     1
@@ -4524,7 +4571,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.09
+    1.916
    ],
    "turn_requests": [
     1
@@ -4603,7 +4650,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.374
+    2.233
    ],
    "turn_requests": [
     1
@@ -4681,7 +4728,7 @@
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.508
+    2.295
    ],
    "turn_requests": [
     1
@@ -4752,15 +4799,15 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.8950000000000001,
+   "p_true": 0.9812280691974935,
    "n_rooms": 99,
-   "active_location": 1,
+   "active_location": 2,
    "facts": 0,
    "suggested_type": null,
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.908
+    4.223
    ],
    "turn_requests": [
     1
@@ -4775,13 +4822,14 @@
     "llm"
    ],
    "evidence": [
-    "room_ids=['t258199551'] -> 405 Douglas Emmett, Inc.@0.90[llm]"
+    "room_ids=['t258199551'] -> 405 Douglas Emmett, Inc.@0.95[llm]",
+    "room_ids=['t258199551'] -> 405 Douglas Emmett, Inc.@0.70[llm]"
    ],
    "trajectory": [
     [
      1,
      1,
-     0.895
+     0.9812
     ]
    ],
    "note": ""
@@ -4837,16 +4885,16 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.1374197399941008,
+   "p_true": 0.75,
    "n_rooms": 100,
-   "active_location": 2,
+   "active_location": 3,
    "facts": 0,
    "suggested_type": null,
    "requests_sent": 0,
    "requests_to_produce": 2,
    "turn_secs": [
-    1.905,
-    2.996
+    1.828,
+    4.333
    ],
    "turn_requests": [
     1,
@@ -4864,7 +4912,8 @@
    ],
    "evidence": [
     "floor=3@0.95[llm]",
-    "room_ids=['f3-suite-vacant'] -> Suite 310 (vacant)@0.80[llm]"
+    "room_ids=['f3-suite-vacant'] -> Suite 310 (vacant)@0.80[llm]",
+    "room_ids=['f3-suite-vacant'] -> Suite 310 (vacant)@0.75[llm]"
    ],
    "trajectory": [
     [
@@ -4875,7 +4924,7 @@
     [
      3,
      1,
-     0.1374
+     0.75
     ]
    ],
    "note": ""
@@ -4931,8 +4980,8 @@
    "no_info": false,
    "scenario": false,
    "status": "ok",
-   "rank": 3,
-   "p_true": 0.09781226769044551,
+   "rank": 2,
+   "p_true": 0.11191784242844129,
    "n_rooms": 100,
    "active_location": 3,
    "facts": 0,
@@ -4940,8 +4989,8 @@
    "requests_sent": 0,
    "requests_to_produce": 2,
    "turn_secs": [
-    9.103,
-    9.038
+    8.878,
+    8.957
    ],
    "turn_requests": [
     1,
@@ -4959,19 +5008,19 @@
    ],
    "evidence": [
     "floor=4@0.95[llm]",
-    "room_ids=['f4-open-office-s', 'f4-office-404', 'f4-storage-records'] -> Records Room, Executive Assistants, Executive Office 404@0.45[llm]",
-    "room_ids=['f4-storage-records', 'f4-office-403'] -> Records Room, Executive Office 403@0.50[llm]"
+    "room_ids=['f4-storage-records', 'f4-open-office-s', 'f4-office-403', 'f4-restroom-north', 'f4-office-406'] -> Restroom (North, window), Records Room, Executive Office 406 +2@0.40[llm]",
+    "room_ids=['f4-open-office-s', 'f4-restroom-north', 'f4-office-403', 'f4-office-406', 'f4-office-404'] -> Restroom (North, window), Executive Office 406, Executive Assistants +2@0.40[llm]"
    ],
    "trajectory": [
     [
      1,
-     5,
-     0.0622
+     2,
+     0.0927
     ],
     [
      3,
-     3,
-     0.0978
+     2,
+     0.1119
     ]
    ],
    "note": ""
@@ -5029,7 +5078,7 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.8329207733116417,
+   "p_true": 0.85,
    "n_rooms": 100,
    "active_location": 4,
    "facts": 0,
@@ -5037,8 +5086,8 @@
    "requests_sent": 0,
    "requests_to_produce": 2,
    "turn_secs": [
-    2.95,
-    4.894
+    3.652,
+    4.438
    ],
    "turn_requests": [
     1,
@@ -5056,20 +5105,20 @@
    ],
    "evidence": [
     "floor=2@0.95[llm]",
-    "room_ids=['f2-open-office-n1', 'f2-conference-n', 'f2-office-201', 'f2-conference-s'] -> Open Office 2 North-West, Conference Room 2N, Office 201 +1@0.70[llm]",
-    "room_ids=['f2-office-201', 'f2-conference-s'] -> Office 201, Conference Room 2S@0.70[llm]",
-    "room_ids=['f2-conference-s', 'f2-conference-n'] -> Conference Room 2N, Conference Room 2S@0.70[llm]"
+    "room_ids=['f2-open-office-n1', 'f2-conference-n', 'f2-office-201', 'f2-conference-s'] -> Open Office 2 North-West, Conference Room 2N, Office 201 +1@0.80[llm]",
+    "room_ids=['f2-conference-s'] -> Conference Room 2S@0.85[llm]",
+    "room_ids=['f2-conference-s'] -> Conference Room 2S@0.85[llm]"
    ],
    "trajectory": [
     [
      1,
      4,
-     0.1437
+     0.097
     ],
     [
      3,
      1,
-     0.8329
+     0.85
     ]
    ],
    "note": ""
@@ -5126,25 +5175,25 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.9123774799212867,
+   "p_true": 0.88,
    "n_rooms": 100,
    "active_location": 4,
    "facts": 0,
    "suggested_type": null,
-   "requests_sent": 0,
+   "requests_sent": 1,
    "requests_to_produce": 2,
    "turn_secs": [
-    6.986,
-    2.91
+    8.114,
+    3.09
    ],
    "turn_requests": [
     1,
     1
    ],
    "tokens": {
-    "input_tokens": 0,
-    "output_tokens": 0,
-    "cache_read_input_tokens": 0,
+    "input_tokens": 468,
+    "output_tokens": 488,
+    "cache_read_input_tokens": 32798,
     "cache_creation_input_tokens": 0
    },
    "sources": [
@@ -5153,20 +5202,20 @@
    ],
    "evidence": [
     "floor=4@0.95[llm]",
-    "room_ids=['f4-storage-records', 'f4-office-406', 'f4-restroom-north'] -> Restroom (North, window), Records Room, Executive Office 406@0.60[llm]",
-    "room_ids=['f4-suite-vacant', 'f4-office-405', 'f4-boardroom', 'f4-break-room', 'f4-restroom-north', 'f4-office-406'] -> Suite 420 (vacant), Executive Office 405, Boardroom +3@0.70[llm]",
-    "room_ids=['f4-storage-records'] -> Records Room@0.70[llm]"
+    "room_ids=['f4-office-406', 'f4-storage-records'] -> Records Room, Executive Office 406@0.60[llm]",
+    "room_ids=['f4-storage-records'] -> Records Room@0.90[llm]",
+    "room_ids=['f4-storage-records'] -> Records Room@0.88[llm]"
    ],
    "trajectory": [
     [
      1,
-     14,
-     0.0072
+     3,
+     0.0545
     ],
     [
      3,
      1,
-     0.9124
+     0.88
     ]
    ],
    "note": ""
@@ -5224,25 +5273,25 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.9526876153794156,
+   "p_true": 0.85,
    "n_rooms": 100,
-   "active_location": 3,
+   "active_location": 4,
    "facts": 0,
    "suggested_type": null,
-   "requests_sent": 0,
+   "requests_sent": 1,
    "requests_to_produce": 2,
    "turn_secs": [
-    3.55,
-    2.605
+    5.082,
+    4.062
    ],
    "turn_requests": [
     1,
     1
    ],
    "tokens": {
-    "input_tokens": 0,
-    "output_tokens": 0,
-    "cache_read_input_tokens": 0,
+    "input_tokens": 520,
+    "output_tokens": 616,
+    "cache_read_input_tokens": 32798,
     "cache_creation_input_tokens": 0
    },
    "sources": [
@@ -5251,19 +5300,20 @@
    ],
    "evidence": [
     "floor=2@0.95[llm]",
-    "room_ids=['f2-server-room', 'f2-restroom-core'] -> Restroom (Core), Server Room / MDF@0.70[llm]",
-    "room_ids=['f2-server-room'] -> Server Room / MDF@0.70[llm]"
+    "room_ids=['f2-server-room', 'f2-restroom-core'] -> Restroom (Core), Server Room / MDF@0.75[llm]",
+    "room_ids=['f2-server-room'] -> Server Room / MDF@0.85[llm]",
+    "room_ids=['f2-server-room'] -> Server Room / MDF@0.85[llm]"
    ],
    "trajectory": [
     [
      1,
-     11,
-     0.0121
+     2,
+     0.0686
     ],
     [
      3,
      1,
-     0.9527
+     0.85
     ]
    ],
    "note": ""
@@ -5322,25 +5372,25 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.2166840656056172,
+   "p_true": 0.8,
    "n_rooms": 100,
-   "active_location": 2,
+   "active_location": 3,
    "facts": 0,
    "suggested_type": null,
-   "requests_sent": 0,
+   "requests_sent": 1,
    "requests_to_produce": 2,
    "turn_secs": [
-    3.705,
-    3.522
+    4.516,
+    4.797
    ],
    "turn_requests": [
     1,
     1
    ],
    "tokens": {
-    "input_tokens": 0,
-    "output_tokens": 0,
-    "cache_read_input_tokens": 0,
+    "input_tokens": 430,
+    "output_tokens": 780,
+    "cache_read_input_tokens": 32798,
     "cache_creation_input_tokens": 0
    },
    "sources": [
@@ -5349,18 +5399,19 @@
    ],
    "evidence": [
     "floor=3@0.95[llm]",
+    "room_ids=['f3-office-303'] -> Office 303@0.85[llm]",
     "room_ids=['f3-office-303'] -> Office 303@0.80[llm]"
    ],
    "trajectory": [
     [
      1,
      5,
-     0.0693
+     0.0172
     ],
     [
      3,
      1,
-     0.2167
+     0.8
     ]
    ],
    "note": ""
@@ -5410,15 +5461,15 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.9482426881375264,
+   "p_true": 0.88,
    "n_rooms": 148,
-   "active_location": 2,
+   "active_location": 3,
    "facts": 0,
    "suggested_type": null,
    "requests_sent": 0,
    "requests_to_produce": 1,
    "turn_secs": [
-    2.874
+    3.849
    ],
    "turn_requests": [
     1
@@ -5434,13 +5485,14 @@
    ],
    "evidence": [
     "floor=7@0.95[llm]",
-    "room_ids=['f7-s700'] -> Suite 700@0.70[llm]"
+    "room_ids=['f7-s700'] -> Suite 700@0.90[llm]",
+    "room_ids=['f7-s700'] -> Suite 700@0.88[llm]"
    ],
    "trajectory": [
     [
      1,
      1,
-     0.9482
+     0.88
     ]
    ],
    "note": ""
@@ -5499,7 +5551,7 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.9565331043200455,
+   "p_true": 0.85,
    "n_rooms": 148,
    "active_location": 3,
    "facts": 0,
@@ -5507,8 +5559,8 @@
    "requests_sent": 0,
    "requests_to_produce": 2,
    "turn_secs": [
-    3.157,
-    2.183
+    6.351,
+    3.761
    ],
    "turn_requests": [
     1,
@@ -5526,19 +5578,19 @@
    ],
    "evidence": [
     "floor=4@0.95[llm]",
-    "room_ids=['f4-s420-r2', 'f4-s420-r1'] -> Suite 420 open area, Suite 420 office@0.65[llm]",
-    "room_ids=['f4-s420-r2'] -> Suite 420 office@0.70[llm]"
+    "room_ids=['f4-s420-r2', 'f4-s400'] -> Suite 400, Suite 420 office@0.70[llm]",
+    "room_ids=['f4-s420-r2'] -> Suite 420 office@0.85[llm]"
    ],
    "trajectory": [
     [
      1,
-     6,
-     0.0412
+     1,
+     0.6
     ],
     [
      3,
      1,
-     0.9565
+     0.85
     ]
    ],
    "note": ""
@@ -5598,16 +5650,16 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.9528222796275597,
+   "p_true": 0.75,
    "n_rooms": 148,
-   "active_location": 3,
+   "active_location": 4,
    "facts": 0,
    "suggested_type": null,
    "requests_sent": 0,
    "requests_to_produce": 2,
    "turn_secs": [
-    3.568,
-    4.327
+    5.22,
+    5.701
    ],
    "turn_requests": [
     1,
@@ -5625,19 +5677,20 @@
    ],
    "evidence": [
     "floor=6@0.95[llm]",
-    "room_ids=['f6-s630-r3', 'f6-s630-r1', 'f6-s620-r1', 'f6-s630-r2'] -> Suite 620 open area, Suite 630 open area, Suite 630 office 1 +1@0.55[llm]",
-    "room_ids=['f6-s630-r2'] -> Suite 630 office 1@0.70[llm]"
+    "room_ids=['f6-s630-r3', 'f6-s630-r1', 'f6-s630-r2', 'f6-s620-r1'] -> Suite 620 open area, Suite 630 open area, Suite 630 office 1 +1@0.60[llm]",
+    "room_ids=['f6-s630-r2'] -> Suite 630 office 1@0.80[llm]",
+    "room_ids=['f6-s630-r2'] -> Suite 630 office 1@0.75[llm]"
    ],
    "trajectory": [
     [
      1,
      6,
-     0.0307
+     0.0594
     ],
     [
      3,
      1,
-     0.9528
+     0.75
     ]
    ],
    "note": ""
@@ -5700,8 +5753,8 @@
    "requests_sent": 0,
    "requests_to_produce": 2,
    "turn_secs": [
-    1.066,
-    1.378
+    1.058,
+    1.064
    ],
    "turn_requests": [
     1,
@@ -5783,16 +5836,16 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.9226774842530895,
+   "p_true": 0.7,
    "n_rooms": 99,
-   "active_location": 2,
+   "active_location": 3,
    "facts": 0,
    "suggested_type": null,
    "requests_sent": 0,
    "requests_to_produce": 2,
    "turn_secs": [
-    1.922,
-    1.873
+    1.998,
+    3.311
    ],
    "turn_requests": [
     1,
@@ -5810,6 +5863,7 @@
    ],
    "evidence": [
     "floor=3@0.95[llm]",
+    "room_ids=['u28004378'] -> Unit 308@0.70[llm]",
     "room_ids=['u28004378'] -> Unit 308@0.70[llm]"
    ],
    "trajectory": [
@@ -5821,7 +5875,7 @@
     [
      3,
      1,
-     0.9227
+     0.7
     ]
    ],
    "note": ""
@@ -5878,16 +5932,16 @@
    "scenario": false,
    "status": "ok",
    "rank": 2,
-   "p_true": 0.11472862183736308,
+   "p_true": 0.25637932887390885,
    "n_rooms": 99,
-   "active_location": 2,
+   "active_location": 4,
    "facts": 0,
    "suggested_type": null,
    "requests_sent": 0,
    "requests_to_produce": 2,
    "turn_secs": [
-    5.118,
-    4.745
+    5.032,
+    4.952
    ],
    "turn_requests": [
     1,
@@ -5905,18 +5959,20 @@
    ],
    "evidence": [
     "floor=4@0.95[llm]",
-    "room_ids=['u28004379', 'u28004380'] -> Unit 406, Unit 408@0.60[llm]"
+    "room_ids=['u28004379', 'u28004380', 'u28004358', 'u28004357'] -> Unit 409, Unit 411, Unit 406 +1@0.60[llm]",
+    "room_ids=['u28004379', 'u28004380'] -> Unit 406, Unit 408@0.75[llm]",
+    "room_ids=['u28004379', 'u28004380'] -> Unit 406, Unit 408@0.70[llm]"
    ],
    "trajectory": [
     [
      1,
-     2,
-     0.1147
+     4,
+     0.1051
     ],
     [
      3,
      2,
-     0.1147
+     0.2564
     ]
    ],
    "note": ""
@@ -5974,25 +6030,25 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.9841880775231321,
+   "p_true": 0.9,
    "n_rooms": 208,
-   "active_location": 3,
+   "active_location": 4,
    "facts": 0,
    "suggested_type": null,
-   "requests_sent": 0,
+   "requests_sent": 1,
    "requests_to_produce": 2,
    "turn_secs": [
-    2.949,
-    3.112
+    4.061,
+    4.101
    ],
    "turn_requests": [
     1,
     1
    ],
    "tokens": {
-    "input_tokens": 0,
-    "output_tokens": 0,
-    "cache_read_input_tokens": 0,
+    "input_tokens": 515,
+    "output_tokens": 584,
+    "cache_read_input_tokens": 51353,
     "cache_creation_input_tokens": 0
    },
    "sources": [
@@ -6001,19 +6057,20 @@
    ],
    "evidence": [
     "floor=3@0.95[llm]",
-    "room_ids=['301', '397', '399'] -> Room 301 Rooftop Pavilion meeting room, Room 397 Rooftop Pavilion meeting room, Room 399 Rooftop Pavilion meeting room@0.70[llm]",
-    "room_ids=['399'] -> Room 399 Rooftop Pavilion meeting room@0.70[llm]"
+    "room_ids=['301', '397', '399'] -> Room 301 Rooftop Pavilion meeting room, Room 397 Rooftop Pavilion meeting room, Room 399 Rooftop Pavilion meeting room@0.85[llm]",
+    "room_ids=['399'] -> Room 399 Rooftop Pavilion meeting room@0.90[llm]",
+    "room_ids=['399'] -> Room 399 Rooftop Pavilion meeting room@0.90[llm]"
    ],
    "trajectory": [
     [
      1,
      1,
-     0.4059
+     0.3389
     ],
     [
      3,
      1,
-     0.9842
+     0.9
     ]
    ],
    "note": ""
@@ -6070,7 +6127,7 @@
    "scenario": false,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.43922239682488684,
+   "p_true": 0.33294811869730667,
    "n_rooms": 208,
    "active_location": 3,
    "facts": 0,
@@ -6078,8 +6135,8 @@
    "requests_sent": 0,
    "requests_to_produce": 2,
    "turn_secs": [
-    3.601,
-    5.712
+    4.777,
+    3.692
    ],
    "turn_requests": [
     1,
@@ -6097,19 +6154,891 @@
    ],
    "evidence": [
     "floor=3@0.95[llm]",
-    "room_ids=['3-bcf', '3-econ', '3-copy-396'] -> Bendheim Center for Finance (Level 3), Copy room and pantry 396 (Economics), Department of Economics (Level 3)@0.60[llm]",
-    "room_ids=['3-bcf'] -> Bendheim Center for Finance (Level 3)@0.55[llm]"
+    "room_ids=['3-bcf', '3-econ', '3-copy-396'] -> Bendheim Center for Finance (Level 3), Copy room and pantry 396 (Economics), Department of Economics (Level 3)@0.65[llm]",
+    "room_ids=['3-bcf', '3-econ'] -> Bendheim Center for Finance (Level 3), Department of Economics (Level 3)@0.60[llm]"
    ],
    "trajectory": [
     [
      1,
      1,
-     0.3119
+     0.3329
     ],
     [
      3,
      1,
-     0.4392
+     0.3329
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "fuzzy-jrr-bendheim-up-high",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 2,
+   "p_true": 0.03601922233396538,
+   "n_rooms": 208,
+   "active_location": 1,
+   "facts": 1,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules",
+    "rules",
+    "rules",
+    "rules"
+   ],
+   "evidence": [
+    "view=street@0.90[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     2,
+     0.036
+    ],
+    [
+     3,
+     2,
+     0.036
+    ],
+    [
+     5,
+     2,
+     0.036
+    ],
+    [
+     7,
+     2,
+     0.036
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "fuzzy-jrr-bendheim-up-high",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.65,
+   "n_rooms": 208,
+   "active_location": 4,
+   "facts": 1,
+   "suggested_type": "other_medical",
+   "requests_sent": 1,
+   "requests_to_produce": 4,
+   "turn_secs": [
+    1.766,
+    2.567,
+    3.557,
+    4.392
+   ],
+   "turn_requests": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "tokens": {
+    "input_tokens": 907,
+    "output_tokens": 667,
+    "cache_read_input_tokens": 51353,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm",
+    "llm",
+    "llm",
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['3-bcf', '3-copy-396', '3-econ', '3-lounge-n', '3-lounge-s', '3-pantry-398', '301', '397', '399', '3-wc-n', '3-wc-s', '3-mech'] -> Bendheim Center for Finance (Level 3), Copy room and pantry 396 (Economics), Department of Economics (Level 3) +9@0.50[llm]",
+    "room_ids=['3-bcf', '3-econ', '3-copy-396'] -> Bendheim Center for Finance (Level 3), Copy room and pantry 396 (Economics), Department of Economics (Level 3)@0.50[llm]",
+    "room_ids=['3-bcf', '2-bcf'] -> Bendheim Center for Finance (Level 2), Bendheim Center for Finance (Level 3)@0.70[llm]",
+    "room_ids=['3-bcf'] -> Bendheim Center for Finance (Level 3)@0.65[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     4,
+     0.0189
+    ],
+    [
+     3,
+     3,
+     0.028
+    ],
+    [
+     5,
+     1,
+     0.2295
+    ],
+    [
+     7,
+     1,
+     0.65
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "fuzzy-bundy-b-lawyers-west-end",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 21,
+   "p_true": 0.0054166995423305785,
+   "n_rooms": 148,
+   "active_location": 4,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules",
+    "rules",
+    "rules",
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['f1-elevators', 'f2-elevators', 'f3-elevators', 'f4-elevators', 'f5-elevators', 'f6-elevators', 'f7-elevators', 'f8-elevators'] -> Elevators, Elevators, Elevators +5@0.95[rules]",
+    "room_type=corridor@1.00[rules]",
+    "landmark=elevator@0.80[rules]",
+    "room_type=lobby@1.00[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     9,
+     0.0283
+    ],
+    [
+     3,
+     9,
+     0.0283
+    ],
+    [
+     5,
+     9,
+     0.0283
+    ],
+    [
+     7,
+     21,
+     0.0054
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "fuzzy-bundy-b-lawyers-west-end",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.8849517776088371,
+   "n_rooms": 148,
+   "active_location": 3,
+   "facts": 2,
+   "suggested_type": "other_medical",
+   "requests_sent": 0,
+   "requests_to_produce": 4,
+   "turn_secs": [
+    1.855,
+    3.104,
+    3.489,
+    4.871
+   ],
+   "turn_requests": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm",
+    "llm",
+    "llm",
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f5-s510', 'f5-s520-r1', 'f5-s530', 'f5-s570', 'f5-s575', 'f6-s600', 'f6-s620-r1', 'f6-s640', 'f6-s630-r1', 'f6-s650-r1', 'f7-s750', 'f7-s720', 'f6-s630-r2', 'f6-s630-r3', 'f6-s650-r2'] -> Suite 510, Suite 520 open area, Suite 575 +12@0.50[llm]",
+    "room_ids=['f6-s600'] -> Suite 600@0.70[llm]",
+    "room_ids=['f6-s600', 'f6-s660'] -> Suite 600, Suite 660@0.70[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     9,
+     0.0283
+    ],
+    [
+     3,
+     5,
+     0.0382
+    ],
+    [
+     5,
+     1,
+     0.7606
+    ],
+    [
+     7,
+     1,
+     0.885
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "fuzzy-bundy-d-name-side-correction",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 9,
+   "p_true": 0.04341595413777978,
+   "n_rooms": 148,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules",
+    "rules",
+    "rules",
+    "rules"
+   ],
+   "evidence": [
+    "view=parking_lot@0.90[rules]",
+    "room_type=open_office@0.80[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     21,
+     0.021
+    ],
+    [
+     3,
+     28,
+     0.0061
+    ],
+    [
+     5,
+     12,
+     0.0394
+    ],
+    [
+     7,
+     9,
+     0.0434
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "fuzzy-bundy-d-name-side-correction",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.88,
+   "n_rooms": 148,
+   "active_location": 5,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 4,
+   "turn_secs": [
+    2.412,
+    6.166,
+    4.638,
+    3.689
+   ],
+   "turn_requests": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm",
+    "llm",
+    "llm",
+    "llm"
+   ],
+   "evidence": [
+    "floor=6@0.51[llm]",
+    "floor=7@0.51[llm]",
+    "room_ids=['f6-s650-r1', 'f6-s650-r2'] -> Suite 650 open area, Suite 650 kitchenette@0.60[llm]",
+    "room_ids=['f6-s650-r1', 'f6-s660', 'f6-s640', 'f6-s630-r1', 'f6-s630-r2', 'f7-s750', 'f7-s720'] -> Suite 660, Suite 650 open area, Suite 640 +4@0.85[llm]",
+    "room_ids=['f6-s650-r1'] -> Suite 650 open area@0.88[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     14,
+     0.0201
+    ],
+    [
+     3,
+     1,
+     0.675
+    ],
+    [
+     5,
+     1,
+     0.8512
+    ],
+    [
+     7,
+     1,
+     0.88
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "fuzzy-cornerstone-s-name-long-walk",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 10,
+   "p_true": 0.0014142604891654728,
+   "n_rooms": 99,
+   "active_location": 3,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules",
+    "rules",
+    "rules",
+    "rules"
+   ],
+   "evidence": [
+    "floor=top@0.68[rules]",
+    "room_ids=['b1w1f1-el', 'b1w1f2-el', 'b1w1f3-el', 'b1w1f4-el', 'b1w1f5-el', 'b1w1f6-el', 'b1w1f7-el', 'b1w1f8-el'] -> Elevator, Elevator, Elevator +5@0.95[rules]",
+    "landmark=elevator@0.80[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     10,
+     0.0309
+    ],
+    [
+     3,
+     2,
+     0.2394
+    ],
+    [
+     5,
+     2,
+     0.2394
+    ],
+    [
+     7,
+     10,
+     0.0014
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "fuzzy-cornerstone-s-name-long-walk",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.82,
+   "n_rooms": 99,
+   "active_location": 4,
+   "facts": 1,
+   "suggested_type": "other_medical",
+   "requests_sent": 1,
+   "requests_to_produce": 4,
+   "turn_secs": [
+    1.78,
+    3.018,
+    4.257,
+    3.412
+   ],
+   "turn_requests": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "tokens": {
+    "input_tokens": 625,
+    "output_tokens": 519,
+    "cache_read_input_tokens": 28868,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm",
+    "llm",
+    "llm",
+    "llm"
+   ],
+   "evidence": [
+    "floor=8@0.48[llm]",
+    "floor=7@0.48[llm]",
+    "room_ids=['t151818861'] -> 800 Sanli Pastore & Hill@0.75[llm]",
+    "room_ids=['t151818861'] -> 800 Sanli Pastore & Hill@0.82[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     10,
+     0.0309
+    ],
+    [
+     3,
+     7,
+     0.0384
+    ],
+    [
+     5,
+     1,
+     0.7
+    ],
+    [
+     7,
+     1,
+     0.82
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "fuzzy-cornerstone-citron-upper-office",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 5,
+   "p_true": 0.04248549270695353,
+   "n_rooms": 99,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules",
+    "rules",
+    "rules",
+    "rules"
+   ],
+   "evidence": [
+    "room_type=office@0.80[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     5,
+     0.0387
+    ],
+    [
+     3,
+     5,
+     0.0387
+    ],
+    [
+     5,
+     5,
+     0.0425
+    ],
+    [
+     7,
+     5,
+     0.0425
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "fuzzy-cornerstone-citron-upper-office",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9,
+   "n_rooms": 99,
+   "active_location": 3,
+   "facts": 1,
+   "suggested_type": "other_medical",
+   "requests_sent": 1,
+   "requests_to_produce": 4,
+   "turn_secs": [
+    1.735,
+    2.794,
+    4.517,
+    3.882
+   ],
+   "turn_requests": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "tokens": {
+    "input_tokens": 658,
+    "output_tokens": 511,
+    "cache_read_input_tokens": 28868,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm",
+    "llm",
+    "llm",
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['t258199591', 't244891941'] -> 850 Citrin Cooperman, 340 Citrin Cooperman@0.70[llm]",
+    "room_ids=['t244891941'] -> 850 Citrin Cooperman@0.85[llm]",
+    "room_ids=['t244891941'] -> 850 Citrin Cooperman@0.90[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     5,
+     0.0387
+    ],
+    [
+     3,
+     1,
+     0.4057
+    ],
+    [
+     5,
+     1,
+     0.85
+    ],
+    [
+     7,
+     1,
+     0.9
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "fuzzy-jewelry-a-name-big-suite",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 16,
+   "p_true": 0.023234463744710426,
+   "n_rooms": 295,
+   "active_location": 3,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules",
+    "rules",
+    "rules",
+    "rules"
+   ],
+   "evidence": [
+    "landmark=elevator@0.80[rules]",
+    "landmark=window@0.80[rules]",
+    "view=street@0.90[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     13,
+     0.0103
+    ],
+    [
+     3,
+     29,
+     0.0062
+    ],
+    [
+     5,
+     29,
+     0.0062
+    ],
+    [
+     7,
+     16,
+     0.0232
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "fuzzy-jewelry-a-name-big-suite",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.8,
+   "n_rooms": 295,
+   "active_location": 5,
+   "facts": 1,
+   "suggested_type": "other_medical",
+   "requests_sent": 1,
+   "requests_to_produce": 4,
+   "turn_secs": [
+    2.575,
+    3.272,
+    4.745,
+    5.546
+   ],
+   "turn_requests": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "tokens": {
+    "input_tokens": 613,
+    "output_tokens": 791,
+    "cache_read_input_tokens": 67013,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm",
+    "llm",
+    "llm",
+    "llm"
+   ],
+   "evidence": [
+    "floor=12@0.54[llm]",
+    "floor=13@0.54[llm]",
+    "room_ids=['t224171161'] -> Aaron Henry@0.65[llm]",
+    "room_ids=['t224171161', 't11058862'] -> 1652 King Plutarco Inc., Aaron Henry@0.75[llm]",
+    "room_ids=['t224171161'] -> Aaron Henry@0.80[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     13,
+     0.0103
+    ],
+    [
+     3,
+     1,
+     0.0597
+    ],
+    [
+     5,
+     1,
+     0.55
+    ],
+    [
+     7,
+     1,
+     0.8
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "fuzzy-hewitt-side-door-even",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 43,
+   "p_true": 0.0007735032961606022,
+   "n_rooms": 99,
+   "active_location": 5,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules",
+    "rules",
+    "rules",
+    "rules"
+   ],
+   "evidence": [
+    "route=stairs_up_right@0.70[rules]",
+    "negative=room_types:lobby(no)@0.70[rules]",
+    "landmark=stairs@0.80[rules]",
+    "room_type=corridor@0.80[rules]",
+    "landmark=stairs@0.80[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     32,
+     0.0134
+    ],
+    [
+     3,
+     14,
+     0.0217
+    ],
+    [
+     5,
+     30,
+     0.0113
+    ],
+    [
+     7,
+     43,
+     0.0008
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "fuzzy-hewitt-side-door-even",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 4,
+   "p_true": 0.09272744043995379,
+   "n_rooms": 99,
+   "active_location": 3,
+   "facts": 1,
+   "suggested_type": "overdose",
+   "requests_sent": 0,
+   "requests_to_produce": 4,
+   "turn_secs": [
+    2.589,
+    3.021,
+    3.25,
+    7.042
+   ],
+   "turn_requests": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm",
+    "llm",
+    "llm",
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['b1w1f1-stA', 'b1w1f1-stB'] -> Stair A, Stair B@0.50[llm]",
+    "floor=6@0.84[llm]",
+    "room_ids=['u28004374', 'u28004383', 'u28004373', 'u28004348'] -> Unit 613, Unit 602, Unit 612 +1@0.45[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     32,
+     0.0134
+    ],
+    [
+     3,
+     32,
+     0.0134
+    ],
+    [
+     5,
+     7,
+     0.0671
+    ],
+    [
+     7,
+     4,
+     0.0927
     ]
    ],
    "note": ""
@@ -6179,18 +7108,18 @@
    "scenario": true,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.902466573389557,
+   "p_true": 0.8,
    "n_rooms": 100,
-   "active_location": 2,
+   "active_location": 4,
    "facts": 3,
    "suggested_type": "cardiac_arrest",
    "requests_sent": 0,
    "requests_to_produce": 4,
    "turn_secs": [
-    1.794,
-    1.609,
-    1.862,
-    3.186
+    2.104,
+    4.34,
+    2.109,
+    4.382
    ],
    "turn_requests": [
     1,
@@ -6211,8 +7140,10 @@
     "llm"
    ],
    "evidence": [
+    "room_ids=['f4-boardroom', 'f1-conference-a', 'f1-conference-b', 'f2-conference-n', 'f2-conference-s', 'f3-conference-n', 'f1-lobby'] -> Training Room 1B, Conference Room 1A, Main Lobby +4@0.40[llm]",
     "floor=2@0.95[llm]",
-    "room_ids=['f2-conference-n'] -> Conference Room 2N@0.70[llm]"
+    "room_ids=['f2-conference-n'] -> Conference Room 2N@0.85[llm]",
+    "room_ids=['f2-conference-n'] -> Conference Room 2N@0.80[llm]"
    ],
    "trajectory": [
     [
@@ -6222,18 +7153,18 @@
     ],
     [
      3,
-     17,
-     0.019
+     10,
+     0.0248
     ],
     [
      6,
-     6,
-     0.0496
+     5,
+     0.0645
     ],
     [
      7,
      1,
-     0.9025
+     0.8
     ]
    ],
    "note": ""
@@ -6304,7 +7235,7 @@
    "scenario": true,
    "status": "ok",
    "rank": 1,
-   "p_true": 0.9917977437531835,
+   "p_true": 0.9928548662484523,
    "n_rooms": 100,
    "active_location": 3,
    "facts": 4,
@@ -6312,10 +7243,10 @@
    "requests_sent": 0,
    "requests_to_produce": 4,
    "turn_secs": [
-    1.987,
-    3.065,
-    2.903,
-    2.058
+    1.96,
+    3.595,
+    3.248,
+    1.754
    ],
    "turn_requests": [
     1,
@@ -6338,7 +7269,7 @@
    "evidence": [
     "floor=3@0.95[llm]",
     "room_ids=['f3-office-302'] -> Office 302@0.95[llm]",
-    "room_ids=['f3-office-301', 'f3-office-302', 'f3-open-office-s1', 'f3-open-office-s2', 'f3-office-303'] -> Office 301, Office 302, Open Office 3 South-Centre +2@0.70[llm]"
+    "room_ids=['f3-office-302', 'f3-office-301', 'f3-open-office-s1', 'f3-open-office-s2', 'f3-office-303'] -> Office 301, Office 302, Open Office 3 South-Centre +2@0.90[llm]"
    ],
    "trajectory": [
     [
@@ -6354,12 +7285,12 @@
     [
      6,
      1,
-     0.9918
+     0.9929
     ],
     [
      7,
      1,
-     0.9918
+     0.9929
     ]
    ],
    "note": ""
@@ -6435,10 +7366,10 @@
    "requests_sent": 0,
    "requests_to_produce": 4,
    "turn_secs": [
-    2.18,
-    3.223,
-    1.6,
-    2.134
+    2.199,
+    3.14,
+    1.594,
+    2.209
    ],
    "turn_requests": [
     1,

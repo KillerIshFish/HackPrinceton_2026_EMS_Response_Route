@@ -1,100 +1,100 @@
-Model settings: {'model': 'claude-sonnet-5-5', 'thinking': 'adaptive', 'effort': 'low', 'strict': False}; request cap: 0 (LLM_MAX_CALLS).
-Not cached yet: 0 of 74 calls for the grounded interpreter (105 caller turns in all, usually one request each); 0 utterances for the vocabulary extractor.
+Model settings: {'model': 'claude-sonnet-5-5', 'thinking': 'adaptive', 'effort': 'low', 'strict': False}; request cap: 80 (LLM_MAX_CALLS).
+Not cached yet: 0 of 81 calls for the grounded interpreter (133 caller turns in all, usually one request each); 0 utterances for the vocabulary extractor.
 
 ptc-office-number [ptc-100] true=f3-office-303
     rules  rank 1/100  p=0.982  evidence 2  facts 0  req 0 (0 sent)
            name_contains=office,unit=303 -> Office 303@0.95[rules]; room_type=office@1.00[rules]
-    llm    rank 1/100  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.3
+    llm    rank 1/100  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 3.0
            room_ids=['f3-office-303'] -> Office 303@0.95[llm]
 ptc-door-sign [ptc-100] true=f4-boardroom
     rules  rank 1/100  p=0.997  evidence 3  facts 0  req 0 (0 sent)
            room_ids=['f4-boardroom'] -> Boardroom@0.95[rules]; room_type=conference@0.80[rules]; floor=top@0.95[rules]
-    llm    rank 1/100  p=0.985  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.9
+    llm    rank 1/100  p=0.985  evidence 2  facts 0  req 1 (0 sent)  s/turn 3.0
            room_ids=['f4-boardroom'] -> Boardroom@0.95[llm]; floor=top@0.95[llm]
 ptc-next-to-server-room [ptc-100] true=f2-open-office-n2
     rules  rank 3/100  p=0.136  evidence 1  facts 0  req 0 (0 sent)
            floor=2@0.95[rules]
-    llm    rank 2/100  p=0.316  evidence 2  facts 0  req 1 (0 sent)  s/turn 3.3
-           floor=2@0.95[llm]; room_ids=['f2-open-office-n2', 'f2-open-office-s1', 'f2-open-office-s2'] -> Open Office 2 North-Centre, Open Office 2 South-Centre, Open Office 2 South-East@0.70[llm]
+    llm    rank 1/100  p=0.343  evidence 3  facts 0  req 1 (0 sent)  s/turn 5.2
+           floor=2@0.95[llm]; room_ids=['f2-open-office-n2', 'f2-open-office-s2', 'f2-open-office-s1'] -> Open Office 2 North-Centre, Open Office 2 South-Centre, Open Office 2 South-East@0.70[llm]; room_ids=['f2-open-office-n2', 'f2-open-office-s2'] -> Open Office 2 North-Centre, Open Office 2 South-East@0.65[llm]
 ptc-correction-floor [ptc-100] true=f4-break-room
     rules  rank 1/100  p=0.971  evidence 3  facts 0  req 0 (0 sent)
            room_ids=['f4-break-room'] -> Executive Lounge@0.95[rules]; floor=4@0.95[rules]; room_type=common_area@0.80[rules]
-    llm    rank 1/100  p=0.985  evidence 2  facts 0  req 2 (0 sent)  s/turn 2.6,3.1
+    llm    rank 1/100  p=0.985  evidence 2  facts 0  req 2 (0 sent)  s/turn 2.8,3.5
            floor=4@0.95[llm]; room_ids=['f4-break-room'] -> Executive Lounge@0.95[llm]
 ptc-yes-window-bathroom [ptc-100] true=f4-restroom-north
     rules  rank 1/100  p=0.198  evidence 2  facts 0  req 0 (0 sent)
            view=parking_lot@0.85[rules]; room_type=restroom@1.00[rules]
-    llm    rank 1/100  p=0.322  evidence 2  facts 0  req 1 (0 sent)  s/turn 6.1
-           room_ids=['f1-restroom-core', 'f2-restroom-core', 'f3-restroom-core', 'f4-restroom-core', 'f4-restroom-north'] -> Restroom (Core), Restroom (Core), Restroom (Core) +2@0.70[llm]; room_ids=['f1-office-101', 'f1-office-102', 'f1-conference-b', 'f1-open-office-n', 'f2-open-office-n1', 'f2-open-office-n2', 'f2-break-room', 'f2-conference-n', 'f3-suite-vacant', 'f3-open-office-n1', 'f3-break-room', 'f3-conference-n', 'f4-suite-vacant', 'f4-office-405', 'f4-boardroom', 'f4-break-room', 'f4-restroom-north', 'f4-office-406'] -> Office 101, Office 102, Training Room 1B +15@0.85[llm]
+    llm    rank 1/100  p=0.800  evidence 2  facts 0  req 1 (0 sent)  s/turn 3.5
+           room_ids=['f4-restroom-north'] -> Restroom (North, window)@0.85[llm]; room_ids=['f4-restroom-north'] -> Restroom (North, window)@0.80[llm]
 ptc-no-to-street [ptc-100] true=f3-office-301
     rules  rank 2/100  p=0.404  evidence 5  facts 0  req 0 (0 sent)
            room_type=office@1.00[rules]; floor=3@0.95[rules]; landmark=stairs@0.80[rules]; negative=views:parking_lot(no)@0.85[rules]; view=street@0.90[rules]
-    llm    rank 5/100  p=0.176  evidence 3  facts 0  req 2 (0 sent)  s/turn 3.6,2.2
-           floor=3@0.95[llm]; room_ids=['f3-office-301', 'f3-office-302', 'f3-office-303'] -> Office 301, Office 302, Office 303@0.60[llm]; room_ids=['f3-office-301', 'f3-office-302', 'f3-office-303', 'f3-open-office-s1', 'f3-open-office-s2'] -> Office 301, Office 302, Open Office 3 South-Centre +2@0.70[llm]
+    llm    rank 3/100  p=0.239  evidence 4  facts 0  req 2 (0 sent)  s/turn 3.1,4.1
+           floor=3@0.95[llm]; room_ids=['f3-office-301', 'f3-office-302', 'f3-office-303'] -> Office 301, Office 302, Office 303@0.60[llm]; room_ids=['f3-office-301', 'f3-office-302', 'f3-office-303', 'f3-open-office-s1', 'f3-open-office-s2'] -> Office 301, Office 302, Open Office 3 South-Centre +2@0.85[llm]; room_ids=['f3-office-301', 'f3-office-302', 'f3-office-303'] -> Office 301, Office 302, Office 303@0.75[llm]
 ptc-homophones [ptc-100] true=f4-break-room
     rules  rank 43/100  p=0.009  evidence 0  facts 0  req 0 (0 sent)
-    llm    rank 1/100  p=0.894  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.8
-           floor=4@0.95[llm]; room_ids=['f4-break-room'] -> Executive Lounge@0.70[llm]
+    llm    rank 1/100  p=0.894  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.6
+           room_ids=['f4-break-room'] -> Executive Lounge@0.70[llm]; floor=4@0.95[llm]
 ptc-dropped-words-copy-room [ptc-100] true=f3-storage-supply
     rules  rank 1/100  p=0.920  evidence 3  facts 0  req 0 (0 sent)
            room_ids=['f2-storage-supply', 'f3-storage-supply', 'f4-storage-supply'] -> Supply & Copy Room 2, Supply & Copy Room 3, Supply & Copy Room 4@0.95[rules]; room_type=copy_room@1.00[rules]; floor=3@0.95[rules]
-    llm    rank 1/100  p=0.967  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.6
-           floor=3@0.95[llm]; room_ids=['f3-storage-supply'] -> Supply & Copy Room 3@0.90[llm]
+    llm    rank 1/100  p=0.959  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.6
+           room_ids=['f3-storage-supply'] -> Supply & Copy Room 3@0.87[llm]; floor=3@0.95[llm]
 ptc-security-office [ptc-100] true=f1-office-security
     rules  rank 1/100  p=0.982  evidence 2  facts 0  req 0 (0 sent)
            room_ids=['f1-office-security'] -> Security Office@0.95[rules]; room_type=office@1.00[rules]
-    llm    rank 1/100  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.2
+    llm    rank 1/100  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.9
            room_ids=['f1-office-security'] -> Security Office@0.95[llm]
 ptc-no-info-collapse [ptc-100] true=no-info
     rules  rank 15/100  p=0.020  evidence 0  facts 1  req 0 (0 sent)
     llm    rank 15/100  p=0.020  evidence 0  facts 1  req 1 (0 sent)  s/turn 1.8
 ptc-no-info-scared [ptc-100] true=no-info
     rules  rank 68/100  p=0.002  evidence 0  facts 0  req 0 (0 sent)
-    llm    rank 68/100  p=0.002  evidence 0  facts 1  req 2 (0 sent)  s/turn 1.0,1.8
+    llm    rank 68/100  p=0.002  evidence 0  facts 0  req 2 (0 sent)  s/turn 1.3,1.2
 bundy-tenant-black-label [bundy-olympic] true=f8-s830
     rules  rank 1/148  p=0.965  evidence 2  facts 0  req 0 (0 sent)
            room_ids=['f8-s830'] -> Suite 830@0.95[rules]; room_type=office@0.80[rules]
-    llm    rank 1/148  p=0.990  evidence 2  facts 0  req 1 (0 sent)  s/turn 3.2
+    llm    rank 1/148  p=0.990  evidence 2  facts 0  req 1 (0 sent)  s/turn 3.1
            room_ids=['f8-s830'] -> Suite 830@0.95[llm]; floor=8@0.95[llm]
 bundy-suite-640 [bundy-olympic] true=f6-s640
     rules  rank 1/148  p=0.950  evidence 1  facts 0  req 0 (0 sent)
            name_contains=suite,unit=640 -> Suite 640@0.95[rules]
-    llm    rank 1/148  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.3
+    llm    rank 1/148  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.4
            room_ids=['f6-s640'] -> Suite 640@0.95[llm]
 bundy-sweet-475 [bundy-olympic] true=f4-s475
     rules  rank 1/148  p=0.950  evidence 1  facts 0  req 0 (0 sent)
            unit=475 -> Suite 475@0.95[rules]
-    llm    rank 1/148  p=0.840  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.3
-           room_ids=['f4-s475'] -> Suite 475@0.84[llm]
+    llm    rank 1/148  p=0.895  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.9
+           room_ids=['f4-s475'] -> Suite 475@0.90[llm]
 bundy-tenant-law-firm [bundy-olympic] true=f4-s450
     rules  rank 1/148  p=0.950  evidence 1  facts 0  req 0 (0 sent)
            room_ids=['f4-s450'] -> Suite 450@0.95[rules]
-    llm    rank 1/148  p=0.870  evidence 1  facts 1  req 1 (0 sent)  s/turn 2.9
+    llm    rank 1/148  p=0.870  evidence 1  facts 1  req 1 (0 sent)  s/turn 3.1
            room_ids=['f4-s450'] -> Suite 450@0.87[llm]
 bundy-correction-suite [bundy-olympic] true=f6-s660
     rules  rank 1/148  p=0.950  evidence 1  facts 0  req 0 (0 sent)
            unit=660 -> Suite 660@0.95[rules]
-    llm    rank 1/148  p=0.950  evidence 1  facts 0  req 2 (0 sent)  s/turn 2.2,2.2
+    llm    rank 1/148  p=0.950  evidence 1  facts 0  req 2 (0 sent)  s/turn 2.5,2.6
            room_ids=['f6-s660'] -> Suite 660@0.95[llm]
 bundy-negated-across-hall [bundy-olympic] true=f5-s530
     rules  rank 1/148  p=0.958  evidence 2  facts 0  req 0 (0 sent)
            unit=530 -> Suite 530@0.95[rules]; room_type=corridor@0.80[rules]
-    llm    rank 1/148  p=0.951  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.6
-           NOT room_ids=['f5-s520-r1'] -> Suite 520 open area@0.85[llm]; room_ids=['f5-s530'] -> Suite 530@0.95[llm]
+    llm    rank 1/148  p=0.951  evidence 2  facts 0  req 1 (0 sent)  s/turn 3.0
+           room_ids=['f5-s530'] -> Suite 530@0.95[llm]; NOT room_ids=['f5-s520-r1'] -> Suite 520 open area@0.85[llm]
 bundy-pt-front-desk [bundy-olympic] true=f1-s101-r6
     rules  rank 4/148  p=0.029  evidence 2  facts 0  req 0 (0 sent)
            room_type=lobby@1.00[rules]; floor=ground@0.95[rules]
-    llm    rank 1/148  p=0.546  evidence 2  facts 0  req 1 (0 sent)  s/turn 3.3
-           room_ids=['f1-s101-r6', 'f1-s101-r10'] -> Suite 101 reception 1, Suite 101 reception 2@0.60[llm]; floor=1@0.95[llm]
+    llm    rank 1/148  p=0.567  evidence 2  facts 0  req 1 (0 sent)  s/turn 3.1
+           floor=1@0.95[llm]; room_ids=['f1-s101-r6', 'f1-s101-r10'] -> Suite 101 reception 1, Suite 101 reception 2@0.70[llm]
 bundy-yes-eighth-floor [bundy-olympic] true=f8-s810
     rules  rank 1/148  p=0.989  evidence 3  facts 0  req 0 (0 sent)
            room_ids=['f8-s810'] -> Suite 810@0.95[rules]; room_type=office@0.80[rules]; floor=8@0.85[rules]
-    llm    rank 1/148  p=0.990  evidence 2  facts 0  req 2 (0 sent)  s/turn 1.9,1.9
+    llm    rank 1/148  p=0.990  evidence 2  facts 0  req 2 (0 sent)  s/turn 2.0,1.2
            room_ids=['f8-s810'] -> Suite 810@0.95[llm]; floor=8@0.95[llm]
 bundy-kitchenette [bundy-olympic] true=f6-s650-r2
     rules  rank 2/148  p=0.403  evidence 3  facts 0  req 0 (0 sent)
            room_ids=['f6-s650-r1', 'f6-s650-r2'] -> Suite 650 open area, Suite 650 kitchenette@0.95[rules]; room_type=break_room@1.00[rules]; floor=6@0.95[rules]
-    llm    rank 1/148  p=0.990  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.7
+    llm    rank 1/148  p=0.990  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.8
            room_ids=['f6-s650-r2'] -> Suite 650 kitchenette@0.95[llm]; floor=6@0.95[llm]
 bundy-no-info-seizure [bundy-olympic] true=no-info
     rules  rank 3/148  p=0.042  evidence 0  facts 0  req 0 (0 sent)
@@ -102,62 +102,62 @@ bundy-no-info-seizure [bundy-olympic] true=no-info
 wash-kitchen-common [washington-5285] true=f1-r20
     rules  rank 1/38  p=0.995  evidence 2  facts 0  req 0 (0 sent)
            room_ids=['f1-r20'] -> Kitchen@0.95[rules]; room_type=break_room@1.00[rules]
-    llm    rank 1/38  p=0.953  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.8
-           room_ids=['f1-r20'] -> Kitchen@0.95[llm]; floor=1@0.70[llm]
+    llm    rank 1/38  p=0.958  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.9
+           room_ids=['f1-r20'] -> Kitchen@0.95[llm]; floor=1@0.80[llm]
 wash-roof [washington-5285] true=f3-r37
     rules  rank 2/38  p=0.070  evidence 1  facts 0  req 0 (0 sent)
            room_type=rooftop@1.00[rules]
-    llm    rank 1/38  p=0.950  evidence 1  facts 1  req 1 (0 sent)  s/turn 2.7
+    llm    rank 1/38  p=0.950  evidence 1  facts 1  req 1 (0 sent)  s/turn 2.8
            room_ids=['f3-r37'] -> Rooftop@0.95[llm]
 wash-upstairs-houses [washington-5285] true=f2-r26
     rules  rank 2/38  p=0.152  evidence 4  facts 0  req 0 (0 sent)
            room_type=office@0.80[rules]; landmark=stairs@0.80[rules]; landmark=window@0.80[rules]; view=residential@0.90[rules]
-    llm    rank 5/38  p=0.052  evidence 2  facts 0  req 1 (0 sent)  s/turn 5.8
-           room_ids=['f2-r27', 'f2-r34', 'f2-r25'] -> Office 3, Office 5, Office 8@0.60[llm]; room_ids=['f2-r24', 'f2-r26', 'f2-r33', 'f2-r35', 'f2-r27'] -> Office 2, Office 4, Office 5 +2@0.65[llm]
+    llm    rank 1/38  p=0.113  evidence 2  facts 0  req 1 (0 sent)  s/turn 6.5
+           floor=2@0.80[llm]; room_ids=['f2-r26', 'f2-r33', 'f2-r27'] -> Office 4, Office 5, Office 7@0.55[llm]
 wash-warehouse-noise [washington-5285] true=f1-r01
     rules  rank 3/38  p=0.041  evidence 0  facts 0  req 0 (0 sent)
-    llm    rank 1/38  p=0.870  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.8
+    llm    rank 1/38  p=0.870  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.1
            room_ids=['f1-r01'] -> Warehouse@0.87[llm]
 wash-no-info-hello [washington-5285] true=no-info
     rules  rank 1/38  p=0.150  evidence 0  facts 0  req 0 (0 sent)
-    llm    rank 1/38  p=0.150  evidence 0  facts 0  req 1 (0 sent)  s/turn 1.0
+    llm    rank 1/38  p=0.150  evidence 0  facts 0  req 1 (0 sent)  s/turn 1.3
 mariposa-apartment-202 [prop-4388250] true=u23175679
     rules  rank 1/40  p=0.950  evidence 1  facts 0  req 0 (0 sent)
            unit=202 -> Unit 202@0.95[rules]
-    llm    rank 1/40  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.9
+    llm    rank 1/40  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.0
            room_ids=['u23175679'] -> Unit 202@0.95[llm]
 mariposa-correction-unit [prop-4388250] true=u24637996
     rules  rank 1/40  p=0.950  evidence 1  facts 0  req 0 (0 sent)
            unit=402 -> Unit 402@0.95[rules]
-    llm    rank 1/40  p=0.895  evidence 1  facts 0  req 2 (0 sent)  s/turn 1.8,2.0
+    llm    rank 1/40  p=0.895  evidence 1  facts 0  req 2 (0 sent)  s/turn 1.4,2.2
            room_ids=['u24637996'] -> Unit 402@0.90[llm]
 mariposa-no-info-fall [prop-4388250] true=no-info
     rules  rank 4/40  p=0.079  evidence 0  facts 1  req 0 (0 sent)
-    llm    rank 4/40  p=0.079  evidence 0  facts 1  req 1 (0 sent)  s/turn 1.9
+    llm    rank 4/40  p=0.079  evidence 0  facts 1  req 1 (0 sent)  s/turn 2.1
 cornerstone-tenant-nadel [prop-247451] true=t244738371
     rules  rank 1/99  p=0.950  evidence 1  facts 0  req 0 (0 sent)
            room_ids=['t244738371'] -> 400 Nadel Architects@0.95[rules]
-    llm    rank 1/99  p=0.950  evidence 1  facts 1  req 1 (0 sent)  s/turn 2.7
+    llm    rank 1/99  p=0.950  evidence 1  facts 1  req 1 (0 sent)  s/turn 2.9
            room_ids=['t244738371'] -> 400 Nadel Architects@0.95[llm]
 cornerstone-garden-cafe [prop-247451] true=t244889771
     rules  rank 1/99  p=0.950  evidence 2  facts 0  req 0 (0 sent)
            room_ids=['t244889771'] -> 150 Garden Cafe@0.95[rules]; view=residential@0.90[rules]
-    llm    rank 1/99  p=0.970  evidence 3  facts 0  req 1 (0 sent)  s/turn 4.1
-           room_ids=['t244889771'] -> 150 Garden Cafe@0.90[llm]; room_ids=['b1w1f1-lob', 'b1f1-p6', 't219898491', 't244889771'] -> Floor 1 (no unit data), Lobby, 125 Beverly Hills Fencers' Club +1@0.50[llm]; floor=1@0.70[llm]
+    llm    rank 1/99  p=0.940  evidence 2  facts 0  req 1 (0 sent)  s/turn 3.1
+           room_ids=['t244889771'] -> 150 Garden Cafe@0.90[llm]; room_ids=['t244889771', 'b1f1-p6', 't219898491', 'b1w1f1-lob'] -> Floor 1 (no unit data), Lobby, 125 Beverly Hills Fencers' Club +1@0.50[llm]
 cornerstone-suite-795 [prop-247451] true=t18490561
     rules  rank 1/99  p=0.950  evidence 1  facts 0  req 0 (0 sent)
            unit=795 -> 795 Nagata Acoustics@0.95[rules]
-    llm    rank 1/99  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.1
+    llm    rank 1/99  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.9
            room_ids=['t18490561'] -> 795 Nagata Acoustics@0.95[llm]
 ptc-bare-302 [ptc-100] true=f3-office-302
     rules  rank 1/100  p=0.950  evidence 1  facts 0  req 0 (0 sent)
            unit=302 -> Office 302@0.95[rules]
-    llm    rank 1/100  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.2
+    llm    rank 1/100  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.0
            room_ids=['f3-office-302'] -> Office 302@0.95[llm]
 ptc-my-office-302 [ptc-100] true=f3-office-302
     rules  rank 1/100  p=0.995  evidence 3  facts 2  req 0 (0 sent)
            name_contains=office,unit=302 -> Office 302@0.95[rules]; floor=3@0.95[rules]; room_type=office@1.00[rules]
-    llm    rank 1/100  p=0.986  evidence 2  facts 1  req 1 (0 sent)  s/turn 3.5
+    llm    rank 1/100  p=0.986  evidence 2  facts 1  req 1 (0 sent)  s/turn 3.3
            floor=3@0.95[llm]; room_ids=['f3-office-302'] -> Office 302@0.95[llm]
 ptc-room-405 [ptc-100] true=f4-office-405
     rules  rank 1/100  p=0.950  evidence 1  facts 0  req 0 (0 sent)
@@ -167,23 +167,23 @@ ptc-room-405 [ptc-100] true=f4-office-405
 ptc-server-room [ptc-100] true=f2-server-room
     rules  rank 1/100  p=0.995  evidence 2  facts 0  req 0 (0 sent)
            room_ids=['f2-server-room'] -> Server Room / MDF@0.95[rules]; room_type=server_room@1.00[rules]
-    llm    rank 1/100  p=0.950  evidence 1  facts 1  req 1 (0 sent)  s/turn 2.7
+    llm    rank 1/100  p=0.950  evidence 1  facts 1  req 1 (0 sent)  s/turn 2.3
            room_ids=['f2-server-room'] -> Server Room / MDF@0.95[llm]
 ptc-conference-2n [ptc-100] true=f2-conference-n
     rules  rank 1/100  p=0.988  evidence 2  facts 0  req 0 (0 sent)
            room_ids=['f2-conference-n'] -> Conference Room 2N@0.95[rules]; room_type=conference@0.80[rules]
-    llm    rank 1/100  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.8
+    llm    rank 1/100  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.9
            room_ids=['f2-conference-n'] -> Conference Room 2N@0.95[llm]
 ptc-fire-in-301 [ptc-100] true=f3-office-302
     rules  rank 1/100  p=0.950  evidence 1  facts 1  req 0 (0 sent)
            unit=302 -> Office 302@0.95[rules]
-    llm    rank 1/100  p=0.950  evidence 1  facts 1  req 1 (0 sent)  s/turn 2.7
+    llm    rank 1/100  p=0.950  evidence 1  facts 1  req 1 (0 sent)  s/turn 2.6
            room_ids=['f3-office-302'] -> Office 302@0.95[llm]
 ptc-across-from-302 [ptc-100] true=f3-storage-supply
     rules  rank 3/100  p=0.330  evidence 3  facts 0  req 0 (0 sent)
            room_ids=['f2-storage-supply', 'f3-storage-supply', 'f4-storage-supply'] -> Supply & Copy Room 2, Supply & Copy Room 3, Supply & Copy Room 4@0.95[rules]; room_type=copy_room@1.00[rules]; room_type=storage@0.80[rules]
-    llm    rank 1/100  p=0.895  evidence 1  facts 0  req 1 (0 sent)  s/turn 4.0
-           room_ids=['f3-storage-supply'] -> Supply & Copy Room 3@0.90[llm]
+    llm    rank 1/100  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 3.0
+           room_ids=['f3-storage-supply'] -> Supply & Copy Room 3@0.95[llm]
 ptc-lounge-next-to-boardroom [ptc-100] true=f4-break-room
     rules  rank 1/100  p=0.826  evidence 2  facts 0  req 0 (0 sent)
            room_ids=['f4-break-room'] -> Executive Lounge@0.95[rules]; room_type=common_area@1.00[rules]
@@ -192,186 +192,228 @@ ptc-lounge-next-to-boardroom [ptc-100] true=f4-break-room
 ptc-meeting-room-next-to-break-room [ptc-100] true=f3-conference-n
     rules  rank 5/100  p=0.069  evidence 1  facts 0  req 0 (0 sent)
            room_type=conference@0.80[rules]
-    llm    rank 1/100  p=0.205  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.9
-           floor=3@0.95[llm]; room_ids=['f3-conference-n'] -> Conference Room 3N@0.80[llm]
+    llm    rank 1/100  p=0.850  evidence 3  facts 0  req 1 (0 sent)  s/turn 3.5
+           floor=3@0.95[llm]; room_ids=['f3-conference-n'] -> Conference Room 3N@0.90[llm]; room_ids=['f3-conference-n'] -> Conference Room 3N@0.85[llm]
 ptc-yes-security-office [ptc-100] true=f1-office-security
     rules  rank 1/100  p=0.878  evidence 2  facts 0  req 0 (0 sent)
            room_type=office@0.75[rules]; room_ids=['f1-office-security'] -> Security Office@0.75[rules]
-    llm    rank 1/100  p=0.700  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.9
+    llm    rank 1/100  p=0.700  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.0
            room_ids=['f1-office-security'] -> Security Office@0.70[llm]
 ptc-asr-three-oh-two [ptc-100] true=f3-office-302
     rules  rank 1/100  p=0.995  evidence 3  facts 0  req 0 (0 sent)
            unit=302 -> Office 302@0.95[rules]; room_type=office@1.00[rules]; floor=3@0.95[rules]
-    llm    rank 1/100  p=0.897  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.9
+    llm    rank 1/100  p=0.897  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.8
            room_ids=['f3-office-302'] -> Office 302@0.70[llm]; floor=3@0.95[llm]
 ptc-correction-name [ptc-100] true=f1-storage-mail
     rules  rank 1/100  p=0.950  evidence 2  facts 0  req 0 (0 sent)
            room_ids=['f1-storage-mail'] -> Mail Room & Receiving@0.95[rules]; room_type=copy_room@0.80[rules]
-    llm    rank 1/100  p=0.895  evidence 1  facts 0  req 2 (0 sent)  s/turn 1.8,2.3
+    llm    rank 1/100  p=0.895  evidence 1  facts 0  req 2 (0 sent)  s/turn 2.3,2.5
            room_ids=['f1-storage-mail'] -> Mail Room & Receiving@0.90[llm]
 ptc-injection [ptc-100] true=f3-office-303
     rules  rank 1/100  p=0.982  evidence 2  facts 0  req 0 (0 sent)
            name_contains=office,unit=303 -> Office 303@0.95[rules]; room_type=office@1.00[rules]
-    llm    rank 1/100  p=0.950  evidence 1  facts 0  req 2 (0 sent)  s/turn 2.0,1.9
+    llm    rank 1/100  p=0.950  evidence 1  facts 0  req 2 (0 sent)  s/turn 1.8,1.1
            room_ids=['f3-office-303'] -> Office 303@0.95[llm]
 ptc-no-info-numbers [ptc-100] true=no-info
     rules  rank 6/100  p=0.037  evidence 0  facts 0  req 0 (0 sent)
-    llm    rank 6/100  p=0.037  evidence 0  facts 1  req 1 (0 sent)  s/turn 1.6
+    llm    rank 6/100  p=0.037  evidence 0  facts 1  req 1 (0 sent)  s/turn 1.7
 bundy-860-kitchenette [bundy-olympic] true=f8-s860-r6
     rules  rank 2/148  p=0.277  evidence 2  facts 0  req 0 (0 sent)
            name_contains=suite,unit=860 -> Suite 860 open area, Suite 860 office 1, Suite 860 office 2 +3@0.95[rules]; room_type=break_room@1.00[rules]
-    llm    rank 1/148  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.9
+    llm    rank 1/148  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.0
            room_ids=['f8-s860-r6'] -> Suite 860 kitchenette@0.95[llm]
 bundy-zytrade-open-room [bundy-olympic] true=f8-s860-r1
     rules  rank 1/148  p=0.446  evidence 1  facts 0  req 0 (0 sent)
            room_ids=['f8-s860-r1', 'f8-s860-r2', 'f8-s860-r3', 'f8-s860-r4', 'f8-s860-r5', 'f8-s860-r6'] -> Suite 860 open area, Suite 860 office 1, Suite 860 office 2 +3@0.95[rules]
-    llm    rank 1/148  p=0.978  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.9
-           tenant_contains=Zytrade -> Suite 860 open area, Suite 860 office 1, Suite 860 office 2 +3@0.95[llm]; room_ids=['f8-s860-r1'] -> Suite 860 open area@0.70[llm]
+    llm    rank 1/148  p=0.895  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.0
+           room_ids=['f8-s860-r1'] -> Suite 860 open area@0.90[llm]
 bundy-next-door-to-black-label [bundy-olympic] true=f8-s850-r1
     rules  rank 11/148  p=0.025  evidence 0  facts 0  req 0 (0 sent)
-    llm    rank 1/148  p=0.256  evidence 2  facts 0  req 1 (0 sent)  s/turn 4.7
-           room_ids=['f8-s850-r1'] -> Suite 850 open area@0.75[llm]; floor=8@0.70[llm]
+    llm    rank 1/148  p=0.700  evidence 2  facts 0  req 1 (0 sent)  s/turn 4.2
+           room_ids=['f8-s850-r1'] -> Suite 850 open area@0.80[llm]; room_ids=['f8-s850-r1'] -> Suite 850 open area@0.70[llm]
 bundy-no-info-unmatched-999 [bundy-olympic] true=no-info
     rules  rank 19/148  p=0.022  evidence 0  facts 0  req 0 (0 sent)
            unit=999 -> UNMATCHED@0.95[rules]
-    llm    rank 19/148  p=0.022  evidence 0  facts 0  req 1 (0 sent)  s/turn 2.2
+    llm    rank 5/148  p=0.053  evidence 1  facts 0  req 1 (0 sent)  s/turn 3.7
+           floor=top@0.40[llm]
 wash-office-4-then-floor [washington-5285] true=f2-r26
     rules  rank 1/38  p=0.947  evidence 3  facts 0  req 0 (0 sent)
            name_contains=office,unit=4 -> Office 4, Office 4@0.95[rules]; room_type=office@1.00[rules]; floor=2@0.95[rules]
-    llm    rank 1/38  p=0.945  evidence 2  facts 0  req 2 (0 sent)  s/turn 2.4,1.9
+    llm    rank 1/38  p=0.945  evidence 2  facts 0  req 2 (0 sent)  s/turn 2.3,1.8
            room_ids=['f1-r06', 'f2-r26'] -> Office 4, Office 4@0.95[llm]; floor=2@0.95[llm]
 wash-office-4-ambiguous [washington-5285] true=f1-r06
     rules  rank 2/38  p=0.396  evidence 2  facts 0  req 0 (0 sent)
            name_contains=office,unit=4 -> Office 4, Office 4@0.95[rules]; room_type=office@0.80[rules]
-    llm    rank 2/38  p=0.389  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.3
+    llm    rank 2/38  p=0.389  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.2
            room_ids=['f1-r06', 'f2-r26'] -> Office 4, Office 4@0.95[llm]
 wash-control-room [washington-5285] true=f1-r08
     rules  rank 1/38  p=0.995  evidence 2  facts 0  req 0 (0 sent)
            room_ids=['f1-r08'] -> Control Room@0.95[rules]; room_type=server_room@1.00[rules]
-    llm    rank 1/38  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.6
+    llm    rank 1/38  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.0
            room_ids=['f1-r08'] -> Control Room@0.95[llm]
 mariposa-asr-307 [prop-4388250] true=u23325523
     rules  rank 1/40  p=0.950  evidence 1  facts 0  req 0 (0 sent)
            unit=307 -> Unit 307@0.95[rules]
-    llm    rank 1/40  p=0.700  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.1
+    llm    rank 1/40  p=0.700  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.9
            room_ids=['u23325523'] -> Unit 307@0.70[llm]
 cornerstone-340 [prop-247451] true=t258199591
     rules  rank 1/99  p=0.995  evidence 2  facts 0  req 0 (0 sent)
            unit=340 -> 340 Citrin Cooperman@0.95[rules]; room_ids=['t244891941', 't258199591'] -> 850 Citrin Cooperman, 340 Citrin Cooperman@0.95[rules]
-    llm    rank 1/99  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.4
+    llm    rank 1/99  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.2
            room_ids=['t258199591'] -> 340 Citrin Cooperman@0.95[llm]
 cornerstone-citrin-ambiguous [prop-247451] true=t244891941
     rules  rank 1/99  p=0.551  evidence 1  facts 0  req 0 (0 sent)
            room_ids=['t244891941', 't258199591'] -> 850 Citrin Cooperman, 340 Citrin Cooperman@0.95[rules]
-    llm    rank 1/99  p=0.551  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.5
+    llm    rank 1/99  p=0.551  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.3
            room_ids=['t258199591', 't244891941'] -> 850 Citrin Cooperman, 340 Citrin Cooperman@0.95[llm]
 cornerstone-across-from-architects [prop-247451] true=t258199551
     rules  rank 1/99  p=0.951  evidence 2  facts 0  req 0 (0 sent)
            room_ids=['t258199551'] -> 405 Douglas Emmett, Inc.@0.95[rules]; room_type=corridor@0.80[rules]
-    llm    rank 1/99  p=0.895  evidence 1  facts 0  req 1 (0 sent)  s/turn 2.9
-           room_ids=['t258199551'] -> 405 Douglas Emmett, Inc.@0.90[llm]
+    llm    rank 1/99  p=0.981  evidence 2  facts 0  req 1 (0 sent)  s/turn 4.2
+           room_ids=['t258199551'] -> 405 Douglas Emmett, Inc.@0.95[llm]; room_ids=['t258199551'] -> 405 Douglas Emmett, Inc.@0.70[llm]
 layout-ptc-biggest-room-3 [ptc-100] true=f3-suite-vacant
     rules  rank 13/100  p=0.018  evidence 2  facts 0  req 0 (0 sent)
            floor=3@0.95[rules]; landmark=stairs@0.80[rules]
-    llm    rank 1/100  p=0.137  evidence 2  facts 0  req 2 (0 sent)  s/turn 1.9,3.0
-           floor=3@0.95[llm]; room_ids=['f3-suite-vacant'] -> Suite 310 (vacant)@0.80[llm]
+    llm    rank 1/100  p=0.750  evidence 3  facts 0  req 2 (0 sent)  s/turn 1.8,4.3
+           floor=3@0.95[llm]; room_ids=['f3-suite-vacant'] -> Suite 310 (vacant)@0.80[llm]; room_ids=['f3-suite-vacant'] -> Suite 310 (vacant)@0.75[llm]
 layout-ptc-second-door-left [ptc-100] true=f4-office-403
     rules  rank 4/100  p=0.111  evidence 3  facts 0  req 0 (0 sent)
            floor=top@0.95[rules]; room_type=corridor@0.80[rules]; room_type=office@0.80[rules]
-    llm    rank 3/100  p=0.098  evidence 3  facts 0  req 2 (0 sent)  s/turn 9.1,9.0
-           floor=4@0.95[llm]; room_ids=['f4-open-office-s', 'f4-office-404', 'f4-storage-records'] -> Records Room, Executive Assistants, Executive Office 404@0.45[llm]; room_ids=['f4-storage-records', 'f4-office-403'] -> Records Room, Executive Office 403@0.50[llm]
+    llm    rank 2/100  p=0.112  evidence 3  facts 0  req 2 (0 sent)  s/turn 8.9,9.0
+           floor=4@0.95[llm]; room_ids=['f4-storage-records', 'f4-open-office-s', 'f4-office-403', 'f4-restroom-north', 'f4-office-406'] -> Restroom (North, window), Records Room, Executive Office 406 +2@0.40[llm]; room_ids=['f4-open-office-s', 'f4-restroom-north', 'f4-office-403', 'f4-office-406', 'f4-office-404'] -> Restroom (North, window), Executive Office 406, Executive Assistants +2@0.40[llm]
 layout-ptc-corner-street-east [ptc-100] true=f2-conference-s
     rules  rank 2/100  p=0.258  evidence 4  facts 0  req 0 (0 sent)
            floor=2@0.95[rules]; landmark=window@0.80[rules]; view=street@0.90[rules]; landmark=stairs@0.80[rules]
-    llm    rank 1/100  p=0.833  evidence 4  facts 0  req 2 (0 sent)  s/turn 3.0,4.9
-           floor=2@0.95[llm]; room_ids=['f2-open-office-n1', 'f2-conference-n', 'f2-office-201', 'f2-conference-s'] -> Open Office 2 North-West, Conference Room 2N, Office 201 +1@0.70[llm]; room_ids=['f2-office-201', 'f2-conference-s'] -> Office 201, Conference Room 2S@0.70[llm]; room_ids=['f2-conference-s', 'f2-conference-n'] -> Conference Room 2N, Conference Room 2S@0.70[llm]
+    llm    rank 1/100  p=0.850  evidence 4  facts 0  req 2 (0 sent)  s/turn 3.7,4.4
+           floor=2@0.95[llm]; room_ids=['f2-open-office-n1', 'f2-conference-n', 'f2-office-201', 'f2-conference-s'] -> Open Office 2 North-West, Conference Room 2N, Office 201 +1@0.80[llm]; room_ids=['f2-conference-s'] -> Conference Room 2S@0.85[llm]; room_ids=['f2-conference-s'] -> Conference Room 2S@0.85[llm]
 layout-ptc-two-past-lounge [ptc-100] true=f4-storage-records
     rules  rank 92/100  p=0.001  evidence 3  facts 0  req 0 (0 sent)
            view=parking_lot@0.90[rules]; landmark=stairs@0.56[rules]; negative=landmarks:window(no)@0.75[rules]
-    llm    rank 1/100  p=0.912  evidence 4  facts 0  req 2 (0 sent)  s/turn 7.0,2.9
-           floor=4@0.95[llm]; room_ids=['f4-storage-records', 'f4-office-406', 'f4-restroom-north'] -> Restroom (North, window), Records Room, Executive Office 406@0.60[llm]; room_ids=['f4-suite-vacant', 'f4-office-405', 'f4-boardroom', 'f4-break-room', 'f4-restroom-north', 'f4-office-406'] -> Suite 420 (vacant), Executive Office 405, Boardroom +3@0.70[llm]; room_ids=['f4-storage-records'] -> Records Room@0.70[llm]
+    llm    rank 1/100  p=0.880  evidence 4  facts 0  req 2 (1 sent)  s/turn 8.1,3.1
+           floor=4@0.95[llm]; room_ids=['f4-office-406', 'f4-storage-records'] -> Records Room, Executive Office 406@0.60[llm]; room_ids=['f4-storage-records'] -> Records Room@0.90[llm]; room_ids=['f4-storage-records'] -> Records Room@0.88[llm]
 layout-ptc-behind-elevator [ptc-100] true=f2-server-room
     rules  rank 10/100  p=0.008  evidence 4  facts 0  req 0 (0 sent)
            floor=2@0.95[rules]; negative=landmarks:window(no)@0.70[rules]; sound=elevator_ding@0.60[rules]; room_type=restroom@1.00[rules]
-    llm    rank 1/100  p=0.953  evidence 3  facts 0  req 2 (0 sent)  s/turn 3.5,2.6
-           floor=2@0.95[llm]; room_ids=['f2-server-room', 'f2-restroom-core'] -> Restroom (Core), Server Room / MDF@0.70[llm]; room_ids=['f2-server-room'] -> Server Room / MDF@0.70[llm]
+    llm    rank 1/100  p=0.850  evidence 4  facts 0  req 2 (1 sent)  s/turn 5.1,4.1
+           floor=2@0.95[llm]; room_ids=['f2-server-room', 'f2-restroom-core'] -> Restroom (Core), Server Room / MDF@0.75[llm]; room_ids=['f2-server-room'] -> Server Room / MDF@0.85[llm]; room_ids=['f2-server-room'] -> Server Room / MDF@0.85[llm]
 layout-ptc-corner-correction [ptc-100] true=f3-office-303
     rules  rank 1/100  p=0.492  evidence 5  facts 0  req 0 (0 sent)
            room_type=office@0.80[rules]; floor=3@0.95[rules]; view=street@0.90[rules]; landmark=stairs@0.80[rules]; landmark=stairs@0.80[rules]
-    llm    rank 1/100  p=0.217  evidence 2  facts 0  req 2 (0 sent)  s/turn 3.7,3.5
-           floor=3@0.95[llm]; room_ids=['f3-office-303'] -> Office 303@0.80[llm]
+    llm    rank 1/100  p=0.800  evidence 3  facts 0  req 2 (1 sent)  s/turn 4.5,4.8
+           floor=3@0.95[llm]; room_ids=['f3-office-303'] -> Office 303@0.85[llm]; room_ids=['f3-office-303'] -> Office 303@0.80[llm]
 layout-bundy-whole-side-7 [bundy-olympic] true=f7-s700
     rules  rank 12/148  p=0.023  evidence 2  facts 0  req 0 (0 sent)
            view=street@0.90[rules]; landmark=window@0.80[rules]
-    llm    rank 1/148  p=0.948  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.9
-           floor=7@0.95[llm]; room_ids=['f7-s700'] -> Suite 700@0.70[llm]
+    llm    rank 1/148  p=0.880  evidence 3  facts 0  req 1 (0 sent)  s/turn 3.8
+           floor=7@0.95[llm]; room_ids=['f7-s700'] -> Suite 700@0.90[llm]; room_ids=['f7-s700'] -> Suite 700@0.88[llm]
 layout-bundy-last-door-past-stairs [bundy-olympic] true=f4-s420-r2
     rules  rank 4/148  p=0.053  evidence 5  facts 0  req 0 (0 sent)
            floor=4@0.95[rules]; room_type=corridor@1.00[rules]; view=street@0.90[rules]; landmark=stairs@0.80[rules]; room_type=office@0.80[rules]
-    llm    rank 1/148  p=0.957  evidence 3  facts 0  req 2 (0 sent)  s/turn 3.2,2.2
-           floor=4@0.95[llm]; room_ids=['f4-s420-r2', 'f4-s420-r1'] -> Suite 420 open area, Suite 420 office@0.65[llm]; room_ids=['f4-s420-r2'] -> Suite 420 office@0.70[llm]
+    llm    rank 1/148  p=0.850  evidence 3  facts 0  req 2 (0 sent)  s/turn 6.4,3.8
+           floor=4@0.95[llm]; room_ids=['f4-s420-r2', 'f4-s400'] -> Suite 400, Suite 420 office@0.70[llm]; room_ids=['f4-s420-r2'] -> Suite 420 office@0.85[llm]
 layout-bundy-tiny-corner-6 [bundy-olympic] true=f6-s630-r2
     rules  rank 8/148  p=0.014  evidence 6  facts 0  req 0 (0 sent)
            floor=6@0.95[rules]; landmark=stairs@0.80[rules]; room_type=corridor@1.00[rules]; room_type=storage@1.00[rules]; landmark=window@0.80[rules]; view=parking_lot@0.90[rules]
-    llm    rank 1/148  p=0.953  evidence 3  facts 0  req 2 (0 sent)  s/turn 3.6,4.3
-           floor=6@0.95[llm]; room_ids=['f6-s630-r3', 'f6-s630-r1', 'f6-s620-r1', 'f6-s630-r2'] -> Suite 620 open area, Suite 630 open area, Suite 630 office 1 +1@0.55[llm]; room_ids=['f6-s630-r2'] -> Suite 630 office 1@0.70[llm]
+    llm    rank 1/148  p=0.750  evidence 4  facts 0  req 2 (0 sent)  s/turn 5.2,5.7
+           floor=6@0.95[llm]; room_ids=['f6-s630-r3', 'f6-s630-r1', 'f6-s630-r2', 'f6-s620-r1'] -> Suite 620 open area, Suite 630 open area, Suite 630 office 1 +1@0.60[llm]; room_ids=['f6-s630-r2'] -> Suite 630 office 1@0.80[llm]; room_ids=['f6-s630-r2'] -> Suite 630 office 1@0.75[llm]
 layout-bundy-no-info-hallway [bundy-olympic] true=no-info
     rules  rank 77/148  p=0.003  evidence 1  facts 0  req 0 (0 sent)
            room_type=corridor@1.00[rules]
-    llm    rank 110/148  p=0.001  evidence 0  facts 0  req 2 (0 sent)  s/turn 1.1,1.4
+    llm    rank 110/148  p=0.001  evidence 0  facts 0  req 2 (0 sent)  s/turn 1.1,1.1
 layout-hewitt-biggest-around-corner [prop-12622830] true=u28004378
     rules  rank 4/99  p=0.051  evidence 2  facts 0  req 0 (0 sent)
            floor=3@0.95[rules]; landmark=elevator@0.80[rules]
-    llm    rank 1/99  p=0.923  evidence 2  facts 0  req 2 (0 sent)  s/turn 1.9,1.9
-           floor=3@0.95[llm]; room_ids=['u28004378'] -> Unit 308@0.70[llm]
+    llm    rank 1/99  p=0.700  evidence 3  facts 0  req 2 (0 sent)  s/turn 2.0,3.3
+           floor=3@0.95[llm]; room_ids=['u28004378'] -> Unit 308@0.70[llm]; room_ids=['u28004378'] -> Unit 308@0.70[llm]
 layout-hewitt-across-middle-stairs [prop-12622830] true=u28004379
     rules  rank 15/99  p=0.006  evidence 3  facts 0  req 0 (0 sent)
            floor=4@0.95[rules]; room_type=corridor@0.80[rules]; room_type=corridor@1.00[rules]
-    llm    rank 2/99  p=0.115  evidence 2  facts 0  req 2 (0 sent)  s/turn 5.1,4.7
-           floor=4@0.95[llm]; room_ids=['u28004379', 'u28004380'] -> Unit 406, Unit 408@0.60[llm]
+    llm    rank 2/99  p=0.256  evidence 4  facts 0  req 2 (0 sent)  s/turn 5.0,5.0
+           floor=4@0.95[llm]; room_ids=['u28004379', 'u28004380', 'u28004358', 'u28004357'] -> Unit 409, Unit 411, Unit 406 +1@0.60[llm]; room_ids=['u28004379', 'u28004380'] -> Unit 406, Unit 408@0.75[llm]; room_ids=['u28004379', 'u28004380'] -> Unit 406, Unit 408@0.70[llm]
 layout-jrr-between-lounges [jrr-princeton] true=399
     rules  rank 3/208  p=0.054  evidence 4  facts 0  req 0 (0 sent)
            floor=top@0.95[rules]; floor=3@0.95[rules]; room_type=conference@1.00[rules]; room_type=common_area@0.80[rules]
-    llm    rank 1/208  p=0.984  evidence 3  facts 0  req 2 (0 sent)  s/turn 2.9,3.1
-           floor=3@0.95[llm]; room_ids=['301', '397', '399'] -> Room 301 Rooftop Pavilion meeting room, Room 397 Rooftop Pavilion meeting room, Room 399 Rooftop Pavilion meeting room@0.70[llm]; room_ids=['399'] -> Room 399 Rooftop Pavilion meeting room@0.70[llm]
+    llm    rank 1/208  p=0.900  evidence 4  facts 0  req 2 (1 sent)  s/turn 4.1,4.1
+           floor=3@0.95[llm]; room_ids=['301', '397', '399'] -> Room 301 Rooftop Pavilion meeting room, Room 397 Rooftop Pavilion meeting room, Room 399 Rooftop Pavilion meeting room@0.85[llm]; room_ids=['399'] -> Room 399 Rooftop Pavilion meeting room@0.90[llm]; room_ids=['399'] -> Room 399 Rooftop Pavilion meeting room@0.90[llm]
 layout-jrr-dead-end-far-from-elevator [jrr-princeton] true=3-bcf
     rules  rank 2/208  p=0.204  evidence 3  facts 0  req 0 (0 sent)
            floor=top@0.95[rules]; room_type=corridor@1.00[rules]; landmark=elevator@0.80[rules]
-    llm    rank 1/208  p=0.439  evidence 3  facts 0  req 2 (0 sent)  s/turn 3.6,5.7
-           floor=3@0.95[llm]; room_ids=['3-bcf', '3-econ', '3-copy-396'] -> Bendheim Center for Finance (Level 3), Copy room and pantry 396 (Economics), Department of Economics (Level 3)@0.60[llm]; room_ids=['3-bcf'] -> Bendheim Center for Finance (Level 3)@0.55[llm]
+    llm    rank 1/208  p=0.333  evidence 3  facts 0  req 2 (0 sent)  s/turn 4.8,3.7
+           floor=3@0.95[llm]; room_ids=['3-bcf', '3-econ', '3-copy-396'] -> Bendheim Center for Finance (Level 3), Copy room and pantry 396 (Economics), Department of Economics (Level 3)@0.65[llm]; room_ids=['3-bcf', '3-econ'] -> Bendheim Center for Finance (Level 3), Department of Economics (Level 3)@0.60[llm]
+fuzzy-jrr-bendheim-up-high [jrr-princeton] true=3-bcf
+    rules  rank 2/208  p=0.036  evidence 1  facts 1  req 0 (0 sent)
+           view=street@0.90[rules]
+    llm    rank 1/208  p=0.650  evidence 4  facts 1  req 4 (1 sent)  s/turn 1.8,2.6,3.6,4.4
+           room_ids=['3-bcf', '3-copy-396', '3-econ', '3-lounge-n', '3-lounge-s', '3-pantry-398', '301', '397', '399', '3-wc-n', '3-wc-s', '3-mech'] -> Bendheim Center for Finance (Level 3), Copy room and pantry 396 (Economics), Department of Economics (Level 3) +9@0.50[llm]; room_ids=['3-bcf', '3-econ', '3-copy-396'] -> Bendheim Center for Finance (Level 3), Copy room and pantry 396 (Economics), Department of Economics (Level 3)@0.50[llm]; room_ids=['3-bcf', '2-bcf'] -> Bendheim Center for Finance (Level 2), Bendheim Center for Finance (Level 3)@0.70[llm]; room_ids=['3-bcf'] -> Bendheim Center for Finance (Level 3)@0.65[llm]
+fuzzy-bundy-b-lawyers-west-end [bundy-olympic] true=f6-s600
+    rules  rank 21/148  p=0.005  evidence 4  facts 0  req 0 (0 sent)
+           room_ids=['f1-elevators', 'f2-elevators', 'f3-elevators', 'f4-elevators', 'f5-elevators', 'f6-elevators', 'f7-elevators', 'f8-elevators'] -> Elevators, Elevators, Elevators +5@0.95[rules]; room_type=corridor@1.00[rules]; landmark=elevator@0.80[rules]; room_type=lobby@1.00[rules]
+    llm    rank 1/148  p=0.885  evidence 3  facts 2  req 4 (0 sent)  s/turn 1.9,3.1,3.5,4.9
+           room_ids=['f5-s510', 'f5-s520-r1', 'f5-s530', 'f5-s570', 'f5-s575', 'f6-s600', 'f6-s620-r1', 'f6-s640', 'f6-s630-r1', 'f6-s650-r1', 'f7-s750', 'f7-s720', 'f6-s630-r2', 'f6-s630-r3', 'f6-s650-r2'] -> Suite 510, Suite 520 open area, Suite 575 +12@0.50[llm]; room_ids=['f6-s600'] -> Suite 600@0.70[llm]; room_ids=['f6-s600', 'f6-s660'] -> Suite 600, Suite 660@0.70[llm]
+fuzzy-bundy-d-name-side-correction [bundy-olympic] true=f6-s650-r1
+    rules  rank 9/148  p=0.043  evidence 2  facts 0  req 0 (0 sent)
+           view=parking_lot@0.90[rules]; room_type=open_office@0.80[rules]
+    llm    rank 1/148  p=0.880  evidence 5  facts 0  req 4 (0 sent)  s/turn 2.4,6.2,4.6,3.7
+           floor=6@0.51[llm]; floor=7@0.51[llm]; room_ids=['f6-s650-r1', 'f6-s650-r2'] -> Suite 650 open area, Suite 650 kitchenette@0.60[llm]; room_ids=['f6-s650-r1', 'f6-s660', 'f6-s640', 'f6-s630-r1', 'f6-s630-r2', 'f7-s750', 'f7-s720'] -> Suite 660, Suite 650 open area, Suite 640 +4@0.85[llm]; room_ids=['f6-s650-r1'] -> Suite 650 open area@0.88[llm]
+fuzzy-cornerstone-s-name-long-walk [prop-247451] true=t151818861
+    rules  rank 10/99  p=0.001  evidence 3  facts 0  req 0 (0 sent)
+           floor=top@0.68[rules]; room_ids=['b1w1f1-el', 'b1w1f2-el', 'b1w1f3-el', 'b1w1f4-el', 'b1w1f5-el', 'b1w1f6-el', 'b1w1f7-el', 'b1w1f8-el'] -> Elevator, Elevator, Elevator +5@0.95[rules]; landmark=elevator@0.80[rules]
+    llm    rank 1/99  p=0.820  evidence 4  facts 1  req 4 (1 sent)  s/turn 1.8,3.0,4.3,3.4
+           floor=8@0.48[llm]; floor=7@0.48[llm]; room_ids=['t151818861'] -> 800 Sanli Pastore & Hill@0.75[llm]; room_ids=['t151818861'] -> 800 Sanli Pastore & Hill@0.82[llm]
+fuzzy-cornerstone-citron-upper-office [prop-247451] true=t244891941
+    rules  rank 5/99  p=0.042  evidence 1  facts 0  req 0 (0 sent)
+           room_type=office@0.80[rules]
+    llm    rank 1/99  p=0.900  evidence 3  facts 1  req 4 (1 sent)  s/turn 1.7,2.8,4.5,3.9
+           room_ids=['t258199591', 't244891941'] -> 850 Citrin Cooperman, 340 Citrin Cooperman@0.70[llm]; room_ids=['t244891941'] -> 850 Citrin Cooperman@0.85[llm]; room_ids=['t244891941'] -> 850 Citrin Cooperman@0.90[llm]
+fuzzy-jewelry-a-name-big-suite [prop-248704] true=t224171161
+    rules  rank 16/295  p=0.023  evidence 3  facts 0  req 0 (0 sent)
+           landmark=elevator@0.80[rules]; landmark=window@0.80[rules]; view=street@0.90[rules]
+    llm    rank 1/295  p=0.800  evidence 5  facts 1  req 4 (1 sent)  s/turn 2.6,3.3,4.7,5.5
+           floor=12@0.54[llm]; floor=13@0.54[llm]; room_ids=['t224171161'] -> Aaron Henry@0.65[llm]; room_ids=['t224171161', 't11058862'] -> 1652 King Plutarco Inc., Aaron Henry@0.75[llm]; room_ids=['t224171161'] -> Aaron Henry@0.80[llm]
+fuzzy-hewitt-side-door-even [prop-12622830] true=u28004374
+    rules  rank 43/99  p=0.001  evidence 5  facts 0  req 0 (0 sent)
+           route=stairs_up_right@0.70[rules]; negative=room_types:lobby(no)@0.70[rules]; landmark=stairs@0.80[rules]; room_type=corridor@0.80[rules]; landmark=stairs@0.80[rules]
+    llm    rank 4/99  p=0.093  evidence 3  facts 1  req 4 (0 sent)  s/turn 2.6,3.0,3.2,7.0
+           room_ids=['b1w1f1-stA', 'b1w1f1-stB'] -> Stair A, Stair B@0.50[llm]; floor=6@0.84[llm]; room_ids=['u28004374', 'u28004383', 'u28004373', 'u28004348'] -> Unit 613, Unit 602, Unit 612 +1@0.45[llm]
 
 Original calls (32)
 mode   calls (loc+none)  top-1  top-3  p(true) no-info empty  req/call (sent) req/turn 1-req turns  tok/call in/out  s/turn mean/med/p90 fallback
 -------------------------------------------------------------------------------------------------------------------------------------------------
 rules         32 (27+5)    70%    93%    0.694          100%      0.00 (0.00)        -           -              0/0                    -        0
-llm           32 (27+5)    89%    93%    0.821          100%      1.19 (0.00)     1.00        100%              0/0       2.59/2.32/3.33        0
+llm           32 (27+5)    96%   100%    0.846          100%      1.19 (0.00)     1.00        100%              0/0       2.64/2.59/3.46        0
 
 Calls added 2026-11-14 (25)
 mode   calls (loc+none)  top-1  top-3  p(true) no-info empty  req/call (sent) req/turn 1-req turns  tok/call in/out  s/turn mean/med/p90 fallback
 -------------------------------------------------------------------------------------------------------------------------------------------------
 rules         25 (23+2)    78%    91%    0.756          100%      0.00 (0.00)        -           -              0/0                    -        0
-llm           25 (23+2)    96%   100%    0.816          100%      1.12 (0.00)     1.00        100%              0/0       2.48/2.35/2.93        0
+llm           25 (23+2)    96%   100%    0.866           50%      1.12 (0.00)     1.00        100%              0/0       2.44/2.26/3.46        0
 
 Layout-reasoning calls, added 2026-11-15 (14)
 mode   calls (loc+none)  top-1  top-3  p(true) no-info empty  req/call (sent) req/turn 1-req turns  tok/call in/out  s/turn mean/med/p90 fallback
 -------------------------------------------------------------------------------------------------------------------------------------------------
 rules         14 (13+1)     8%    31%    0.100            0%      0.00 (0.00)        -           -              0/0                    -        0
-llm           14 (13+1)    85%   100%    0.651          100%      1.93 (0.00)     1.00        100%              0/0       3.77/3.16/5.71        0
+llm           14 (13+1)    85%   100%    0.685          100%      1.93 (0.29)     1.00        100%        10834/176       4.47/4.33/6.35        0
 
-All free-form calls (71)
+Fuzzy multi-turn calls, added 2026-11-15 (7)
 mode   calls (loc+none)  top-1  top-3  p(true) no-info empty  req/call (sent) req/turn 1-req turns  tok/call in/out  s/turn mean/med/p90 fallback
 -------------------------------------------------------------------------------------------------------------------------------------------------
-rules         71 (63+8)    60%    79%    0.594           88%      0.00 (0.00)        -           -              0/0                    -        0
-llm           71 (63+8)    90%    97%    0.784          100%      1.31 (0.00)     1.00        100%              0/0       2.90/2.63/4.68        0
+rules           7 (7+0)     0%    14%    0.022             -      0.00 (0.00)        -           -              0/0                    -        0
+llm             7 (7+0)    86%    86%    0.718             -      4.00 (0.57)     1.00        100%        25558/355       3.57/3.34/4.87        0
+
+All free-form calls (78)
+mode   calls (loc+none)  top-1  top-3  p(true) no-info empty  req/call (sent) req/turn 1-req turns  tok/call in/out  s/turn mean/med/p90 fallback
+-------------------------------------------------------------------------------------------------------------------------------------------------
+rules         78 (70+8)    54%    73%    0.537           88%      0.00 (0.00)        -           -              0/0                    -        0
+llm           78 (70+8)    93%    99%    0.810           88%      1.55 (0.10)     1.00        100%          4238/64       3.22/2.96/5.03        0
 Accuracy columns cover location calls only; 'no-info empty' covers the no-information calls. Calls with a fallback are left out of every column except their own. s/turn is time spent in model requests.
 
 Scripted scenarios: rank / probability of the true room after each caller turn (last = end of call)
 scenario:cardiac_arrest_office true=f2-conference-n
     rules  [1] 17/0.019  [3] 17/0.019  [6] 6/0.050  [7] 1/0.612   end: rank 1/100 p=0.612  suggested cardiac_arrest  req 0
-    llm    [1] 17/0.019  [3] 17/0.019  [6] 6/0.050  [7] 1/0.902   end: rank 1/100 p=0.902  suggested cardiac_arrest  req 4
+    llm    [1] 17/0.019  [3] 10/0.025  [6] 5/0.065  [7] 1/0.800   end: rank 1/100 p=0.800  suggested cardiac_arrest  req 4
 scenario:fire_smoke_office true=f3-office-302
     rules  [1] 22/0.018  [3] 1/0.995  [6] 1/0.997  [7] 1/0.997   end: rank 1/100 p=0.997  suggested fire_smoke  req 0
-    llm    [1] 22/0.018  [3] 1/0.986  [6] 1/0.992  [7] 1/0.992   end: rank 1/100 p=0.992  suggested fire_smoke  req 4
+    llm    [1] 22/0.018  [3] 1/0.986  [6] 1/0.993  [7] 1/0.993   end: rank 1/100 p=0.993  suggested fire_smoke  req 4
 scenario:active_threat_office true=f3-storage-supply
     rules  [1] 85/0.001  [3] 9/0.046  [6] 9/0.048  [7] 9/0.048   end: rank 9/100 p=0.048  suggested active_threat  req 0
     llm    [1] 85/0.001  [3] 1/0.948  [6] 1/0.954  [7] 1/0.954   end: rank 1/100 p=0.954  suggested active_threat  req 4
@@ -379,18 +421,18 @@ scenario:active_threat_office true=f3-storage-supply
 scenario:cardiac_arrest_office [ptc-100] true=f2-conference-n
     rules  rank 1/100  p=0.612  evidence 4  facts 3  req 0 (0 sent)
            room_type=conference@1.00[rules]; floor=2@0.95[rules]; landmark=window@0.80[rules]; view=parking_lot@0.90[rules]
-    llm    rank 1/100  p=0.902  evidence 2  facts 3  req 4 (0 sent)  s/turn 1.8,1.6,1.9,3.2
-           floor=2@0.95[llm]; room_ids=['f2-conference-n'] -> Conference Room 2N@0.70[llm]
+    llm    rank 1/100  p=0.800  evidence 4  facts 3  req 4 (0 sent)  s/turn 2.1,4.3,2.1,4.4
+           room_ids=['f4-boardroom', 'f1-conference-a', 'f1-conference-b', 'f2-conference-n', 'f2-conference-s', 'f3-conference-n', 'f1-lobby'] -> Training Room 1B, Conference Room 1A, Main Lobby +4@0.40[llm]; floor=2@0.95[llm]; room_ids=['f2-conference-n'] -> Conference Room 2N@0.85[llm]; room_ids=['f2-conference-n'] -> Conference Room 2N@0.80[llm]
 scenario:fire_smoke_office [ptc-100] true=f3-office-302
     rules  rank 1/100  p=0.997  evidence 5  facts 4  req 0 (0 sent)
            name_contains=office,unit=302 -> Office 302@0.95[rules]; floor=3@0.95[rules]; room_type=office@1.00[rules]; landmark=window@0.75[rules]; view=street@0.90[rules]
-    llm    rank 1/100  p=0.992  evidence 3  facts 4  req 4 (0 sent)  s/turn 2.0,3.1,2.9,2.1
-           floor=3@0.95[llm]; room_ids=['f3-office-302'] -> Office 302@0.95[llm]; room_ids=['f3-office-301', 'f3-office-302', 'f3-open-office-s1', 'f3-open-office-s2', 'f3-office-303'] -> Office 301, Office 302, Open Office 3 South-Centre +2@0.70[llm]
+    llm    rank 1/100  p=0.993  evidence 3  facts 4  req 4 (0 sent)  s/turn 2.0,3.6,3.2,1.8
+           floor=3@0.95[llm]; room_ids=['f3-office-302'] -> Office 302@0.95[llm]; room_ids=['f3-office-302', 'f3-office-301', 'f3-open-office-s1', 'f3-open-office-s2', 'f3-office-303'] -> Office 301, Office 302, Open Office 3 South-Centre +2@0.90[llm]
 scenario:active_threat_office [ptc-100] true=f3-storage-supply
     rules  rank 9/100  p=0.048  evidence 2  facts 5  req 0 (0 sent)
            room_type=storage@1.00[rules]; floor=3@0.95[rules]
-    llm    rank 1/100  p=0.954  evidence 2  facts 5  req 4 (0 sent)  s/turn 2.2,3.2,1.6,2.1
+    llm    rank 1/100  p=0.954  evidence 2  facts 5  req 4 (0 sent)  s/turn 2.2,3.1,1.6,2.2
            floor=3@0.95[llm]; room_ids=['f3-storage-supply'] -> Supply & Copy Room 3@0.84[llm]
 
-This run sent 0 Anthropic request(s). Tokens: input 0, cache read 0, cache write 0, output 0.
-data/processed/llm_usage.json calls: 2145 -> 2145
+This run sent 8 Anthropic request(s). Tokens: input 4736, cache read 325849, cache write 0, output 4956.
+data/processed/llm_usage.json calls: 2295 -> 2303

@@ -1,5 +1,28 @@
 # Reader model comparison (2026-11-15)
 
+## Update: overall conclusions, fewer preset rules (Sonnet 5.5)
+
+The reader now states its overall judgment (`record_conclusion`: rooms plus a probability it
+chooses, resting on words from any turn; applied last in `core.fusion`), the pinpointing-clue rule
+is gone, and the prompt asks for calibrated rather than cautious answers. 7 fuzzy multi-turn calls
+were added (vague fragments that place the caller only together, e.g. "up high" / "far from where I
+came in" / "the name starts with a B"). 78 calls in all; `freeform_parser.txt` is the low-effort run.
+
+| Reader | All 78: top-1 | top-3 | p(true) | Layout 14: top-1 / top-3 / p | Fuzzy 7: top-1 / top-3 / p | s/turn mean / p90 | Run cost |
+|---|---|---|---|---|---|---|---|
+| Rules | 54% | 73% | 0.537 | 8% / 31% / 0.10 | 0% / 14% / 0.02 | - | $0 |
+| **Sonnet 5.5, effort low (default)** | **93%** | **99%** | **0.810** | 85% / 100% / 0.685 | 86% / 86% / 0.718 | **3.2 / 5.0** | $1.89 |
+| Sonnet 5.5, effort medium | 93% | 100% | 0.811 | 85% / 100% / 0.713 | 86% / 100% / 0.698 | 3.5 / 6.4 | $1.70 |
+
+Low and medium effort tie within one call; low stays the default for speed (`LLM_EFFORT=medium`
+to switch). The jrr "up high / far / starts with B" call ends at Bendheim Center for Finance
+Level 3 (p 0.65, rank 1). Remaining misses: the side-door call (the model read the stairs the
+caller came in by as where they are; medium effort recovers it to rank 2), and an unlabelled
+suite next to a top-floor tenant that the model read as a weak top-floor hint (p 0.4) in a call
+labelled no-information.
+
+## First comparison (fixed rules for clues, before conclusions)
+
 `uv run python -m eval.run_agent_eval --modes rules,llm` with `LLM_MODEL` set per row, effort `low`,
 adaptive thinking, on the 71 free-form calls (32 original, 25 added 2026-11-14, 14 layout-reasoning
 calls added 2026-11-15). Raw model replies are in `data/processed/llm_agent_cache.json`; the scores
