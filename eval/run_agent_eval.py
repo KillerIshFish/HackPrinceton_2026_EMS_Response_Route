@@ -1,4 +1,4 @@
-"""Interpreter evaluation: the rules against the grounded Claude Haiku reader, on free-form calls.
+"""Interpreter evaluation: the rules against the layout-reasoning Claude reader, on free-form calls.
 
     uv run python -m eval.run_agent_eval --modes rules                 # all calls, no network
     uv run python -m eval.run_agent_eval --modes rules,llm,agent -v    # live; replies are cached on disk
@@ -13,7 +13,7 @@ and reported in their own table: rank and probability of the true room at the en
 Modes
 
 * ``rules``  deterministic rules only (``parser.interpret`` mode "rules").
-* ``llm``    the grounded Claude Haiku interpreter (``parser.agent``), the console's "Claude Haiku".
+* ``llm``    the layout-reasoning Claude interpreter (``parser.agent``; model from ``LLM_MODEL``).
 * ``agent``  the same interpreter under its older name; its results come from the same disk cache.
 * ``vocab``  the older single-utterance vocabulary extractor (``parser.extract.extract_clues_llm``),
              kept only for comparison; it is no longer a console mode.
@@ -67,6 +67,11 @@ _USAGE_KEYS = ("calls", "input_tokens", "output_tokens", "cache_read_input_token
 # ---------------------------------------------------------------------------
 # Calls
 # ---------------------------------------------------------------------------
+
+
+def is_layout_call(call: dict) -> bool:
+    """A layout-reasoning call (added 2026-11-15): placed only by reasoning over the building's layout."""
+    return str(call.get("id", "")).startswith("layout-")
 
 
 def load_calls(path: Path = CALLS_PATH) -> list[dict]:
@@ -237,10 +242,8 @@ def _agent_cache_entry(building, transcript, index, prior, facts, incident_type,
     import parser.agent as ag
     import parser.extract as ex
     from parser.building_tools import BuildingIndex
-    from parser.dialog import read_dialog
-
     idx = BuildingIndex(building, None, vocab=vocab)
-    reading = read_dialog(building, transcript, index, vocab, meta=idx.meta_rooms)
+    reading = ag.button_reading(transcript, index, vocab)
     system = ag.build_system_prompt(idx, vocab)
     user = ag.build_user_message(building, transcript, index, prior, reading,
                                  prior_facts=facts, incident_type=incident_type)
@@ -454,9 +457,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--modes", default="rules,llm", help="comma list of rules,llm,agent,vocab")
     ap.add_argument("--limit", type=int, default=None, help="only the first N calls (after --subset / --ids)")
-    ap.add_argument("--subset", choices=("all", "live", "original", "added"), default="all",
+    ap.add_argument("--subset", choices=("all", "live", "original", "added", "layout"), default="all",
                     help="'live': calls marked live: true; 'original': the first 32 calls (added: false); "
-                         "'added': the calls added on 2026-11-14")
+                         "'added': the calls added on 2026-11-14 and later; 'layout': the layout-reasoning calls (ids layout-*)")
     ap.add_argument("--ids", default=None, help="comma list of call ids, run in this order")
     ap.add_argument("--calls", default=str(CALLS_PATH), help="calls YAML")
     ap.add_argument("--no-scenarios", action="store_true", help="leave the scripted console scenarios out")
@@ -477,6 +480,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         calls = [c for c in calls if not c.get("added")]
     elif args.subset == "added":
         calls = [c for c in calls if c.get("added")]
+    elif args.subset == "layout":
+        calls = [c for c in calls if is_layout_call(c)]
     if args.ids:
         want = [i.strip() for i in args.ids.split(",") if i.strip()]
         by_id = {c["id"]: c for c in calls + scenario_calls()}
@@ -509,7 +514,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         usage_before = dict(ex.llm_usage())
         proj = project(calls + scenarios, modes, vocab)
         cap = ex.request_budget()
-        print(f"Model settings: {ag.model_settings()}; model {ex.LLM_MODEL}; "
+        print(f"Model settings: {ag.model_settings()}; "
               f"request cap: {'none' if cap is None else cap} (LLM_MAX_CALLS).")
         print(f"Not cached yet: {proj['model_calls_uncached']} of {len(calls) + len(scenarios)} calls for the grounded "
               f"interpreter ({proj['model_turns']} caller turns in all, usually one request each); "
@@ -528,14 +533,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     tables: dict[str, list[dict]] = {}
     call_ids = {c["id"] for c in calls}
     original = {c["id"] for c in calls if not c.get("added")}
-    added = call_ids - original
-    if original and added:
-        tables["original"] = print_table([r for r in results if r.call_id in original], modes,
-                                         f"Original calls ({len(original)})")
-        print()
-        tables["added"] = print_table([r for r in results if r.call_id in added], modes,
-                                      f"Calls added 2026-11-14 ({len(added)})")
-        print()
+    layout = {c["id"] for c in calls if is_layout_call(c)}
+    added = call_ids - original - layout
+    groups = [("original", original, f"Original calls ({len(original)})"),
+              ("added", added, f"Calls added 2026-11-14 ({len(added)})"),
+              ("layout", layout, f"Layout-reasoning calls, added 2026-11-15 ({len(layout)})")]
+    if sum(1 for _, ids, _ in groups if ids) > 1:
+        for key, ids, title in groups:
+            if ids:
+                tables[key] = print_table([r for r in results if r.call_id in ids], modes, title)
+                print()
     tables["all"] = print_table([r for r in results if r.call_id in call_ids], modes, f"All free-form calls ({len(call_ids)})")
     print("Accuracy columns cover location calls only; 'no-info empty' covers the no-information calls. Calls with a "
           "fallback are left out of every column except their own. s/turn is time spent in model requests.")

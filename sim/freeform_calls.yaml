@@ -543,3 +543,213 @@ calls:
     turns:
       - {speaker: dispatcher, text: "Where are you?"}
       - {speaker: caller, text: "Douglas Emmett, across the hall from the architects"}
+
+  # ==================================================================== Layout-reasoning calls (added 2026-11-15)
+  # The caller never gives a room number, a room name the building has, or a tenant: the
+  # true room can only be reached by reasoning over the layout (which rooms open onto which
+  # corridor and in what order, room size on the floor, corner / end-of-hall position,
+  # distance to stairs and elevators, position relative to an anchor room). Each comment
+  # says why the true room is the answer; the facts were computed from the building files
+  # (polygons within 0.6 m of a corridor, order along the corridor's long axis, area rank
+  # among non-circulation rooms on the floor, floor bounding box). `added: true` keeps them
+  # out of the "original calls" table.
+
+  # ------------------------------------------------------------------ ptc-100
+  # Largest room on floor 3: Suite 310 is 112 m2; the three open offices are 98 m2 each.
+  # It sits at the west end of the north corridor, 2 m from Stair A (west).
+  - id: layout-ptc-biggest-room-3
+    building: ptc-100
+    true_room: f3-suite-vacant
+    tags: [layout, size, floor_plus_layout]
+    added: true
+    turns:
+      - {speaker: dispatcher, text: "What floor are you on?"}
+      - {speaker: caller, text: "third floor"}
+      - {speaker: dispatcher, text: "Okay, where on the third floor?"}
+      - {speaker: caller, text: "it's the biggest room up here, like the hugest space on the whole floor, down the end by the stairs"}
+
+  # Coming out of Stair B (east) on floor 4 and walking west along the south corridor, the
+  # left side is the south side. South-side doors in order from the stair: Executive Office
+  # 404 (corner, x 38-44), then Executive Office 403 (x 33-38), then the Executive
+  # Assistants open office. Second door on the left = 403; only 404 is a near miss.
+  - id: layout-ptc-second-door-left
+    building: ptc-100
+    true_room: f4-office-403
+    tags: [layout, door_order, near_stairs, floor_plus_layout]
+    added: true
+    live: true
+    turns:
+      - {speaker: dispatcher, text: "Where are you in the building?"}
+      - {speaker: caller, text: "top floor. I came out of the east stair well and went down the hall, it's the second door on the left"}
+      - {speaker: dispatcher, text: "The second door, not the first?"}
+      - {speaker: caller, text: "yeah the first one is the corner office, we're the one right after it"}
+
+  # Floor 2 corner rooms: Office 201 (SW, street), Open Office 2 North-West (NW, parking
+  # lot), Conference 2N (NE, parking lot), Conference 2S (SE, street). Corner + street
+  # view + east stairs outside the door leaves only Conference Room 2S.
+  - id: layout-ptc-corner-street-east
+    building: ptc-100
+    true_room: f2-conference-s
+    tags: [layout, corner, near_stairs, floor_plus_layout]
+    added: true
+    turns:
+      - {speaker: dispatcher, text: "Tell me where you are."}
+      - {speaker: caller, text: "second floor, im in a corner room, windows on two sides"}
+      - {speaker: dispatcher, text: "What can you see out the windows?"}
+      - {speaker: caller, text: "the street, and when you go out the door the stairs are right there, the ones on the east end"}
+
+  # Floor 4 north corridor, walking east from the Executive Lounge: Restroom (North) is the
+  # next door, then the Records Room, then Executive Office 406 at the corner. Records Room
+  # and 406 both face Stair B across the corridor; Records has no windows, 406 does.
+  - id: layout-ptc-two-past-lounge
+    building: ptc-100
+    true_room: f4-storage-records
+    tags: [layout, door_order, anchor, near_stairs]
+    added: true
+    turns:
+      - {speaker: dispatcher, text: "Where are you?"}
+      - {speaker: caller, text: "up on four, the parking lot side. Its two doors past the lounge, kind of across from the stairs"}
+      - {speaker: dispatcher, text: "Does the room have windows?"}
+      - {speaker: caller, text: "no, no windows, it's just shelves and boxes in here"}
+
+  # The floor-2 elevator shaft (x 21-25) has two rooms on its walls: Restroom (Core) on the
+  # west and the Server Room / MDF on the east. Small, windowless, east side of the
+  # elevator = Server Room.
+  - id: layout-ptc-behind-elevator
+    building: ptc-100
+    true_room: f2-server-room
+    tags: [layout, near_elevator, size, floor_plus_layout]
+    added: true
+    turns:
+      - {speaker: dispatcher, text: "Where are you?"}
+      - {speaker: caller, text: "second floor, it's a tiny room, no windows, i can hear the elevator going up and down right through the wall"}
+      - {speaker: dispatcher, text: "Which side of the elevator?"}
+      - {speaker: caller, text: "the east side, like right behind it if you're coming from the bathrooms"}
+
+  # Floor 3 corner rooms on the street side: Office 301 (SW, by Stair A) and Office 303
+  # (SE, by Stair B). The caller first says west, then corrects to the east end: 303.
+  - id: layout-ptc-corner-correction
+    building: ptc-100
+    true_room: f3-office-303
+    tags: [layout, corner, correction, near_stairs]
+    added: true
+    turns:
+      - {speaker: dispatcher, text: "Where are you?"}
+      - {speaker: caller, text: "corner office on the third floor, street side, by the west stairs"}
+      - {speaker: dispatcher, text: "The west end, by the west stairwell?"}
+      - {speaker: caller, text: "no sorry, sorry, I got turned around. the other end, the east end, by the other stairs"}
+
+  # ------------------------------------------------------------------ bundy-olympic
+  # Floor 7 has three rentable rooms: Suite 700 (784 m2, the whole north / street side, from
+  # the west wall to the east wall), Suite 750 (448 m2) and Suite 720 (248 m2).
+  - id: layout-bundy-whole-side-7
+    building: bundy-olympic
+    true_room: f7-s700
+    tags: [layout, size, floor_plus_layout]
+    added: true
+    turns:
+      - {speaker: dispatcher, text: "What floor?"}
+      - {speaker: caller, text: "seven. we're in the big space, it takes up like the whole side of the building facing the street, windows at both ends"}
+
+  # Floor 4 north corridor (east part): Suite 420 open area, then Stair B, then Suite 420
+  # office at x 79.3, the last door. It is the north-east corner and the smallest rentable
+  # room on the floor (15.7 m2). North side = street side.
+  - id: layout-bundy-last-door-past-stairs
+    building: bundy-olympic
+    true_room: f4-s420-r2
+    tags: [layout, hallway_end, corner, size, floor_plus_layout]
+    added: true
+    turns:
+      - {speaker: dispatcher, text: "Where are you?"}
+      - {speaker: caller, text: "fourth floor, all the way at the end of the hallway on the street side, past the stairs. Last door."}
+      - {speaker: dispatcher, text: "What kind of room?"}
+      - {speaker: caller, text: "a little office, its in the corner"}
+
+  # Floor 6 corner rooms: Suite 660 (SW), Suite 600 (NW), Suite 620 open area (NE), Suite
+  # 630 office 1 (SE, 11 m2, windows). Tiny + east end past the stairs leaves Suite 630
+  # office 1 and office 2 (10 m2, behind the end of the south corridor, no windows);
+  # windows on two sides picks office 1.
+  - id: layout-bundy-tiny-corner-6
+    building: bundy-olympic
+    true_room: f6-s630-r2
+    tags: [layout, corner, size, hallway_end, floor_plus_layout]
+    added: true
+    turns:
+      - {speaker: dispatcher, text: "911, where is your emergency?"}
+      - {speaker: caller, text: "sixth floor, the east end, past the stairs at the very end of the hall"}
+      - {speaker: dispatcher, text: "Okay, what room are you in?"}
+      - {speaker: caller, text: "it's tiny, like the size of a closet, but it's in the corner, windows on two sides, you can see the parking lot"}
+
+  # No location: "some hallway", "a room", "doors" narrow nothing.
+  - id: layout-bundy-no-info-hallway
+    building: bundy-olympic
+    true_room: f5-corridor-n-center
+    tags: [layout, no_info]
+    no_info: true
+    added: true
+    turns:
+      - {speaker: dispatcher, text: "Where are you in the building?"}
+      - {speaker: caller, text: "I don't know, I'm in some hallway, there's doors everywhere, it all looks the same"}
+      - {speaker: dispatcher, text: "Can you tell me anything about where you are?"}
+      - {speaker: caller, text: "I just came out of a room, I don't know which one, please just hurry"}
+
+  # ------------------------------------------------------------------ prop-12622830 107 Hewitt (apartments)
+  # Floor 3 corridors form a U: the elevator lobby at the west end of the south corridor,
+  # the east connector, and the north corridor. Unit 308 is the largest unit on the floor
+  # (202 m2; next is Unit 307 at 147 m2) and opens onto the south corridor near its east
+  # end and onto the east connector, around the bend from the elevator.
+  - id: layout-hewitt-biggest-around-corner
+    building: prop-12622830
+    true_room: u28004378
+    tags: [layout, size, far_from_elevator, floor_plus_layout]
+    added: true
+    turns:
+      - {speaker: dispatcher, text: "What apartment?"}
+      - {speaker: caller, text: "I don't know the number, I'm visiting. Third floor"}
+      - {speaker: dispatcher, text: "Can you describe where it is?"}
+      - {speaker: caller, text: "you get off the elevator and walk all the way down, its around the bend. It's the big one, biggest place on the floor"}
+
+  # Floor 4 has two stairwells: Stair A at the west end of the north corridor and Stair B
+  # midway along the south corridor (x 1.3). The unit across the corridor from Stair B is
+  # Unit 406 (door at x 4.1, north side); the other north-side doors are 402 (x -10.5) and
+  # 408 (x 21).
+  - id: layout-hewitt-across-middle-stairs
+    building: prop-12622830
+    true_room: u28004379
+    tags: [layout, anchor, near_stairs, floor_plus_layout]
+    added: true
+    turns:
+      - {speaker: dispatcher, text: "Where are you?"}
+      - {speaker: caller, text: "fourth floor, the apartment right across the hall from the stairwell"}
+      - {speaker: dispatcher, text: "Which stairwell?"}
+      - {speaker: caller, text: "the one in the middle of the hallway, not the one at the end of the other hall"}
+
+  # ------------------------------------------------------------------ jrr-princeton (Level 3 = floor index 5, top floor)
+  # Level 3 meeting rooms: 397 (60 m2), 301 (84 m2) and 399 (124 m2). Along the west side
+  # of the corridor the order is lounge (south), Room 399, lounge (north): 399 is the
+  # largest and the only one with a lounge on each side.
+  - id: layout-jrr-between-lounges
+    building: jrr-princeton
+    true_room: "399"
+    tags: [layout, anchor, size, floor_plus_layout]
+    added: true
+    turns:
+      - {speaker: dispatcher, text: "Where are you?"}
+      - {speaker: caller, text: "top floor, level three, in one of the meeting rooms"}
+      - {speaker: dispatcher, text: "Which one?"}
+      - {speaker: caller, text: "the big one in the middle, there's a little lounge on both sides of it"}
+
+  # The Level 3 west corridor runs north-south. Past the stair at each end is one last door:
+  # Department of Economics (south, 14 m from Elevator One) and Bendheim Center for Finance
+  # (north, 38 m from the elevator). The end far from the elevator is the north end.
+  - id: layout-jrr-dead-end-far-from-elevator
+    building: jrr-princeton
+    true_room: 3-bcf
+    tags: [layout, hallway_end, far_from_elevator, floor_plus_layout]
+    added: true
+    live: true
+    turns:
+      - {speaker: dispatcher, text: "Where in the building are you?"}
+      - {speaker: caller, text: "top floor. I walked all the way to the end of the hallway, past the stair well, it's the last door, dead end"}
+      - {speaker: dispatcher, text: "Which end of the hallway?"}
+      - {speaker: caller, text: "the far end, the elevators way back down the other way"}
