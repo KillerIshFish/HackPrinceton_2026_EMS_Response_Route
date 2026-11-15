@@ -55,8 +55,8 @@ Pipeline
                  (``koopman_update`` / ``residual_probs``).
 8. Second team = with ``second_team_rooms`` (the floors the phone's height fix allows, when
                  a caller statement contradicts the fix: ``core.fusion``) and two or more
-                 teams, team 2's route starts with the stops in those rooms unless a team
-                 already starts there (``_start_second_team_in``). Team 1 follows the
+                 teams, the stops in those rooms go to team 2, which makes them first, unless
+                 team 1 itself starts there (``_start_second_team_in``). Team 1 follows the
                  caller's statement; the phone's floor is not left for later.
 """
 
@@ -855,34 +855,35 @@ def _plan_teams(
 
 def _start_second_team_in(routes: list[list[int]], V: _Visits, wanted: set[str], deadline: float
                           ) -> tuple[list[list[int]], int]:
-    """Make team 2 start in the ``wanted`` rooms (module docstring, step 8).
+    """Give team 2 the stops in the ``wanted`` rooms and put them first (module docstring, step 8).
 
-    Nothing changes when there is one team, when some team's first stop is already in a
-    wanted room, or when no planned stop is in one. Otherwise team 2's stops in wanted rooms
-    come first; when it has none, the other teams' stops there are handed to it (never a
-    team's first stop). The block is put in its best order from the start; the rest of each
-    route keeps its order. Returns (routes, number of stops put first).
+    Nothing changes when there is one team, when team 1's own first stop is in a wanted room
+    (the plan already leads there), or when no planned stop is in one. Otherwise every stop
+    in a wanted room goes to team 2 (a first stop of another team stays where it is) and
+    team 2 makes them first, in their best order from the start; the rest of each route keeps
+    its order. Returns (routes, number of stops put first), 0 when the routes already were so.
     """
     if len(routes) < 2 or not wanted:
         return routes, 0
-    if any(r and V.room_ids[r[0]] in wanted for r in routes):
+    if routes[0] and V.room_ids[routes[0][0]] in wanted:
         return routes, 0
     block = [k for k in routes[1] if V.room_ids[k] in wanted]
-    routes = [list(r) for r in routes]
-    if not block:
-        for a, r in enumerate(routes):
-            if a == 1:
-                continue
-            take = [k for k in r[1:] if V.room_ids[k] in wanted]
-            block.extend(take)
-            routes[a] = [k for k in r if k not in take]
+    out = [list(r) for r in routes]
+    for a, r in enumerate(out):
+        if a == 1:
+            continue
+        take = [k for k in r[1:] if V.room_ids[k] in wanted]
+        block.extend(take)
+        out[a] = [k for k in r if k not in take]
     if not block:
         return routes, 0
     block, _ = _improve_route(block, V.T, V.s, V.p, V.start, deadline)
     taken = set(block)
-    routes[1] = block + [k for k in routes[1] if k not in taken]
-    routes, _ = _drop_early_repeats(routes, V)
-    return routes, len(block)
+    out[1] = block + [k for k in out[1] if k not in taken]
+    out, _ = _drop_early_repeats(out, V)
+    if out == [list(r) for r in routes]:
+        return routes, 0
+    return out, len(block)
 
 
 # ---------------------------------------------------------------------------
@@ -944,8 +945,8 @@ def plan_search(
       replanning). Defaults to the entrance. All ETAs are relative to this node.
     * ``second_team_rooms`` - rooms on the floors the phone's height fix allows, given when a
       caller statement contradicts that fix (``core.fusion.Fused.phone_band``). With two or
-      more teams, team 2's route then starts with its stops in those rooms, unless a team
-      already starts there. With one team nothing changes.
+      more teams, the stops in those rooms go to team 2, which makes them first, unless team
+      1 itself starts there. With one team nothing changes.
 
     Report fields: ``Stop.kind`` / ``mode`` / ``p_find`` / ``travel_s`` / ``search_s``;
     ``SearchPlan.cumulative_success`` (sum of p_find over the plan, on the scale of

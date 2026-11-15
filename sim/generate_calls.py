@@ -154,6 +154,50 @@ def washington_call_script() -> list[dict]:
     )
 
 
+JRR_BUILDING_ID = "jrr-princeton"
+JRR_TRUE_ROOM_ID = "a71"  # where the scripted caller is: the lecture hall under the International Atrium
+
+
+def jrr_call_script() -> list[dict]:
+    """Demo call for the Julis Romo Rabinowitz / Simpson buildings (traced from their floor plans).
+
+    The caller is in lecture hall A71 on the A level. The height fix cannot separate the A level
+    from Level 1 (4 m apart); "a lecture hall with no windows" leaves the two lecture bowls; the
+    number on the door settles it.
+    """
+    return _turns(
+        [
+            (
+                "Call connected",
+                "system",
+                "911 call connected. Dispatchable address: 20 Washington Road, Princeton "
+                "(Julis Romo Rabinowitz Building and Simpson International Building). "
+                "No device location yet - showing the building prior.",
+                None,
+            ),
+            (
+                "Phone z-axis fix",
+                "system",
+                "Device barometric z-axis fix received: 5.2 m above the building's lowest floor (±3 m). "
+                "The levels are about 4 m apart, so this is the A level or Level 1.",
+                PhoneFix(z_m=5.2),
+            ),
+            (
+                "Caller: room type",
+                "caller",
+                "I'm in a lecture hall, there are no windows in here",
+                None,
+            ),
+            (
+                "Caller: door number",
+                "caller",
+                "The sign on the door says A71",
+                None,
+            ),
+        ]
+    )
+
+
 _ORDINALS = {1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth", 6: "sixth", 7: "seventh",
              8: "eighth", 9: "ninth", 10: "tenth"}
 
@@ -191,6 +235,8 @@ def demo_script_for(building_id: str, building=None) -> list[dict]:
         return bundy_olympic_call_script()
     if building_id == WASHINGTON_BUILDING_ID:
         return washington_call_script()
+    if building_id == JRR_BUILDING_ID:
+        return jrr_call_script()
     if building is not None and building_id.startswith(("prop-", "mp-")):
         return generic_call_script(building)
     return demo_call_script()

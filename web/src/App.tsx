@@ -626,9 +626,11 @@ function ScenarioPicker({
 function sourceSummary(sources: Record<string, number>, total: number): string {
   const scanned = sources.matterport ?? 0;
   if (scanned === total) return "all from one Matterport scan";
+  if ((sources.floor_plan ?? 0) === total) return "traced from the published floor plans";
   const parts = [
     [scanned, "scanned"],
     [sources.costar ?? 0, "from unit and tenant records"],
+    [sources.floor_plan ?? 0, "traced from floor plans"],
     [sources.inferred ?? 0, "inferred"],
   ] as const;
   return parts

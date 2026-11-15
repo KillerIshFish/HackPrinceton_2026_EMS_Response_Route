@@ -27,6 +27,10 @@ room_types:
     also: [office]
   conference:
     synonyms: [conference room, meeting room, boardroom, board room]
+  classroom:
+    synonyms: [classroom, class room, lecture hall, lecture room, lecture theatre, lecture theater, seminar room, auditorium]
+  copy_room:
+    synonyms: [copy room, copier room, print room, printer room, mail room, mailroom]
   break_room:
     synonyms: [break room, breakroom, kitchen, kitchenette, lunch room, lunchroom, cafeteria, pantry]
   lobby:
@@ -113,7 +117,7 @@ landmarks:
     match: {room_type: [break_room]}
   printer:
     synonyms: [printer, copier, copy machine]
-    match: {room_type: [open_office, storage]}
+    match: {room_type: [open_office, storage, copy_room]}
   reception_desk:
     synonyms: [reception desk, security desk]
     match: {room_type: [lobby, reception]}

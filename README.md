@@ -6,12 +6,13 @@ bathroom"* or *"I can see the parking lot"*. This project fuses those signals in
 probability for every room, shows the dispatcher where the caller most likely is, and
 gives responders a search order that minimises the expected time to find them.
 
-**Status.** Three buildings run through the same pipeline:
+**Status.** Four buildings run through the same pipeline:
 
 | Building | What it is | Data |
 |---|---|---|
 | **5285 W Washington Blvd** (`washington-5285`), Los Angeles | A real 2-storey office with a roof deck. **One Matterport scan covers the whole building**, so the floor plan, rooms, doors, windows and stairs are all real | One Matterport scan (38 rooms), CoStar facts, Vexcel aerial imagery |
 | **Bundy Olympic** (`bundy-olympic`), 11900 W Olympic Blvd, Los Angeles | A real 8-storey office tower. Only eight tenant suites are scanned, so most of the floor plan is schematic | CoStar suites and tenants, eight Matterport suite scans, Vexcel aerial imagery |
+| **Julis Romo Rabinowitz Building and Louis A. Simpson International Building** (`jrr-princeton`), 20 Washington Road, Princeton | A real university building on five levels (B, A, 1, 2, 3). **Traced from the university's published floor plans**: 208 rooms and department areas in their real places, to about a metre | Floor plans and room matrix from the 2016 user guide, OpenStreetMap outline for scale and position, Vexcel aerial imagery; a public Matterport tour of the Economics Forum is shown but not measured. Build it with `uv run python -m ingest.unified plan:jrr-princeton` |
 | **100 Princeton Tech Center** (`ptc-100`) | A synthetic 4-floor office | Generated from `configs/demo_buildings.yaml`; needs no keys or data |
 
 The real buildings appear once they have been built (see [Real buildings](#real-buildings)).
@@ -251,6 +252,7 @@ Limits you should know about:
 uv run python -m ingest.unified "165 N Hoover St"   # address or building name
 uv run python -m ingest.unified 4405016              # property id
 uv run python -m ingest.unified mp:1FTnLNf1sBz       # one whole-building Matterport scan
+uv run python -m ingest.unified plan:jrr-princeton   # a building traced from its floor plans
 uv run python -m ingest.unified --lookup "olympic"   # list matching properties
 ```
 
@@ -347,6 +349,36 @@ cannot drift off the picture. The view is fitted to the building, labels are pla
 they do not cover each other, and a site with many entrances names only the recommended
 one on the image.
 
+## A building traced from its floor plans (`plan:<id>`)
+
+For a building with no property record and no Matterport scan the Model API can read, but
+with published floor plans. The Julis Romo Rabinowitz / Simpson buildings at Princeton are
+the example: the only scan of them is a public tour of one atrium that belongs to another
+Matterport account, so its geometry cannot be fetched.
+
+```bash
+uv run python -m ingest.unified plan:jrr-princeton   # then http://localhost:5173/?building=jrr-princeton
+```
+
+`configs/plan_buildings.yaml` holds the tracing: one rectangle or polygon per room, in the
+pixels of each level's plan image, with its name, type, department and the sides that have
+windows. `ingest/unified/plan.py` turns it into a `BuildingModel` with `fidelity = traced`.
+
+| What | Where it comes from |
+|---|---|
+| Rooms, their outlines, levels and names | Traced from the plans (pages 24 to 28 of the 2016 user guide); room data from its room matrix |
+| Scale and position on the map | Nine building corners matched to the OpenStreetMap outline: 0.149 m per plan pixel, 0.4 m residual |
+| Doors | By rule: a room opens onto each corridor or lobby it shares a wall with; a room drawn inside a department opens into it |
+| Stairs and elevators | Traced; the same `shaft` name on each level joins them |
+| Windows | The sides marked in the tracing; what each window looks at comes from OpenStreetMap, as for every other building |
+| Storey heights | Assumed, 4 m per level |
+
+Limits: department areas are one space each (the guide does not show their offices), the
+plans are from 2016, and entrances are approximate. The building's own floor names are kept
+(B, A, 1, 2, 3), so "first floor" means Level 1 and "basement" the B level. To add another
+building, trace it into `configs/plan_buildings.yaml` the same way: put a pixel grid over
+each plan image, read off the room corners, and match a few building corners to the map.
+
 ## Repo layout and ownership
 
 Each folder is meant to be owned by one person so work does not collide.
@@ -365,7 +397,7 @@ Each folder is meant to be owned by one person so work does not collide.
 | `eval/` | Floor accuracy, top-k, 90% coverage, E[T]; `run_eval.py` CLI |
 | `api/server.py` | FastAPI app, holds the single in-memory demo call |
 | `web/` | React + Vite + Tailwind dispatcher console |
-| `configs/` | `priors.yaml`, `clue_vocab.yaml`, `demo_buildings.yaml`, `real_buildings.yaml`: tune these, not code |
+| `configs/` | `priors.yaml`, `clue_vocab.yaml`, `demo_buildings.yaml`, `real_buildings.yaml`, `plan_buildings.yaml` (buildings traced from floor plans): tune these, not code |
 | `data/` | Gitignored. Raw dataset folders, API caches and processed buildings |
 | `tests/` | End-to-end tests through the API, plus unit tests for the new pieces |
 

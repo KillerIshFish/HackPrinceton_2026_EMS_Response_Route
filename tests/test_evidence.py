@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 import core.evidence as core_evidence
 from core.evidence import evidence_match, normalize_unit, selector_hits
-from core.fusion import GROUNDED_AGENT_MAX_CONFIDENCE, posterior_probs
+from core.fusion import RHO_MAX, posterior_probs
 from core.schema import Answer, Clue, Evidence, Question, RoomSelector, TranscriptTurn, WithinM
 from ingest.matterport import load_building
 from parser.dialog import asked_keys, classify_reply, find_units
@@ -166,7 +166,7 @@ def test_im_in_304_raises_that_suite_and_no_other_floor(building, fake_meta) -> 
 def test_unit_without_metadata_falls_back_to_the_floor(building) -> None:
     it = interpret_turn(building, _turns(("caller", "I'm in 304")), 0, "rules")
     kinds = [(e.kind, e.clue.value if e.clue else e.selector.unit, e.confidence) for e in it.evidence]
-    assert kinds == [("grounded", "304", 0.85), ("vocab", "3", 0.5)]
+    assert kinds == [("grounded", "304", 0.95), ("vocab", "3", 0.5)]  # plain statement; inferred floor
     assert evidence_match(building, it.evidence[0]).unmatched  # UI: could not be placed
     # floor 9 does not exist in a four-storey building: no fallback, and the unit alone changes nothing
     it9 = interpret_turn(building, _turns(("caller", "suite 904")), 0, "rules")
@@ -251,13 +251,18 @@ def test_rejected_evidence_no_longer_moves_the_posterior(building) -> None:
     assert _post(building, [e.model_copy(update={"status": "superseded"})]) == _post(building, [])
 
 
-def test_grounded_agent_confidence_is_capped(building) -> None:
+def test_a_specific_statement_is_capped_whoever_read_it(building) -> None:
+    """One statement never counts for more than RHO_MAX (0.95), from the model or the rules.
+    (The separate 0.85 cap on the model's records is gone: its share now comes from its
+    rating of the caller's words, see tests/test_statement_weight.py.)"""
     sel = RoomSelector(room_ids=["f3-office-301"])
     agent = Evidence(id="a", kind="grounded", selector=sel, confidence=1.0, source="agent")
-    capped = agent.model_copy(update={"confidence": GROUNDED_AGENT_MAX_CONFIDENCE})
+    capped = agent.model_copy(update={"confidence": RHO_MAX})
     rules = agent.model_copy(update={"source": "rules"})
     assert _post(building, [agent]) == _post(building, [capped])
-    assert _post(building, [rules]) != _post(building, [agent])
+    assert _post(building, [rules]) == _post(building, [agent])
+    probs, _ = _post(building, [agent])
+    assert probs["f3-office-301"] == pytest.approx(RHO_MAX)
 
 
 def test_one_wrong_statement_never_zeroes_a_room(building) -> None:
