@@ -118,6 +118,7 @@ pre { margin: 0; font-family: var(--f-mono); font-size: 13.5px; background: var(
   <div class="eyebrow">Result 1 · response time</div>
   <h2>The app reaches the patient sooner on every call type</h2>
   <p id="time-text"></p>
+  <p class="small" id="time-gap"></p>
   <figure>
     <figcaption><span class="t">Median minutes from the building entrance to the patient</span><span class="s">Log scale. 400 calls per call type in each of 4 buildings (1,600 per row).</span></figcaption>
     <div class="legend" data-legend></div>
@@ -414,7 +415,7 @@ function render() {
   $("n-trials").textContent = D.n_trials.toLocaleString("en-US");
   const cp = D.cardiac_pooled, sp = D.speech;
   $("tiles").innerHTML = [
-    [`${(P.saved_vs_B_median / 60).toFixed(1)} min`, `median time saved per call against an informed dispatcher (${(P.median_B / 60).toFixed(1)} → ${(P.median_C / 60).toFixed(1)} min inside the building)`],
+    [`${(P.saved_vs_B_median / 60).toFixed(1)} min`, `saved on a typical call against an informed dispatcher (median of each call's own saving; mean ${(P.saved_vs_B_mean_capped / 60).toFixed(1)} min)`],
     [`+${cp.lives_per_1000_vs_B.toFixed(0)}`, `more cardiac arrest survivors per 1,000 calls than the dispatcher (95% CI ${cp.lives_per_1000_vs_B_ci[0].toFixed(0)}–${cp.lives_per_1000_vs_B_ci[1].toFixed(0)})`],
     [pct(P.frac_faster_than_B), `of calls reached sooner than the dispatcher; ${pct(P.frac_slower_than_B)} later, ${pct(P.frac_tie_B)} the same`],
     sp ? [`${(sp.saved_llm_vs_B_median / 60).toFixed(1)} min`, `median saved on ${sp.n} held-out calls written by Claude Haiku and read by the app's own interpreter (faster on ${pct(sp.llm_faster_than_B)})`] : null,
@@ -422,6 +423,7 @@ function render() {
 
   const med = CT.filter((c) => c.key !== "fire_smoke");
   $("time-text").textContent = `Across all ${M.pooled.time.n.toLocaleString("en-US")} main-benchmark calls the app reached the patient in a median of ${fmtMin(P.median_C / 60)} after entering, against ${fmtMin(P.median_B / 60)} for the informed dispatcher and ${fmtMin(P.median_A / 60)} for a sweep from the address alone. Within five minutes of entering, the app had reached ${pct(P.frac_C_within_5min)} of patients, the dispatcher ${pct(P.frac_B_within_5min)} and the sweep ${pct(P.frac_A_within_5min)}. The app put the true room first in its list ${pct(P.top1)} of the time and in its top three ${pct(P.top3)} of the time.`;
+  $("time-gap").textContent = `Why the saving is ${fmtMin(P.saved_vs_B_median / 60)} and not ${fmtMin(P.median_B / 60)} − ${fmtMin(P.median_C / 60)} = ${fmtMin((P.median_B - P.median_C) / 60)}: the two search times above are each the middle of their own 11,200 calls, whereas the saving is the middle of the 11,200 per-call differences. The app ties the dispatcher on ${pct(P.frac_tie_B)} of calls and is slower on ${pct(P.frac_slower_than_B)}, which pulls the typical saving down, while its biggest wins come on calls where the dispatcher searches the wrong floor and saves 10 minutes or more. That is also why the mean saving (${fmtMin(P.saved_vs_B_mean_capped / 60)}) is much larger than the median.`;
   dotPlot($("c-time"), CT.map((c) => ({ label: c.label, v: Object.fromEntries(ARMS.map((a) => [a, M.by_type[c.key].time[`median_${a}`] / 60])) })), [1, 2, 5, 10, 20, 50, 100, 200, 500]);
   barCI($("c-saved"), med.map((c) => { const t = M.by_type[c.key].time; return { label: c.label, v: t.saved_vs_B_median / 60, lo: t.saved_vs_B_median_ci[0] / 60, hi: t.saved_vs_B_median_ci[1] / 60, note: `${(t.saved_vs_B_median / 60).toFixed(1)} min · faster in ${pct(t.frac_faster_than_B)}, slower in ${pct(t.frac_slower_than_B)}`, short: `${(t.saved_vs_B_median / 60).toFixed(1)} min`, tip: `<b>${c.label}</b><br>median saved ${(t.saved_vs_B_median / 60).toFixed(2)} min (95% CI ${(t.saved_vs_B_median_ci[0] / 60).toFixed(2)}–${(t.saved_vs_B_median_ci[1] / 60).toFixed(2)})<br>app faster ${pct(t.frac_faster_than_B)} · same ${pct(t.frac_tie_B)} · slower ${pct(t.frac_slower_than_B)}` }; }), { axis: "minutes saved" });
   const F = M.by_type.fire_smoke.time;
