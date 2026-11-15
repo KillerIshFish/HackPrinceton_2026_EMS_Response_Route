@@ -106,10 +106,10 @@ travel:
       source: "Movement in smoke without searching; civilians, secondary citation. Used only when smoke is reported."
   elevator:
     fixed_s:
-      value: 45.0
-      range: [39.0, 51.0]
+      value: 75.0
+      range: [60.0, 90.0]
       label: judgement
-      source: "Call, wait and door time per ride. Set so that, at 2 s per floor, a ride beats the stairs from 4 floors with a light load (15 s per floor) and from 2 floors with a heavy load (29 s per floor); any value in the range keeps those thresholds. Below the 60-90 s judged from measured EMS intervals in Singapore. Medical incident types only; never with fire or smoke."
+      source: "Judgement on measured EMS intervals in Singapore: call, wait and door time per ride. Medical incident types only; never with fire or smoke."
     s_per_floor:
       value: 2.0
       range: [1.0, 3.0]

@@ -150,19 +150,19 @@ def test_no_elevator_for_fire_smoke_or_non_medical(building, probs, situation) -
 def test_medical_shows_stairs_and_elevator_side_by_side(building, probs) -> None:
     sit = Situation(incident_type="cardiac_arrest")
     p = profile_for(sit)
-    assert p.elevator_allowed and p.elevator_fixed_s == pytest.approx(45.0) and p.elevator_s_per_floor == pytest.approx(2.0)
+    assert p.elevator_allowed and p.elevator_fixed_s == pytest.approx(75.0) and p.elevator_s_per_floor == pytest.approx(2.0)
     a = recommend_approach(building, probs, situation=sit)
     assert a["stairs_s_to_target_floor"] == pytest.approx(45.0)
-    assert a["elevator_s_to_target_floor"] == pytest.approx(45.0 + 2.0 * 3)
+    assert a["elevator_s_to_target_floor"] == pytest.approx(75.0 + 2.0 * 3)
     # The planner graph carries the rides whenever the profile offers them; a ride pays the fixed time once.
     G = build_graph(building, profile=p)
-    assert G["f1-elevator"]["f4-elevator"]["time_s"] == pytest.approx(51.0)
+    assert G["f1-elevator"]["f4-elevator"]["time_s"] == pytest.approx(81.0)
     # They can still be left out on request.
     assert not any(d["kind"] == "elevator" for _, _, d in build_graph(building, use_elevators=False, profile=p).edges(data=True))
 
 
-@pytest.mark.parametrize("load, first_floor_count", [("light", 4), ("heavy", 2)])
-def test_elevator_beats_the_stairs_from_4_floors_light_2_heavy(load, first_floor_count) -> None:
+@pytest.mark.parametrize("load, first_floor_count", [("light", 6), ("heavy", 3)])
+def test_elevator_beats_the_stairs_from_6_floors_light_3_heavy(load, first_floor_count) -> None:
     p = profile_for(Situation(incident_type="cardiac_arrest", load=load))
     for n in range(1, 12):
         ride = elevator_ride_s(p, n)
