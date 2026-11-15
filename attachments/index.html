@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <title>Caller Location Console</title>
+  <meta name="description" content="Find a 911 caller inside a large building: phone location, what the caller says and the building's floor plan, fused into a probability for every room and a search order for responders." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style>
+    /* Same palette as the dispatcher console (web/src/index.css). */
+    :root {
+      --bg: #0b1016;
+      --panel: #111821;
+      --raised: #17202b;
+      --line: #243140;
+      --line-strong: #34465a;
+      --ink: #e6edf3;
+      --ink-dim: #a7b6c5;
+      --ink-mute: #8394a6;
+      --accent: #f2a93b;
+      --accent-strong: #ffbe55;
+      --accent-ink: #1a1204;
+      --prob: #3fb8ae;
+      --ramp-1: #1b3f63;
+      --ramp-2: #22789a;
+      --ramp-3: #3fb8ae;
+      --ramp-4: #a8e6c1;
+      --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+      --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent-strong); }
+    code, pre, .num { font-family: var(--mono); }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+
+    /* Header */
+    header.top {
+      position: sticky; top: 0; z-index: 10;
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--line);
+    }
+    header.top .wrap { display: flex; align-items: center; justify-content: space-between; height: 56px; gap: 16px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--ink); text-decoration: none; white-space: nowrap; }
+    .brand svg { width: 26px; height: 26px; }
+    nav.links { display: flex; gap: 20px; font-size: 14px; }
+    nav.links a { color: var(--ink-dim); text-decoration: none; }
+    nav.links a:hover { color: var(--ink); }
+    @media (max-width: 640px) { nav.links { display: none; } }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 18px; border-radius: 8px; font-weight: 600; font-size: 15px;
+      text-decoration: none; border: 1px solid transparent; cursor: pointer;
+    }
+    .btn-primary { background: var(--accent); color: var(--accent-ink); }
+    .btn-primary:hover { background: var(--accent-strong); }
+    .btn-ghost { border-color: var(--line-strong); color: var(--ink); background: transparent; }
+    .btn-ghost:hover { background: var(--raised); }
+
+    /* Hero */
+    .hero { padding: 72px 0 56px; display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 48px; align-items: center; }
+    @media (max-width: 860px) { .hero { grid-template-columns: 1fr; padding-top: 48px; gap: 36px; } }
+    .eyebrow { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--prob); font-weight: 600; margin: 0 0 12px; }
+    h1 { font-size: clamp(32px, 5vw, 48px); line-height: 1.1; margin: 0 0 18px; letter-spacing: -0.02em; }
+    .lede { font-size: 18px; color: var(--ink-dim); margin: 0 0 28px; max-width: 34em; }
+    .cta { display: flex; flex-wrap: wrap; gap: 12px; }
+
+    /* Building illustration */
+    .building {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px;
+    }
+    .building-head { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-mute); margin-bottom: 14px; }
+    .floor { display: grid; grid-template-columns: 28px 1fr 52px; gap: 10px; align-items: center; margin-bottom: 8px; }
+    .floor-label { font-size: 12px; color: var(--ink-mute); font-family: var(--mono); }
+    .rooms { display: grid; grid-template-columns: 2fr 1fr 1fr 2fr 1fr; gap: 3px; height: 34px; }
+    .rooms span { border-radius: 3px; background: var(--ramp-1); transition: background 0.6s; }
+    .floor-pct { font-family: var(--mono); font-size: 13px; text-align: right; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+    .building-foot { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 14px; color: var(--ink-dim); min-height: 3.2em; }
+    .building-foot b { color: var(--ink); font-weight: 600; }
+    .stepper { display: flex; gap: 6px; margin-top: 12px; }
+    .stepper button {
+      flex: 1; padding: 6px 0; border-radius: 6px; border: 1px solid var(--line-strong);
+      background: transparent; color: var(--ink-dim); font: 600 12px var(--sans); cursor: pointer;
+    }
+    .stepper button[aria-pressed="true"] { background: var(--raised); color: var(--ink); border-color: var(--prob); }
+
+    /* Sections */
+    section { padding: 56px 0; border-top: 1px solid var(--line); }
+    h2 { font-size: 28px; margin: 0 0 8px; letter-spacing: -0.01em; }
+    .section-lede { color: var(--ink-dim); margin: 0 0 32px; max-width: 42em; }
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    @media (max-width: 860px) { .grid3 { grid-template-columns: 1fr; } }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+    .card h3 { margin: 0 0 6px; font-size: 17px; }
+    .card p { margin: 0; color: var(--ink-dim); font-size: 15px; }
+    .card .tag { font-family: var(--mono); font-size: 12px; color: var(--prob); margin-bottom: 10px; display: block; }
+
+    .flow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; margin-top: 24px; }
+    .flow div { flex: 1 1 160px; padding: 14px 16px; background: var(--raised); border: 1px solid var(--line); font-size: 14px; color: var(--ink-dim); }
+    .flow div:first-child { border-radius: 8px 0 0 8px; }
+    .flow div:last-child { border-radius: 0 8px 8px 0; background: color-mix(in srgb, var(--accent) 14%, var(--raised)); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+    .flow b { display: block; color: var(--ink); font-size: 15px; margin-bottom: 2px; }
+    @media (max-width: 640px) {
+      .flow { flex-direction: column; }
+      .flow div, .flow div:first-child, .flow div:last-child { border-radius: 0; }
+      .flow div:first-child { border-radius: 8px 8px 0 0; }
+      .flow div:last-child { border-radius: 0 0 8px 8px; }
+    }
+
+    /* Steps */
+    ol.steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; counter-reset: step; }
+    ol.steps li {
+      counter-increment: step; position: relative; padding: 16px 18px 16px 60px;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    }
+    ol.steps li::before {
+      content: counter(step); position: absolute; left: 18px; top: 16px;
+      width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+      background: var(--raised); border: 1px solid var(--line-strong); font: 600 13px var(--mono); color: var(--accent-strong);
+    }
+    ol.steps b { display: block; margin-bottom: 2px; }
+    ol.steps span { color: var(--ink-dim); font-size: 15px; }
+    kbd {
+      font: 600 13px var(--sans); padding: 1px 7px; border-radius: 5px;
+      background: var(--raised); border: 1px solid var(--line-strong); color: var(--ink); white-space: nowrap;
+    }
+
+    /* Code */
+    .code { position: relative; margin: 0 0 14px; }
+    .code pre {
+      margin: 0; padding: 16px 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+      overflow-x: auto; font-size: 14px; line-height: 1.6; color: var(--ink);
+    }
+    .code pre .c { color: var(--ink-mute); }
+    .code button {
+      position: absolute; top: 10px; right: 10px; padding: 4px 10px; border-radius: 6px;
+      border: 1px solid var(--line-strong); background: var(--raised); color: var(--ink-dim); font: 12px var(--sans); cursor: pointer;
+    }
+    .code button:hover { color: var(--ink); }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
+    .label { font-size: 13px; color: var(--ink-mute); margin: 0 0 8px; }
+
+    footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--ink-mute); font-size: 14px; }
+    footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .rooms span { transition: none; } }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <a class="brand" href="#">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="6" fill="#0b1016"/>
+          <rect x="6" y="6" width="20" height="5" fill="#1b3f63"/>
+          <rect x="6" y="12" width="20" height="5" fill="#22789a"/>
+          <rect x="6" y="18" width="20" height="5" fill="#a8e6c1"/>
+          <rect x="6" y="24" width="20" height="2" fill="#1b3f63"/>
+          <circle cx="21" cy="20.5" r="3" fill="#f2a93b"/>
+        </svg>
+        Caller Location Console
+      </a>
+      <nav class="links">
+        <a href="#how">How it works</a>
+        <a href="#tour">Console tour</a>
+        <a href="#run">Run it</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="wrap hero">
+      <div>
+        <p class="eyebrow">HackPrinceton 2026 · EMS response routing</p>
+        <h1>Find the 911 caller inside the building.</h1>
+        <p class="lede">
+          A phone fix gives an address and a rough height. The caller says things like
+          <em>"I'm locked in a bathroom"</em>. We combine both with the building's floor plan to give
+          every room a probability, and hand responders the search order with the shortest expected time to reach the caller.
+        </p>
+        <div class="cta">
+          <a class="btn btn-primary" id="launch" href="#run">Launch the console →</a>
+          <a class="btn btn-ghost" href="https://github.com/KillerIshFish/HackPrinceton_2026_EMS_Response_Route">View on GitHub</a>
+        </div>
+      </div>
+
+      <div class="building" aria-label="Example: how the probability moves between floors as evidence arrives">
+        <div class="building-head"><span>100 Princeton Tech Center · illustration</span><span>P(floor)</span></div>
+        <div id="floors"></div>
+        <div class="building-foot" id="turn-text"></div>
+        <div class="stepper" role="group" aria-label="Call turn">
+          <button type="button" data-turn="0">Turn 0</button>
+          <button type="button" data-turn="1">Turn 1</button>
+          <button type="button" data-turn="2">Turn 2</button>
+          <button type="button" data-turn="3">Turn 3</button>
+        </div>
+      </div>
+    </div>
+
+    <section id="how">
+      <div class="wrap">
+        <h2>How it works</h2>
+        <p class="section-lede">Three kinds of evidence, each turned into a likelihood per room and multiplied together. Each new sentence from the caller updates the result.</p>
+        <div class="grid3">
+          <div class="card">
+            <span class="tag">core/phone_likelihood.py</span>
+            <h3>Phone location</h3>
+            <p>Horizontal fix plus barometric height (the z-axis). Height is compared with each floor, so a 12.6 m reading narrows the call to floors 3 and 4.</p>
+          </div>
+          <div class="card">
+            <span class="tag">parser/ · core/clue_likelihood.py</span>
+            <h3>What the caller says</h3>
+            <p>Room types, window views and routes ("came up the stairs and turned right"). Parsed by keyword rules offline or by Claude Haiku, then checked against a fixed vocabulary.</p>
+          </div>
+          <div class="card">
+            <span class="tag">ingest/ · core/prior.py</span>
+            <h3>The building itself</h3>
+            <p>Rooms, doors, stairs and windows from Matterport scans, CoStar records and aerial imagery, or a generated model built from an address.</p>
+          </div>
+        </div>
+        <div class="flow" aria-label="Pipeline">
+          <div><b>Prior</b>room area, type, time of day</div>
+          <div><b>Evidence</b>phone fix × caller clues</div>
+          <div><b>Posterior</b>probability per room</div>
+          <div><b>Search plan</b>stop order, minimum expected time</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tour">
+      <div class="wrap">
+        <h2>Console tour</h2>
+        <p class="section-lede">The console is for the dispatcher. What you can do on your first call:</p>
+        <ol class="steps">
+          <li><b>Pick a building</b><span>Use the building menu in the header. The synthetic <em>100 Princeton Tech Center</em> needs no data or keys; real buildings appear once they're built.</span></li>
+          <li><b>Step through the call</b><span>Press <kbd>Next Call Turn</kbd> to add evidence one turn at a time and watch the heatmap and search plan change.</span></li>
+          <li><b>Type what the caller said</b><span>Use the <kbd>Caller said</kbd> box for anything free-form. Switch the parser between <kbd>Rules</kbd> and <kbd>Claude Haiku</kbd>.</span></li>
+          <li><b>Mark a room searched</b><span><kbd>Mark Cleared</kbd> on a stop means the crew searched it and didn't find the caller. That room's probability drops and the plan is rebuilt from where the crew is standing.</span></li>
+          <li><b>Look inside and around</b><span>On real buildings, <kbd>3D</kbd> opens the Matterport scan of a room and <kbd>Approach</kbd> shows aerial imagery with entrances and staging spots.</span></li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="run">
+      <div class="wrap">
+        <h2>Run it yourself</h2>
+        <p class="section-lede">You need Python 3.11+, <a href="https://docs.astral.sh/uv/">uv</a> and Node 20+. Start the backend and the frontend in two terminals, then open <code>http://localhost:5173</code>.</p>
+        <div class="two">
+          <div>
+            <p class="label">1 · Backend (repo root)</p>
+            <div class="code"><pre><code>uv sync
+uv run uvicorn api.server:app --reload --port 8000</code></pre><button type="button">Copy</button></div>
+          </div>
+          <div>
+            <p class="label">2 · Frontend</p>
+            <div class="code"><pre><code>cd web
+npm install
+npm run dev</code></pre><button type="button">Copy</button></div>
+          </div>
+        </div>
+        <p class="label" style="margin-top:10px">Optional: put <code>ANTHROPIC_API_KEY</code> in <code>.env</code> to turn on the Claude Haiku parser. Without it the console uses keyword rules.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>Built at HackPrinceton 2026.</span>
+      <span>A decision aid for dispatchers. It ranks where to look; it does not replace a search.</span>
+    </div>
+  </footer>
+
+  <script>
+    // Set this to the deployed console URL once it's hosted. Left empty, the button scrolls to "Run it yourself".
+    const APP_URL = "";
+    if (APP_URL) {
+      const launch = document.getElementById("launch");
+      launch.href = APP_URL;
+    }
+
+    // Example call in the synthetic building (README walkthrough). Rows are floors 4 -> 1;
+    // each row is five rooms' shading level 0-3 and the floor's share of probability.
+    const TURNS = [
+      { text: "<b>Call connected.</b> Only the address is known, so probability follows room size and type across all four floors.",
+        floors: [[1,0,0,1,0,25],[1,0,0,1,0,25],[1,0,0,1,0,25],[1,0,0,1,0,25]] },
+      { text: "<b>Phone height 12.6 m.</b> The barometer puts the caller on an upper floor: floors 3 and 4.",
+        floors: [[2,1,1,2,1,52],[2,1,1,2,1,40],[0,0,0,0,0,6],[0,0,0,0,0,2]] },
+      { text: "<b>\"I'm locked in a bathroom.\"</b> Two peaks on floor 4: the two restrooms.",
+        floors: [[0,3,3,0,0,71],[0,2,1,0,0,24],[0,0,0,0,0,4],[0,0,0,0,0,1]] },
+      { text: "<b>\"I can see the parking lot out a small window.\"</b> The restroom facing the parking lot is now stop 1 of the search plan.",
+        floors: [[0,1,3,0,0,86],[0,1,0,0,0,11],[0,0,0,0,0,2],[0,0,0,0,0,1]] },
+    ];
+    const RAMP = ["var(--ramp-1)", "var(--ramp-2)", "var(--ramp-3)", "var(--ramp-4)"];
+    const floorsEl = document.getElementById("floors");
+    const rows = [4, 3, 2, 1].map((n) => {
+      const row = document.createElement("div");
+      row.className = "floor";
+      row.innerHTML = `<span class="floor-label">F${n}</span><div class="rooms">${"<span></span>".repeat(5)}</div><span class="floor-pct num"></span>`;
+      floorsEl.appendChild(row);
+      return row;
+    });
+    const buttons = document.querySelectorAll(".stepper button");
+    let current = 0, timer = null;
+    function show(t) {
+      current = t;
+      const turn = TURNS[t];
+      rows.forEach((row, i) => {
+        const f = turn.floors[i];
+        row.querySelectorAll(".rooms span").forEach((s, j) => (s.style.background = RAMP[f[j]]));
+        row.querySelector(".floor-pct").textContent = f[5] + "%";
+      });
+      document.getElementById("turn-text").innerHTML = turn.text;
+      buttons.forEach((b) => b.setAttribute("aria-pressed", String(+b.dataset.turn === t)));
+    }
+    buttons.forEach((b) => b.addEventListener("click", () => { clearInterval(timer); show(+b.dataset.turn); }));
+    show(0);
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      timer = setInterval(() => show((current + 1) % TURNS.length), 3200);
+    }
+
+    // Copy buttons
+    document.querySelectorAll(".code button").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(btn.previousElementSibling.innerText);
+          btn.textContent = "Copied";
+        } catch { btn.textContent = "Select & copy"; }
+        setTimeout(() => (btn.textContent = "Copy"), 1500);
+      });
+    });
+  </script>
+</body>
+</html>
