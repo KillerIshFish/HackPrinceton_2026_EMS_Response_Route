@@ -104,8 +104,8 @@ export const UNMATCHED_TEXT = "Could not be placed in this building. It does not
 
 export const SOURCE_MARK: Record<EvidenceSource, { short: string; label: string; icon: ReactNode }> = {
   rules: { short: "Rules", label: "Read by keyword rules", icon: <ListChecks size={11} aria-hidden /> },
-  llm: { short: "Haiku", label: "Read by Claude Haiku against this building's room list", icon: <Sparkles size={11} aria-hidden /> },
-  agent: { short: "Haiku", label: "Read by Claude Haiku against this building's room list", icon: <Sparkles size={11} aria-hidden /> },
+  llm: { short: "Claude", label: "Worked out by Claude from this building's layout", icon: <Sparkles size={11} aria-hidden /> },
+  agent: { short: "Claude", label: "Worked out by Claude from this building's layout", icon: <Sparkles size={11} aria-hidden /> },
   dispatcher: { short: "Disp", label: "From the dispatcher: an answer to a question asked", icon: <Headset size={11} aria-hidden /> },
 };
 

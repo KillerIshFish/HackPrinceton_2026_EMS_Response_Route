@@ -76,11 +76,11 @@ interface Props {
 
 function parserLabel(parser: string | null | undefined): { text: string; warn: boolean } | null {
   if (!parser) return null;
-  if (parser === "llm") return { text: "Read by Claude Haiku", warn: false };
+  if (parser === "llm") return { text: "Read by Claude", warn: false };
   if (parser === "rules") return { text: "Read by keyword rules", warn: false };
-  if (parser === "agent") return { text: "Read by Claude Haiku", warn: false };
+  if (parser === "agent") return { text: "Read by Claude", warn: false };
   const cutShort = /^agent \((.*)\)$/.exec(parser);
-  if (cutShort) return { text: `Read by Claude Haiku: ${cutShort[1]}`, warn: true };
+  if (cutShort) return { text: `Read by Claude: ${cutShort[1]}`, warn: true };
   const fallback = /^rules \((.*)\)$/.exec(parser);
   if (fallback) return { text: `Read by keyword rules: ${fallback[1]}`, warn: true };
   return { text: `Read by: ${parser}`, warn: false };
@@ -89,12 +89,12 @@ function parserLabel(parser: string | null | undefined): { text: string; warn: b
 const PARSER_NOTE: Record<ParserMode, { short: string; long: string }> = {
   rules: { short: "Keyword rules read it", long: "Caller turns are read by keyword rules." },
   llm: {
-    short: "Claude Haiku reads it",
-    long: "Caller turns are read by Claude Haiku against this building's room list (one request per turn, about 1.5 s, cached).",
+    short: "Claude reads it",
+    long: "Caller turns are read by Claude, which reasons over this building's layout: hallways, door order, room sizes, corners, stairs and elevators (one request per turn, cached).",
   },
   agent: {
-    short: "Claude Haiku reads it",
-    long: "Caller turns are read by Claude Haiku against this building's room list (one request per turn, about 1.5 s, cached).",
+    short: "Claude reads it",
+    long: "Caller turns are read by Claude, which reasons over this building's layout: hallways, door order, room sizes, corners, stairs and elevators (one request per turn, cached).",
   },
 };
 
