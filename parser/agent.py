@@ -744,7 +744,8 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
     trace: list[AgentTraceEntry] = []
     seen_vocab: set[tuple[str, str]] = set()
     seen_grounded: set[tuple[str, bool]] = set()
-    seen_rooms: set[tuple[frozenset, bool]] = set()
+    seen_rooms: set[tuple[frozenset, bool]] = set()  # rooms of this turn's clues
+    seen_named: set[tuple[frozenset, bool]] = set()  # rooms of this turn's named places
     dialog_grounded: dict[str, tuple[str, str]] = {}  # selector json -> (evidence id, span)
     dialog_rooms: dict[frozenset, tuple[str, str]] = {}  # rooms selected -> (evidence id, span)
 
@@ -782,7 +783,7 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
             dialog_grounded[sel_key] = (evidence[-1].id, st.span)
             rooms = frozenset(select_rooms(idx, st.selector))
             if rooms:
-                seen_rooms.add((rooms, False))
+                seen_named.add((rooms, False))
                 dialog_rooms[rooms] = (evidence[-1].id, st.span)
 
     def offset_of(span: str) -> int:
@@ -844,7 +845,7 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
                 drop("missing probability")
             elif share < CONCLUSION_MIN_SHARE:
                 drop(f"probability {share:.2f} below {CONCLUSION_MIN_SHARE}")
-            elif (frozenset(ids), False) in seen_rooms or (frozenset(ids), False) in prior_named_rooms:
+            elif (frozenset(ids), False) in seen_named or (frozenset(ids), False) in prior_named_rooms:
                 drop("the same rooms are already on the console as a statement")
             else:
                 conclusion_kept = True
@@ -855,7 +856,6 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
                     note(f"{len(raws) - len(spans)} span(s) not verbatim in a caller turn left out")
                 in_turn = [s for s in spans if _verbatim(s, [turn.text])]
                 span = (in_turn or spans)[0]
-                seen_rooms.add((frozenset(ids), False))
                 what = str(args.get("summary", "")).strip()
                 why = str(args.get("reasoning", "")).strip()
                 quoted = " · ".join(f'"{s}"' for s in spans)
@@ -1046,11 +1046,11 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
         if (key in prior_grounded or rooms_key in prior_rooms) and not stated:
             drop(f"duplicate of earlier evidence {prior_grounded.get(key) or prior_rooms[rooms_key]}")
             continue
-        if key in seen_grounded or rooms_key in seen_rooms:
+        if key in seen_grounded or rooms_key in seen_named:
             drop("duplicate within this turn (or already read by the dialog rules)")
             continue
         seen_grounded.add(key)
-        seen_rooms.add(rooms_key)
+        seen_named.add(rooms_key)
         rationale = str(args.get("rationale", ""))[:300]
         if stated:
             # The caller named these rooms: the weight is the stated share for how they said

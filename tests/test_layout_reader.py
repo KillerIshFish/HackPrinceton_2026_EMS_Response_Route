@@ -452,3 +452,12 @@ def test_a_conclusion_is_applied_last_and_ends_at_its_share():
     strong = Statement({"a": 1.0, "b": 0.0, "c": 0.0, "d": 0.0}, 0.95, True, 1, "t1-e0")
     probs, _ = fuse(prior, 0.0, None, [strong, conclusion._replace(confidence=0.3)])
     assert probs["a"] == pytest.approx(0.95)
+
+
+def test_a_conclusion_with_the_same_rooms_as_a_clue_in_its_turn_is_kept(building):
+    call = [*FRAGMENTS[:3], FRAGMENTS[3].model_copy(update={"text": FRAGMENTS[3].text + " ok"})]
+    out, _ = read(building, call,
+                  tool_use("record_clue", **clue_args(room_ids=["f4-boardroom"], span="it starts with a B")),
+                  tool_use("record_conclusion", **conclusion_args()))
+    assert [t.kept for t in out.trace] == [True, True]
+    assert sum(agent.is_conclusion(e) for e in out.evidence) == 1
