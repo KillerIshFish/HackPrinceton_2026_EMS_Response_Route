@@ -753,3 +753,160 @@ calls:
       - {speaker: caller, text: "top floor. I walked all the way to the end of the hallway, past the stair well, it's the last door, dead end"}
       - {speaker: dispatcher, text: "Which end of the hallway?"}
       - {speaker: caller, text: "the far end, the elevators way back down the other way"}
+
+  # ==================================================================== Fuzzy multi-turn calls (added 2026-11-15)
+  # No single caller statement places the caller; the combination does. Fragments are vague
+  # and partial ("up high", "starts with a B", "a long walk from where I came in", "an even
+  # number", "the side door"), spread over several caller turns between ordinary dispatcher
+  # questions. No full room number or full room / tenant name is ever said. Each comment
+  # gives the number of non-circulation rooms each fragment leaves on its own and what is
+  # left when they are combined, computed from the building and meta files (walking
+  # distances over the building's edge graph).
+
+  # ------------------------------------------------------------------ jrr-princeton (floors bottom to top: B, A, 1, 2, 3)
+  # Up high, one of the top floors = Level 2 or 3: 44 rooms. Starts with B: 11 rooms
+  # (Bendheim Center for Finance on A, 1, 2 and 3 plus its copy room and pantry on 1, Bridge
+  # Year Program on A, Bike program showers and Rooms B60A / B60B / B60C on B; all but two
+  # Bendheim floors are low). A long walk from the door (>= 75 m from the nearest of the three
+  # entrances): 11 rooms. Together: 3-bcf (82 m) and 2-bcf (77 m), the Bendheim wing at the
+  # north-west end of Levels 3 and 2. "Top floors" + "really far" leans to Level 3, but 2-bcf
+  # is a fair near miss: top-3 is the meaningful metric here.
+  - id: fuzzy-jrr-bendheim-up-high
+    building: jrr-princeton
+    true_room: 3-bcf
+    tags: [fuzzy, multi_turn, partial_name, floor_vague, far_from_entrance]
+    added: true
+    live: true
+    turns:
+      - {speaker: dispatcher, text: "911, where is your emergency?"}
+      - {speaker: caller, text: "the economics building on Washington Road, my coworker just collapsed"}
+      - {speaker: dispatcher, text: "Okay. Where are you in the building?"}
+      - {speaker: caller, text: "I'm up high, like one of the upper floors, I don't know which one"}
+      - {speaker: dispatcher, text: "Do you know how you got there? Which way you came in?"}
+      - {speaker: caller, text: "it was really far from where I came in, I walked forever, all the way to the end"}
+      - {speaker: dispatcher, text: "Do you know the name of the office you're in?"}
+      - {speaker: caller, text: "the name on the door starts with a B, I can't remember the rest, I'm just visiting"}
+
+  # ------------------------------------------------------------------ bundy-olympic
+  # Upper floors (6-8): 30 rooms. Starts with B: 3 tenants (Boston Child Study Center, floor 4;
+  # Berman Berman Berman Schneider & Lowary, floor 6; Black Label Media, floor 8). West end,
+  # down by the west stair, far from the main lobby at the east end (centroid x < 20 m of the
+  # 0-80 m floor): 7 rooms. Upper + B: Suite 600 and Suite 830; + west end: Suite 600 only
+  # (830 is mid-floor, beside the elevators).
+  - id: fuzzy-bundy-b-lawyers-west-end
+    building: bundy-olympic
+    true_room: f6-s600
+    tags: [fuzzy, multi_turn, partial_name, floor_vague, hallway_end]
+    added: true
+    turns:
+      - {speaker: dispatcher, text: "911, what's the address?"}
+      - {speaker: caller, text: "the office tower on Bundy and Olympic, a man fell down and he's not responding"}
+      - {speaker: dispatcher, text: "What floor are you on?"}
+      - {speaker: caller, text: "one of the upper ones, not the very top I don't think. I just pushed the button my boss told me"}
+      - {speaker: dispatcher, text: "Do you know the name of the office?"}
+      - {speaker: caller, text: "it's a law firm, the name starts with a B, it's a bunch of names"}
+      - {speaker: dispatcher, text: "Where on the floor are you?"}
+      - {speaker: caller, text: "all the way down at the end of the hall from the elevators, the end by the stairwell, the opposite end from the front lobby"}
+
+  # Misleading but recoverable: the caller first says the street side, then corrects to the
+  # back (parking side). Floor 6 or 7: 17 rooms. Starts with D: 4 rooms (Devereaux, Suite 620,
+  # floor 6 street side; Dietz, Gilmor & Chazen, Suite 650 open area and kitchenette, floor 6
+  # parking side; Defined Property Management, floor 8). Parking-lot side: 33 rooms.
+  # Uncorrected (6/7 + D + street side) the answer would be Devereaux, Suite 620; corrected it
+  # is Suite 650: the open area (true) or its kitchenette. "Big open area" picks the open area.
+  - id: fuzzy-bundy-d-name-side-correction
+    building: bundy-olympic
+    true_room: f6-s650-r1
+    tags: [fuzzy, multi_turn, partial_name, floor_vague, correction, view]
+    added: true
+    turns:
+      - {speaker: dispatcher, text: "911, where is your emergency?"}
+      - {speaker: caller, text: "Bundy and Olympic, the big office building, sixth or seventh floor, I always mix them up"}
+      - {speaker: dispatcher, text: "Okay. What office are you in?"}
+      - {speaker: caller, text: "it starts with a D, it's like three last names with an and at the end. we're on the front, the street side"}
+      - {speaker: dispatcher, text: "So you can see Olympic Boulevard out the window?"}
+      - {speaker: caller, text: "wait no, sorry, I'm looking out right now, it's the parking garage. we're on the back side"}
+      - {speaker: dispatcher, text: "What kind of room are you in?"}
+      - {speaker: caller, text: "the big open area with all the desks"}
+
+  # ------------------------------------------------------------------ prop-247451 Cornerstone Plaza
+  # Top floor or the one under it (7-8): 12 rooms. Starts with S: 4 suites (Shapell
+  # Properties and Saint Matthew's Churches on 5, Spertus Landes & Josephs on 7, Sanli
+  # Pastore & Hill on 8). A long walk from the elevator (>= 60 m from that floor's elevator):
+  # 18 rooms. 7-8 + S: Spertus (30 m from the elevator) and Sanli (70 m); the long walk
+  # leaves Sanli Pastore & Hill, Suite 800.
+  - id: fuzzy-cornerstone-s-name-long-walk
+    building: prop-247451
+    true_room: t151818861
+    tags: [fuzzy, multi_turn, partial_name, floor_vague, far_from_elevator]
+    added: true
+    turns:
+      - {speaker: dispatcher, text: "911, what is the address of your emergency?"}
+      - {speaker: caller, text: "Cornerstone Plaza, somebody's having a seizure"}
+      - {speaker: dispatcher, text: "Which floor?"}
+      - {speaker: caller, text: "up high, the top floor or the one under it, I'm not sure"}
+      - {speaker: dispatcher, text: "Do you know the name of the company?"}
+      - {speaker: caller, text: "it's an S name, like San something, a few names. it's a finance place"}
+      - {speaker: dispatcher, text: "Anything else about where you are?"}
+      - {speaker: caller, text: "it's a long walk from the elevator, you go all the way down to the end"}
+
+  # Speech-recognition noise on the name plus a floor that is the wrong one. "Sit run" /
+  # "citron": C or S names, 8 rooms. "We also have an office down on three": Citrin Cooperman
+  # is the only tenant with two suites (340 on floor 3, 850 on floor 8); floor 3 itself is the
+  # trap. Up near the top (7-8): 12 rooms. Big office, a whole side of the floor (>= 500 m2):
+  # 21 rooms. Together: Suite 850 only (739 m2, the largest suite on floor 8).
+  - id: fuzzy-cornerstone-citron-upper-office
+    building: prop-247451
+    true_room: t244891941
+    tags: [fuzzy, multi_turn, partial_name, asr_noise, floor_vague, misleading_floor]
+    added: true
+    turns:
+      - {speaker: dispatcher, text: "911, where are you?"}
+      - {speaker: caller, text: "Cornerstone Plaza on Bundy. my manager is having chest pains"}
+      - {speaker: dispatcher, text: "What's the name of your office?"}
+      - {speaker: caller, text: "its the accounting firm, sit run, citron, something like that, I'm a temp"}
+      - {speaker: dispatcher, text: "Which floor are you on?"}
+      - {speaker: caller, text: "we have another office down on three but I'm not in that one, I'm in the other one, up near the top"}
+      - {speaker: dispatcher, text: "Can you describe the space?"}
+      - {speaker: caller, text: "it's big, it takes up like the whole side of the floor"}
+
+  # ------------------------------------------------------------------ prop-248704 International Jewelry Center
+  # Near the top (12-13): 69 rooms. Starts with A: 12 rooms. A big suite (>= 300 m2): 60.
+  # Windows on the street: 48. On 12-13 the A names are Aaron Henry (457 m2, street), Ancora
+  # Designs (114 m2), ALIZ Designs, AG Gems and Adler Trading (40-62 m2): big + A + near the
+  # top leaves Aaron Henry, and the street view agrees.
+  - id: fuzzy-jewelry-a-name-big-suite
+    building: prop-248704
+    true_room: t224171161
+    tags: [fuzzy, multi_turn, partial_name, floor_vague, size, view]
+    added: true
+    turns:
+      - {speaker: dispatcher, text: "911, what's your emergency?"}
+      - {speaker: caller, text: "International Jewelry Center downtown, a lady fainted and hit her head"}
+      - {speaker: dispatcher, text: "What floor are you on?"}
+      - {speaker: caller, text: "near the top, twelve or thirteen, the elevator went forever"}
+      - {speaker: dispatcher, text: "Do you know the name of the business?"}
+      - {speaker: caller, text: "it starts with an A, its a person's name I think. I was just dropping off a delivery"}
+      - {speaker: dispatcher, text: "Anything you can see around you?"}
+      - {speaker: caller, text: "its a big suite, really big compared to the little ones up here, and the windows look down on the street"}
+
+  # ------------------------------------------------------------------ prop-12622830 107 Hewitt (apartments)
+  # Came in the side door at Stair A (the street door into the north-west stair, not the
+  # lobby) and walked down the hall the stair opens onto: 17 units open onto that north
+  # corridor. The stairs stop there = the top floor (6): 10 units. Even number: 20 units.
+  # Together: Unit 612 only (609 and 611 are odd; 610 does not exist on 6). It is also the
+  # last door on that hall from the stair (door at x 12.5 vs 609 at -16, 611 at -5).
+  - id: fuzzy-hewitt-side-door-even
+    building: prop-12622830
+    true_room: u28004374
+    tags: [fuzzy, multi_turn, partial_number, floor_vague, side_entrance]
+    added: true
+    turns:
+      - {speaker: dispatcher, text: "911, what's the address?"}
+      - {speaker: caller, text: "107 Hewitt, my friend overdosed, I think, he's barely breathing"}
+      - {speaker: dispatcher, text: "What's the apartment number?"}
+      - {speaker: caller, text: "I don't know, I'm visiting. I came in the side door, the one that goes right into the stairs, not the lobby"}
+      - {speaker: dispatcher, text: "Which floor did you go to?"}
+      - {speaker: caller, text: "I walked up, a lot of stairs, the stairs just stop there, they don't go any higher"}
+      - {speaker: dispatcher, text: "Anything about the apartment or the number?"}
+      - {speaker: caller, text: "I can't remember the number but it's an even number. it's down the hall you come out on from the stairs, the last door down that way"}

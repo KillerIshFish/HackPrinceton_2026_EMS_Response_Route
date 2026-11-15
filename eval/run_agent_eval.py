@@ -74,6 +74,11 @@ def is_layout_call(call: dict) -> bool:
     return str(call.get("id", "")).startswith("layout-")
 
 
+def is_fuzzy_call(call: dict) -> bool:
+    """A fuzzy multi-turn call (added 2026-11-15): vague fragments that place the caller only together."""
+    return str(call.get("id", "")).startswith("fuzzy-")
+
+
 def load_calls(path: Path = CALLS_PATH) -> list[dict]:
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     calls = list(data.get("calls") or [])
@@ -457,7 +462,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--modes", default="rules,llm", help="comma list of rules,llm,agent,vocab")
     ap.add_argument("--limit", type=int, default=None, help="only the first N calls (after --subset / --ids)")
-    ap.add_argument("--subset", choices=("all", "live", "original", "added", "layout"), default="all",
+    ap.add_argument("--subset", choices=("all", "live", "original", "added", "layout", "fuzzy"), default="all",
                     help="'live': calls marked live: true; 'original': the first 32 calls (added: false); "
                          "'added': the calls added on 2026-11-14 and later; 'layout': the layout-reasoning calls (ids layout-*)")
     ap.add_argument("--ids", default=None, help="comma list of call ids, run in this order")
@@ -482,6 +487,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         calls = [c for c in calls if c.get("added")]
     elif args.subset == "layout":
         calls = [c for c in calls if is_layout_call(c)]
+    elif args.subset == "fuzzy":
+        calls = [c for c in calls if is_fuzzy_call(c)]
     if args.ids:
         want = [i.strip() for i in args.ids.split(",") if i.strip()]
         by_id = {c["id"]: c for c in calls + scenario_calls()}
@@ -534,10 +541,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     call_ids = {c["id"] for c in calls}
     original = {c["id"] for c in calls if not c.get("added")}
     layout = {c["id"] for c in calls if is_layout_call(c)}
-    added = call_ids - original - layout
+    fuzzy = {c["id"] for c in calls if is_fuzzy_call(c)}
+    added = call_ids - original - layout - fuzzy
     groups = [("original", original, f"Original calls ({len(original)})"),
               ("added", added, f"Calls added 2026-11-14 ({len(added)})"),
-              ("layout", layout, f"Layout-reasoning calls, added 2026-11-15 ({len(layout)})")]
+              ("layout", layout, f"Layout-reasoning calls, added 2026-11-15 ({len(layout)})"),
+              ("fuzzy", fuzzy, f"Fuzzy multi-turn calls, added 2026-11-15 ({len(fuzzy)})")]
     if sum(1 for _, ids, _ in groups if ids) > 1:
         for key, ids, title in groups:
             if ids:
