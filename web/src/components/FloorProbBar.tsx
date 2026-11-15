@@ -110,13 +110,6 @@ export function FloorProbBar({ building, posterior, phoneFix, selectedFloor, onS
         })}
       </ol>
 
-      <div className="mt-2 rounded border border-dashed border-line px-2 py-1.5" title="Probability the caller is somewhere the building model does not cover">
-        <div className="flex items-baseline justify-between text-[11px] text-ink-mute">
-          <span>Not in model</span>
-          <span className="num text-ink-dim">{pct(posterior.p_not_in_model)}</span>
-        </div>
-      </div>
-
       <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-snug text-ink-mute">
         <span className="mt-0.5 block h-2.5 w-1 shrink-0 bg-accent" aria-hidden />
         {z !== null ? <>Within ±3 m of the phone z-axis fix</> : <>No z-axis fix yet</>}

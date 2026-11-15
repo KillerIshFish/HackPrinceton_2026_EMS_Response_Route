@@ -38,7 +38,8 @@ What it records
                     and the model's own extent (``kind: model``): the outer edge of its
                     lowest floor when it was drawn to the outline, else one rectangle per block
 ``shape``           whether the model's plates follow the real outline or an assumed bar, and why
-``parcel_outlines`` every structure on the parcel, kept when the record describes several buildings
+``parcel_outlines`` every structure on the parcel (garages and sheds included; ``main_outlines``
+                    leaves those out)
 ``imagery``         centre, radius and zoom of the aerial window that covers all of it
 ``pending``         true while the OpenStreetMap request is still running
 
@@ -78,6 +79,12 @@ NOT_A_FRONTAGE = ("motorway", "motorway_link", "trunk", "trunk_link")
 ROAD_RADIUS_M = 150.0
 BUILDING_MAX_DISTANCE_M = 45.0  # an outline further than this from the address point is another building
 BUILDING_MIN_AREA_M2 = 40.0
+# A structure smaller than this is an outbuilding (garage, carport, shed, pool house), not one of
+# the property's buildings: ignored when the parcel's outlines are matched to the record.
+OUTBUILDING_M2 = 150.0
+# The parcel's main outlines are trusted over the record's building count when their total area
+# is within this share of the record's floor area.
+OUTLINE_AREA_TOL = 0.2
 OVERPASS_ATTEMPTS = 2
 OVERPASS_TIMEOUT_S = 45.0
 OVERPASS_COOLDOWN_S = 300.0
@@ -451,7 +458,9 @@ def site_sources(building_id: str, geolocation, single: bool = True, buildings: 
     def vexcel_worker() -> None:
         try:
             outline = fetch_vexcel_outline(lat, lon, single)
-            every = fetch_vexcel_outline(lat, lon, False) if buildings > 1 else None
+            # every structure on the parcel, even for one building: the record's building count
+            # can be wrong, and the parcel's outlines are checked against its floor area
+            every = fetch_vexcel_outline(lat, lon, False)
             with lock:
                 state["vexcel"], state["vexcel_all"] = outline, every
         except Exception as exc:  # noqa: BLE001 - no key, no coverage, timeout: the sidecar is optional
@@ -493,29 +502,103 @@ def site_sources(building_id: str, geolocation, single: bool = True, buildings: 
         return dict(state)
 
 
-def layout_site(state: dict, geolocation, buildings: int = 1) -> dict:
+def outline_areas(outline: Optional[dict]) -> list[float]:
+    """Area in m2 of each polygon of an outline (courtyards taken out), in ``polygons_latlng`` order."""
+    out = []
+    polys = (outline or {}).get("polygons_latlng") or []
+    holes = (outline or {}).get("holes_latlng") or []
+    for i, ring in enumerate(polys):
+        if len(ring) < 3:
+            out.append(0.0)
+            continue
+        ref = ring[0]
+        area = _area([latlng_to_local(la, lo, ref) for la, lo in ring])
+        for h in (holes[i] if i < len(holes) else []):
+            if len(h) >= 3:
+                area -= _area([latlng_to_local(la, lo, ref) for la, lo in h])
+        out.append(max(area, 0.0))
+    return out
+
+
+def main_outlines(outline: Optional[dict]) -> Optional[dict]:
+    """``outline`` without its outbuildings (polygons under ``OUTBUILDING_M2``: garages, sheds).
+
+    None when nothing is left. Holes stay paired with their polygons.
+    """
+    if not outline:
+        return None
+    areas = outline_areas(outline)
+    keep = [i for i, a in enumerate(areas) if a >= OUTBUILDING_M2]
+    if not keep:
+        return None
+    if len(keep) == len(areas):
+        return outline
+    out = dict(outline)
+    out["polygons_latlng"] = [outline["polygons_latlng"][i] for i in keep]
+    if outline.get("holes_latlng"):
+        holes = outline["holes_latlng"]
+        out["holes_latlng"] = [holes[i] if i < len(holes) else [] for i in keep]
+    out["area_m2"] = round(sum(areas[i] for i in keep), 1)
+    out["outbuildings_dropped"] = len(areas) - len(keep)
+    return out
+
+
+def _area_matches(total: float, floor_area_m2: Optional[float]) -> bool:
+    return bool(floor_area_m2) and abs(total - floor_area_m2) <= OUTLINE_AREA_TOL * floor_area_m2
+
+
+def layout_site(state: dict, geolocation, buildings: int = 1, floor_area_m2: Optional[float] = None) -> dict:
     """What the layout stage needs of the site: the outline(s) to draw the plates to.
 
     One building: the outline at the address point (Vexcel first, OpenStreetMap second). Several
-    buildings: every structure on the parcel, used only when there are exactly as many as the
-    record has buildings. ``polygons_latlng`` is empty, with a ``reason``, when there is
+    buildings: the parcel's main structures (outbuildings under ``OUTBUILDING_M2`` left out),
+    used when there are exactly as many as the record has buildings.
+
+    The record's building count is not always right (CoStar can say 2 for a complex the imagery
+    shows as 3). ``floor_area_m2`` is the record's area of one floor: when the parcel's main
+    outlines add up to it (within ``OUTLINE_AREA_TOL``) they are used whatever the count says,
+    and ``buildings_from_outlines`` gives the count they imply. The same check catches a record
+    of one building whose address-point outline is far too small for it while the parcel's
+    outlines together fit. ``polygons_latlng`` is empty, with a ``reason``, when there is
     nothing the layout may use.
     """
     street = (state.get("street") or {}).get("bearing_deg")
     base = {"street_bearing_deg": street, "address_latlng": list(geolocation) if geolocation else None,
             "polygons_latlng": []}
+    every = main_outlines(state.get("vexcel_all"))
+    found = len((every or {}).get("polygons_latlng") or [])
+    total = sum(outline_areas(every))
+    by_area = found > 1 and _area_matches(total, floor_area_m2)
+    dropped = (every or {}).get("outbuildings_dropped") or 0
+    extra = {}
     if buildings <= 1:
         outline = state.get("vexcel") or state.get("osm")
-        if not outline:
+        own = sum(outline_areas(outline)) if outline else 0.0
+        if by_area and not (outline and _area_matches(own, floor_area_m2)):
+            outline = every
+            extra = {"buildings_from_outlines": found,
+                     "count_note": f"the record describes one building, but its outline is too small for the "
+                                   f"recorded floor area and the parcel's {found} buildings together match it"}
+        elif not outline:
             return {**base, "reason": "no building outline was found for this address"}
+    elif found == buildings:
+        outline = every
+    elif by_area:
+        outline = every
+        extra = {"buildings_from_outlines": found,
+                 "count_note": f"the record describes {buildings} buildings, but the parcel has {found} "
+                               f"({total:.0f} m2 together, against {floor_area_m2:.0f} m2 recorded per floor)"}
     else:
-        outline = state.get("vexcel_all")
-        found = len((outline or {}).get("polygons_latlng") or [])
-        if found != buildings:
-            return {**base, "reason": f"the record describes {buildings} buildings and {found} outline"
-                                      f"{'' if found == 1 else 's'} {'was' if found == 1 else 'were'} found on the "
-                                      "property, so the buildings cannot be matched to outlines"}
-    return {**base, "source": outline["source"], "detail": outline.get("detail") or "",
+        side = f" (and {dropped} outbuilding{'' if dropped == 1 else 's'} left out)" if dropped else ""
+        why = (f"the record describes {buildings} buildings and {found} outline{'' if found == 1 else 's'} "
+               f"{'was' if found == 1 else 'were'} found on the property{side}, so the buildings cannot be "
+               "matched to outlines")
+        if found > 1 and floor_area_m2:
+            why += f"; together they cover {total:.0f} m2 against {floor_area_m2:.0f} m2 recorded per floor"
+        return {**base, "reason": why}
+    if dropped and outline is every:
+        extra["outbuildings_dropped"] = dropped
+    return {**base, **extra, "source": outline["source"], "detail": outline.get("detail") or "",
             "polygons_latlng": outline["polygons_latlng"], "holes_latlng": outline.get("holes_latlng") or []}
 
 
@@ -585,7 +668,7 @@ def _assemble(bm: BuildingModel, geo, state: dict, pending: bool) -> dict:
     shape = bm.stats.get("shape") or {}
     drawn = shape.get("kind") == "outline"  # the layout was generated inside the real outline(s)
     if drawn and int(bm.stats.get("blocks") or 1) > 1 and state.get("vexcel_all"):
-        outline = state["vexcel_all"]
+        outline = main_outlines(state["vexcel_all"]) or state["vexcel_all"]
     anchor = None
     front_hint = None
     fit_scale = None

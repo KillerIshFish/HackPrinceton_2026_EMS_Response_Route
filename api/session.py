@@ -16,9 +16,10 @@ Pipeline per state::
     belief + every look (room, mode) -> planning.search_order.residual_probs -> displayed posterior
     situation + facts -> situation.policy.policy_for          -> Policy (travel profile, stake, banners)
     policy.route_enabled false -> empty plan, approach with no entrance / staging, no question prompts
-    otherwise   -> plan_search(belief, searched=looks, gates=officer gates, profile=policy.travel,
-                               survival=survival_from(situation, elapsed_s))
-                   recommend_approach(residual, profile=policy.travel, situation=, gates=)
+    otherwise   -> plan_search(belief, gates=officer gates, profile=policy.travel,
+                               survival=survival_from(situation, 0))  one fixed path from the entrance
+                   searched rooms are ticked off that path (_ticked_off); it is never re-planned
+                   recommend_approach(belief, profile=policy.travel, situation=, gates=)
                    top_questions / next_question on the residual posterior
 
 Call events (searched, found, timestamp, gate, undo) are appended to the call log
@@ -311,30 +312,46 @@ def _empty_approach() -> dict[str, Any]:
     }
 
 
-def _given_looks(plan: SearchPlan, belief: dict[str, float], p0: float,
-                 looks: list[tuple[str, str]]) -> SearchPlan:
-    """Put the plan's chances on the scale the console shows: given the searches so far.
+def _ticked_off(plan: SearchPlan, belief: dict[str, float], p0: float,
+                looks: list[tuple[str, str]]) -> SearchPlan:
+    """The fixed path with the searched rooms taken off it, in the original order.
 
-    ``plan_search`` reports ``p_find`` / ``cumulative_prob`` / ``cumulative_success`` on the
-    scale of the belief *before* any look (its documented contract). The console shows the
-    posterior after the looks (``residual_probs``, which renormalises), so the plan's numbers
-    are divided by the mass still unaccounted for, ``p0 + sum_r p_r * prod(1 - q)``. With no
-    looks that mass is 1 and nothing changes.
+    The plan was made on the evidence-only belief with nothing searched. Each searched room is
+    removed; every later stop keeps its place in the order and its ETA along the path. The
+    chances are put on the scale the console shows (the posterior after the looks):
+    ``p_find`` and ``cumulative_prob`` are divided by the mass still unaccounted for, and
+    ``cumulative_prob`` runs over the stops still to do.
     """
     if not looks:
         return plan
+    done = {rid for rid, _ in looks}
     table = search_modes()
     by_room = looks_by_room(looks)
     left = p0 + sum(p * miss_factor(by_room.get(rid, ()), table) for rid, p in belief.items())
-    if left <= 0.0 or abs(left - 1.0) < 1e-12:
-        return plan
-    k = 1.0 / left
-    teams = [[st.model_copy(update={
-        "p_find": None if st.p_find is None else round(st.p_find * k, 8),
-        "cumulative_prob": round(min(1.0, st.cumulative_prob * k), 6),
-    }) for st in team] for team in plan.teams]
-    success = None if plan.cumulative_success is None else round(min(1.0, plan.cumulative_success * k), 6)
-    return plan.model_copy(update={"teams": teams, "cumulative_success": success})
+    k = 1.0 / left if left > 0.0 else 1.0
+    teams, success = [], 0.0
+    for team in plan.teams:
+        cum, kept = 0.0, []
+        for st in team:
+            if st.room_id in done:
+                continue
+            cum += belief.get(st.room_id, 0.0) * k
+            pf = None if st.p_find is None else st.p_find * k
+            success += pf or 0.0
+            kept.append(st.model_copy(update={
+                "p_find": None if pf is None else round(pf, 8),
+                "cumulative_prob": round(min(1.0, cum), 6),
+            }))
+        teams.append(kept)
+    n_done = len(done & {st.room_id for team in plan.teams for st in team})
+    notes = [*plan.notes, f"{n_done} stop{'s' if n_done != 1 else ''} searched and ticked off; "
+                          "the rest of the path keeps its order."] if n_done else list(plan.notes)
+    return plan.model_copy(update={
+        "teams": teams,
+        "cumulative_success": round(min(1.0, success), 6),
+        "p_out": round(p0 * k, 6),
+        "notes": notes,
+    })
 
 
 def _empty_plan(n_teams: int, note: str) -> SearchPlan:
@@ -757,22 +774,26 @@ class CallSession:
               second_team_rooms: Optional[frozenset] = None) -> SearchPlan:
         """The search plan, or an empty one when the policy turns routes off (never computed then).
 
-        ``belief`` is evidence only; ``plan_search`` applies every look itself, so searched
-        rooms keep their residual mass and can return as a second look (``kind="re_search"``).
-        Only officer gates take rooms out. The crew replans from the room it searched last.
+        One fixed path from the entrance. The route is planned on the caller's evidence alone
+        (``belief``), always from the entrance, and never from where the crew is standing:
+        marking a room searched does not re-plan it. A searched room is ticked off the path
+        and the stops after it keep their order, so the crew never doubles back for a second
+        look or gets sent to the far side of the floor. The path changes only when the
+        evidence, the incident type or the officer's gates change.
+
+        The survival clock is read at the call start, not at the current time, so a
+        cardiac-arrest route does not drift as the call goes on.
         """
         if not policy.route_enabled:
             return _empty_plan(n_teams, "Route planning is off for this incident type.")
         if self.found_room_id is not None:
             return _empty_plan(n_teams, "Search ended: the dispatcher recorded the caller as found.")
-        start = self.searched[-1].room_id if self.searched else None
-        looks = self._looks()
         plan = plan_search(
-            self.building, belief, p0, n_teams=n_teams, start_node=start,
-            profile=policy.travel, survival=survival_from(self.situation, self.elapsed_s()),
-            searched=looks, gates=gates, second_team_rooms=second_team_rooms,
+            self.building, belief, p0, n_teams=n_teams,
+            profile=policy.travel, survival=survival_from(self.situation, 0.0),
+            gates=gates, second_team_rooms=second_team_rooms,
         )
-        return self._with_hazard_classes(_given_looks(plan, belief, p0, looks), policy)
+        return self._with_hazard_classes(_ticked_off(plan, belief, p0, self._looks()), policy)
 
     def hazard_classes(self, facts: Optional[list[Fact]] = None) -> dict[str, str]:
         """room id -> hazard class from caller facts that name a room (display only).
@@ -865,7 +886,7 @@ class CallSession:
             n_teams=self.n_teams,
             posterior=summarize(self.building, room_probs, p_nim),
             plan=self._plan(belief, p0, self.n_teams, policy, gates, self._phone_floor_rooms(fused)),
-            approach=self._approach(room_probs, policy, gates),
+            approach=self._approach(belief, policy, gates),  # the entrance stays put as rooms are searched
             next_question=next_question(self.building, room_probs, p_nim, asked=asked, policy=policy),
             history=[self._history_point(i, policy, gates) for i in range(len(self.revealed))],
             parser_mode=self.parser_mode,

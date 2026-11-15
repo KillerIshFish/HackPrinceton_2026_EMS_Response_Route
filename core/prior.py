@@ -4,8 +4,8 @@
 
 with alpha = 0.7, w from configs/priors.yaml (base room-type weight for the
 building use x time-of-day multiplier) and o = Room.occupancy_factor.
-``P_NOT_IN_MODEL`` (5%) of the mass is reserved for "caller is not in any
-modelled room"; room probabilities sum to 1 - P_NOT_IN_MODEL.
+No mass is reserved for "caller is not in any modelled room" (``P_NOT_IN_MODEL``
+is 0), so room probabilities sum to 1.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ import yaml
 from core.schema import Building
 
 ALPHA = 0.7
-P_NOT_IN_MODEL = 0.05
+P_NOT_IN_MODEL = 0.0
 DEFAULT_ROOM_WEIGHT = 0.3
 PRIORS_PATH = Path(__file__).resolve().parents[1] / "configs" / "priors.yaml"
 

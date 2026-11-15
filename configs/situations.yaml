@@ -269,6 +269,14 @@ search:
     range: null
     label: unverified
     source: "No published value; planning setting carried over from the original planner."
+  walking_penalty_scale:
+    # The planner minimises sum p_find * C + lambda * (time the route ends), with lambda the
+    # probability the search reaches the end of the path without finding the caller, times
+    # this scale (planning/search_order.py, "Walking penalty"). 0 = no penalty: the original plans.
+    value: 1.0
+    range: [0.0, 2.0]
+    label: judgement
+    source: "Modelling choice: 1.0 charges the walk at the probability that the whole route is walked in vain."
 
 
 # ---------------------------------------------------------------------------

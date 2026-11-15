@@ -362,3 +362,53 @@ def test_late_outline_rebuilds_the_layout(tmp_path, monkeypatch) -> None:
             break
     assert late.stats["shape"] == {**late.stats["shape"], "kind": "outline", "source": "OpenStreetMap"}
     assert ctx_mod.load_context("prop-42")["pending"] is False
+
+
+def test_parcel_outlines_win_over_a_wrong_building_count_when_the_area_matches() -> None:
+    """1919 Portsmouth: the record says 2 buildings, the parcel has 3 plus two garages. The three
+    main outlines add up to the recorded floor area, so they are used and the units are dealt to
+    them by area; the garages are left out."""
+    def ring_at(dx: float, dy: float, w: float, h: float) -> list:
+        return _ring([(dx, dy), (dx + w, dy), (dx + w, dy + h), (dx, dy + h)])
+
+    facts = _facts(per_floor=14, floors=2, num_buildings=2, style="garden", has_elevator=False, typical_floor_m2=1400.0)
+    for u in facts["units"]:
+        u["number"] = str(int(u["id"]) - 99)   # sequential: the numbers name no building or floor
+    parcel = {"source": "Vexcel", "detail": "", "polygons_latlng": [
+        ring_at(0, 0, 36, 17), ring_at(0, 40, 28, 14), ring_at(50, 40, 28, 14),   # 612 + 392 + 392 m2
+        ring_at(60, 0, 9, 9), ring_at(75, 0, 8, 8),                                  # 81 and 64 m2: garages
+    ]}
+    state = {"vexcel_all": parcel}
+
+    assert ctx_mod.main_outlines(parcel)["outbuildings_dropped"] == 2
+    site = ctx_mod.layout_site(state, ADDRESS, 2, floor_area_m2=1400.0)
+    assert len(site["polygons_latlng"]) == 3 and site["buildings_from_outlines"] == 3
+    assert site["outbuildings_dropped"] == 2 and "2 buildings" in site["count_note"]
+
+    bm = build_property_model(facts, site=site)
+    assert bm.stats["shape"]["kind"] == "outline" and bm.stats["blocks"] == 3
+    units = [s for s in bm.spaces if s.kind == "unit"]
+    assert len(units) == 28 and {s.block for s in units} == {"1", "2", "3"}
+    per = {k: sum(s.block == k for s in units) for k in ("1", "2", "3")}
+    assert per["1"] > per["2"] >= per["3"] - 1 and per["1"] >= 12, per    # largest outline, most units
+    assert any("does not say which building" in n for n in bm.notes)
+    assert any("not treated as buildings" in n for n in bm.notes)
+
+    # outlines that do not add up to the record are still refused, and say by how much
+    refused = ctx_mod.layout_site(state, ADDRESS, 2, floor_area_m2=3000.0)
+    assert refused["polygons_latlng"] == [] and "outbuildings left out" in refused["reason"]
+    assert "3000 m2 recorded per floor" in refused["reason"]
+
+
+def test_one_building_record_uses_the_parcel_when_its_own_outline_is_far_too_small() -> None:
+    def ring_at(dx: float, dy: float, w: float, h: float) -> list:
+        return _ring([(dx, dy), (dx + w, dy), (dx + w, dy + h), (dx, dy + h)])
+
+    nearest = {"source": "Vexcel", "detail": "", "polygons_latlng": [ring_at(-15, -8, 30, 16)]}      # 480 m2
+    parcel = {"source": "Vexcel", "detail": "", "polygons_latlng": [ring_at(-15, -8, 30, 16), ring_at(-15, 30, 30, 16)]}
+    state = {"vexcel": nearest, "vexcel_all": parcel}
+    assert len(ctx_mod.layout_site(state, ADDRESS, 1, floor_area_m2=950.0)["polygons_latlng"]) == 2
+    # the outline at the address point already fits the record: it is kept
+    assert len(ctx_mod.layout_site(state, ADDRESS, 1, floor_area_m2=480.0)["polygons_latlng"]) == 1
+    # no floor area to check against: the outline at the address point, as before
+    assert len(ctx_mod.layout_site(state, ADDRESS, 1)["polygons_latlng"]) == 1

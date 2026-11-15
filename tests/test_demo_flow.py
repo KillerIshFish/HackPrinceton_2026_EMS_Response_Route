@@ -46,7 +46,7 @@ def test_turn0_prior_spans_all_floors(client: TestClient) -> None:
     assert s["turn"] == 0 and s["total_turns"] == 4 and not s["done"]
     post = s["posterior"]
     assert _total(post) == pytest.approx(1.0, abs=1e-9)
-    assert post["p_not_in_model"] == pytest.approx(0.05, abs=1e-9)
+    assert post["p_not_in_model"] == 0.0
     assert set(post["p_floor"]) == {"1", "2", "3", "4"}
     assert all(p > 0.10 for p in post["p_floor"].values()), post["p_floor"]
 
@@ -121,11 +121,10 @@ def test_mark_cleared_koopman_replan(client: TestClient) -> None:
     # Koopman: p_r <- p_r (1 - 0.9), then renormalise.
     expected = 0.1 * p_before / (1.0 - 0.9 * p_before)
     assert post["room_probs"][PL_RESTROOM] == pytest.approx(expected, rel=1e-6)
-    # The searched room keeps its residual mass: the planner may send the crew back for a
-    # second look (it is standing there), but only as a re-search, never as a first look.
-    first = after["plan"]["teams"][0][0]
-    assert first["room_id"] != PL_RESTROOM or first["kind"] == "re_search"
-    assert all(st["kind"] == "re_search" for st in after["plan"]["teams"][0] if st["room_id"] == PL_RESTROOM)
+    # One fixed path: the searched room is ticked off and the rest keep their order.
+    order = [st["room_id"] for st in after["plan"]["teams"][0]]
+    assert PL_RESTROOM not in order
+    assert order == [st["room_id"] for st in before["plan"]["teams"][0] if st["room_id"] != PL_RESTROOM]
     assert after["plan"]["p_out"] == pytest.approx(post["p_not_in_model"], abs=1e-6)
 
     # Clearing the same room twice is idempotent; unknown rooms 404.
