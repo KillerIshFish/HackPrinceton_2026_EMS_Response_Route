@@ -26,9 +26,15 @@ const BASE: string =
 /**
  * `?fixture=<name>` in the URL (unknown | cardiac_arrest | fire_smoke | active_threat) runs the
  * console on a recorded DemoState instead of the backend. See src/fixtures/index.ts.
+ * VITE_DEFAULT_FIXTURE set at build time (the static Vercel demo, web/vercel.json) makes fixture
+ * mode the default when the URL names none.
  */
+const DEFAULT_FIXTURE: string | null =
+  (import.meta.env.VITE_DEFAULT_FIXTURE as string | undefined)?.trim() || null;
 export const FIXTURE: string | null =
-  typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("fixture");
+  typeof window === "undefined"
+    ? null
+    : new URLSearchParams(window.location.search).get("fixture") ?? DEFAULT_FIXTURE;
 
 let fixtureBackend: Promise<FixtureBackend> | null = null;
 function fixture(): Promise<FixtureBackend> {
