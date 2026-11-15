@@ -9,12 +9,15 @@ gives the same profile.
   floor above floor 18 for any load (judgement, not timed).
 * ``smoke_reported``: movement 0.5 m/s and rooms searched at a search-advance rate of
   0.040 m/s, with a note on the profile saying so.
-* Elevator option (75 s per ride + 2 s per floor) for medical incident types only, never for
-  ``fire_smoke`` or when smoke is reported. The planner graph never routes by elevator;
-  ``planning.approach.recommend_approach`` shows stair and elevator times side by side.
+* Elevator option (45 s per ride + 2 s per floor) for medical incident types only, never for
+  ``fire_smoke`` or when smoke is reported. Where it is offered, the planner graph routes by
+  elevator when a ride is faster than the stairs: the vertical leg alone favours the ride from
+  4 floors with a light load and from 2 with a heavy one (walks to the elevator and the stairs
+  can shift that); ``planning.approach.recommend_approach`` also shows stair and elevator
+  times side by side.
 
-On a building with fewer than 18 floors, a light-load profile gives exactly today's travel
-times (1.2 m/s, 15 s per floor), and the graph keeps leaving elevator edges out.
+On a building with fewer than 18 floors, a light-load profile gives today's stair and walking
+times (1.2 m/s, 15 s per floor).
 """
 
 from __future__ import annotations
@@ -32,7 +35,7 @@ _FALLBACK: dict[str, float] = {
     "high_floor_from": 18,
     "smoke_search_advance_mps": 0.040,
     "smoke_walk_mps": 0.5,
-    "elevator_fixed_s": 75.0,
+    "elevator_fixed_s": 45.0,
     "elevator_s_per_floor": 2.0,
 }
 

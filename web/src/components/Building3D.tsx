@@ -613,19 +613,46 @@ type Hop = { to: string; t: number; edge: Edge };
 
 /**
  * Room-to-room travel times as the search plan counts them (core/building_graph.py): walk each
- * edge at the profile's speed, add the stair rate per floor climbed, no elevator rides, and
- * nothing through a room the officer closed.
+ * edge at the profile's speed, add the stair rate per floor climbed, and nothing through a room
+ * the officer closed. When the profile offers an elevator (medical calls, no fire or smoke),
+ * every pair of stops of one shaft is a single ride (fixed wait + seconds per floor), so the
+ * route takes the elevator where that is faster than the stairs.
  */
 function travelGraph(building: Building, travel: TravelProfile, closed: Set<string>): Map<string, Hop[]> {
   const rooms = new Map(building.rooms.map((r) => [r.id, r]));
   const adj = new Map<string, Hop[]>();
+  const link = (e: Edge, t: number) => {
+    for (const [from, to] of [[e.u, e.v], [e.v, e.u]] as const) {
+      let list = adj.get(from);
+      if (!list) adj.set(from, (list = []));
+      list.push({ to, t, edge: e });
+    }
+  };
+  const elevatorsOn = travel.elevator_allowed && travel.elevator_fixed_s != null;
+  /** elevator stops joined by elevator edges (union-find), grouped into shafts below */
+  const shaftParent = new Map<string, string>();
+  const shaftRoot = (id: string): string => {
+    let r = id;
+    while (shaftParent.get(r) !== r) r = shaftParent.get(r)!;
+    shaftParent.set(id, r);
+    return r;
+  };
+  /** the elevator edge each pair of adjacent stops came with (keeps its length for a one-floor ride) */
+  const shaftEdges = new Map<string, Edge>();
   for (const e of building.edges) {
-    if (e.kind === "elevator" || closed.has(e.u) || closed.has(e.v)) continue;
+    if (closed.has(e.u) || closed.has(e.v)) continue;
     const u = rooms.get(e.u);
     const v = rooms.get(e.v);
     if (!u || !v) continue;
     const length =
       e.length_m ?? Math.hypot(u.centroid[0] - v.centroid[0], u.centroid[1] - v.centroid[1], u.centroid[2] - v.centroid[2]);
+    if (e.kind === "elevator") {
+      if (!elevatorsOn) continue;
+      for (const id of [e.u, e.v]) if (!shaftParent.has(id)) shaftParent.set(id, id);
+      shaftParent.set(shaftRoot(e.u), shaftRoot(e.v));
+      shaftEdges.set([e.u, e.v].sort().join("|"), { ...e, length_m: length });
+      continue;
+    }
     let t = length / Math.max(travel.walk_mps, 0.1);
     if (e.kind === "stairs") {
       const lower = Math.min(u.floor, v.floor);
@@ -634,10 +661,26 @@ function travelGraph(building: Building, travel: TravelProfile, closed: Set<stri
         t += travel.high_floor_from != null && f > travel.high_floor_from ? travel.stair_s_per_floor_high : travel.stair_s_per_floor;
       }
     }
-    for (const [from, to] of [[e.u, e.v], [e.v, e.u]] as const) {
-      let list = adj.get(from);
-      if (!list) adj.set(from, (list = []));
-      list.push({ to, t, edge: e });
+    link(e, t);
+  }
+  // One ride between every pair of stops in a shaft: the fixed wait is paid once per ride.
+  const shafts = new Map<string, string[]>();
+  for (const id of shaftParent.keys()) {
+    const root = shaftRoot(id);
+    shafts.set(root, [...(shafts.get(root) ?? []), id]);
+  }
+  for (const stops of shafts.values()) {
+    stops.sort();
+    for (let i = 0; i < stops.length; i++) {
+      for (let j = i + 1; j < stops.length; j++) {
+        const u = rooms.get(stops[i]!)!;
+        const v = rooms.get(stops[j]!)!;
+        const floors = Math.abs(u.floor - v.floor);
+        if (floors === 0) continue;
+        const t = travel.elevator_fixed_s! + (travel.elevator_s_per_floor ?? 0) * floors;
+        const edge: Edge = shaftEdges.get(`${u.id}|${v.id}`) ?? { u: u.id, v: v.id, kind: "elevator", length_m: 0, floors };
+        link(edge, t);
+      }
     }
   }
   return adj;

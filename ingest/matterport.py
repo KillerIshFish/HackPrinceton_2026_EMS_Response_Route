@@ -23,6 +23,7 @@ from typing import Any, Optional
 
 import yaml
 
+from core.building_graph import with_inferred_elevators
 from core.schema import Building, Room
 from ingest.georegister import local_to_latlng
 
@@ -330,14 +331,18 @@ def _processed_buildings() -> list[Building]:
 
 
 def list_buildings() -> list[Building]:
-    """All known buildings. v0: the synthetic office (+ any processed exports)."""
+    """All known buildings. v0: the synthetic office (+ any processed exports).
+
+    Each one carries the elevator links its elevator lobbies imply
+    (``core.building_graph.with_inferred_elevators``; none where the data draws the elevator).
+    """
     buildings = [generate_synthetic_office()]
     seen = {b.id for b in buildings}
     for b in _processed_buildings():
         if b.id not in seen:
             buildings.append(b)
             seen.add(b.id)
-    return buildings
+    return [with_inferred_elevators(b) for b in buildings]
 
 
 def load_building(building_id: str) -> Building:

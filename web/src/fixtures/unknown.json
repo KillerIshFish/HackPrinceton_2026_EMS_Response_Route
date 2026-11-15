@@ -602,7 +602,7 @@
    "ent-rear": 100.9
   },
   "stairs_s_to_target_floor": 45.0,
-  "elevator_s_to_target_floor": 81.0,
+  "elevator_s_to_target_floor": 51.0,
   "entrance_access_s": {
    "ent-main": 10.0,
    "ent-rear": 11.7
@@ -714,7 +714,7 @@
    "high_floor_from": null,
    "search_advance_mps": null,
    "elevator_allowed": true,
-   "elevator_fixed_s": 75.0,
+   "elevator_fixed_s": 45.0,
    "elevator_s_per_floor": 2.0,
    "notes": []
   },

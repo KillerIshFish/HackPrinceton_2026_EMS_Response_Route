@@ -16,7 +16,7 @@ How to use it: do Step 0 first and merge it. After that, each step in section 6 
 | Outside-the-model mass | Correctly included when renormalising. Shown only as a "Not in model" number. | It is the stop-or-widen signal: 5% becomes 34.5% after one full unsuccessful pass. | `planning/search_order.py:60`, `web/src/App.tsx:533` |
 | Solver | Greedy by p ÷ (travel + search), then 2-opt and or-opt. | No worst-case bound. Solve small buildings exactly; add a cluster-level check. | `planning/search_order.py:170` |
 | Stairs | +15 s per floor for everyone. | 15 s fits a light load. With breathing apparatus or heavy kit it is 25–30 s. | `core/building_graph.py:19` |
-| Elevators | Never used. | For EMS with a working elevator: 60–90 s fixed plus 1–3 s per floor. Never during fire or alarm. Show both; the crew chooses. | `core/building_graph.py:62` |
+| Elevators | Routed by when faster (medical calls only): 45 s per ride plus 2 s per floor, so a ride beats the stairs from 4 floors with a light load and 2 with a heavy one. Never during fire or alarm. Stair and elevator times still shown side by side. | `core/building_graph.py:62` |
 | Smoke | Walking speed everywhere. | A search in smoke advances at 0.040 m/s, 30 times slower than walking. | `core/building_graph.py:18` |
 | Entrance choice | Shortest expected walk. No access term, no barrier warning. | Getting in costs about 1.5 min more at a multi-storey address than the walk suggests. | `planning/approach.py:44` |
 | Time of day | Fixed at 14:00. | The prior depends on the hour; 49% of residential fire deaths happen 11 pm–7 am. | `api/server.py:61` |
@@ -365,8 +365,9 @@ configs/situations.yaml (travel section), each with its label and source:
   these only when Situation.smoke_reported is true, and add a note to the profile that
   the estimate uses smoke rates.
 - Elevator, medical incident types only, never when incident_type is fire_smoke or
-  smoke_reported is true: 75 s fixed (range 60-90) plus 2 s per floor (range 1-3). The
-  values are judgement on measured EMS intervals in Singapore. Do not pick for the crew:
+  smoke_reported is true: 45 s fixed (range 39-51) plus 2 s per floor (range 1-3), set so a
+  ride beats the stairs from 4 floors light and 2 floors heavy (Singapore EMS intervals
+  suggested 60-90 s fixed). Do not pick for the crew:
   recommend_approach returns both the stair time and the elevator time to the target
   floor so the console can show them side by side.
 

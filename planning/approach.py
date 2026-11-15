@@ -3,7 +3,9 @@
 The entrance is the one minimising the posterior-expected travel time to the
 caller, ``sum_r p_r * travel(entrance -> r) / sum_r p_r``. The staging spot is the
 one tied to that entrance, and the stairwell is the first one on the shortest
-route from that entrance to the single most probable room.
+stair route (no elevator rides) from that entrance to the single most probable room.
+Travel times themselves take an elevator ride where the profile offers one and it is faster
+(``core.building_graph.build_graph``).
 
 Step B1 adds, without changing that choice:
 
@@ -276,12 +278,14 @@ def recommend_approach(
             if len(building.floors) > min_floors and predicted < floor_min * 60.0:
                 result["warnings"].append(FASTER_THAN_MEASURED)
 
-    # Stairwell: first stairwell room on the fastest route entrance -> top room.
+    # Stairwell: first stairwell room on the fastest stair route entrance -> top room. Elevator
+    # rides are left out here so the stair option keeps its stairwell when a ride is faster.
     if target is not None and best_id in G and target_id in G:
         same_floor = ent_room is not None and ent_room.floor == target.floor
         if not same_floor:
+            stairs_only = nx.subgraph_view(G, filter_edge=lambda u, v: G[u][v].get("kind") != "elevator")
             try:
-                path = nx.shortest_path(G, best_id, target_id, weight="time_s")
+                path = nx.shortest_path(stairs_only, best_id, target_id, weight="time_s")
             except nx.NetworkXNoPath:
                 path = []
             for node in path:
