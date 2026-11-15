@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 
 from eval.benchmark.common import (
-    BUILDINGS, CALL_TYPE_BY_KEY, CALL_TYPES, CURB_MEDIAN_S, CURB_SIGMA, ENTRY_S, VARIANTS,
+    BUILDINGS, CALL_TYPE_BY_KEY, CALL_TYPES, CURB_MEDIAN_S, CURB_SIGMA, ENTRY_S, REPORTED_VARIANTS, VARIANTS,
 )
 
 RESULTS = Path(__file__).resolve().parents[1] / "results"
@@ -303,7 +303,7 @@ def chart_cdf(df: pd.DataFrame):
 def chart_robustness(S: dict):
     import matplotlib.pyplot as plt
 
-    vs = list(VARIANTS)
+    vs = list(REPORTED_VARIANTS)
     fig, ax = plt.subplots(figsize=(8.6, 3.8))
     for yi, v in enumerate(vs):
         blk = S[v]["pooled"]["time"]
@@ -313,7 +313,7 @@ def chart_robustness(S: dict):
         ax.errorbar(m, yi, xerr=[[m - lo], [hi - m]], color=INK, lw=1.2, capsize=3, zorder=3)
         ax.text(max(hi, m) + 0.2, yi, f"{m:.1f} min  (faster in {blk['frac_faster_than_B']:.0%}, "
                 f"slower in {blk['frac_slower_than_B']:.0%})", va="center", fontsize=8.5, color=INK2)
-    ax.set_yticks(range(len(vs)), [VARIANTS[v] for v in vs])
+    ax.set_yticks(range(len(vs)), [REPORTED_VARIANTS[v] for v in vs])
     ax.invert_yaxis()
     ax.axvline(0, color=AXIS, lw=1)
     ax.set_xlim(left=min(0, ax.get_xlim()[0]), right=ax.get_xlim()[1] * 1.6)

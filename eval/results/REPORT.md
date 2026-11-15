@@ -59,7 +59,6 @@ When a 911 caller is somewhere inside a building, how much sooner does the crew 
 | Callers 2× as error-prone | 9.1 |
 | Callers 4× as error-prone | 9.6 |
 | No phone fix | 5.6 |
-| No caller clues | 15.2 |
 | **Caller anywhere, equal odds** | **1.6** (median 0; app slower on 40% of calls) |
 
 **Held-out speech** (280 calls written by Claude Haiku 5.5 and read by the app's own interpreter):

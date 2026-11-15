@@ -10,7 +10,7 @@ import json
 import re
 from pathlib import Path
 
-from eval.benchmark.common import BUILDINGS, CALL_TYPES, VARIANTS
+from eval.benchmark.common import BUILDINGS, CALL_TYPES, REPORTED_VARIANTS
 
 HERE = Path(__file__).resolve().parent
 RESULTS = HERE.parent / "results"
@@ -30,7 +30,7 @@ def freeform() -> dict:
 def main() -> int:
     S = json.loads((RESULTS / "summary.json").read_text(encoding="utf-8"))
     S["call_types"] = [{"key": c.key, "label": c.label, "outcome_label": c.outcome_label} for c in CALL_TYPES]
-    S["variants"] = VARIANTS
+    S["variants"] = REPORTED_VARIANTS
     S["buildings"] = {
         "ptc-100": "Synthetic office, 100 rooms",
         "washington-5285": "5285 W Washington, 38 rooms",

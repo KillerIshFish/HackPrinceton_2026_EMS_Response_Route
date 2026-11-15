@@ -151,6 +151,9 @@ VARIANTS = {
     "no_phone": "No phone location fix",
     "no_clues": "No caller clues (phone fix only)",
 }
+# Variants shown in the report and charts. no_clues is still simulated but not reported: it strips the clues from
+# arm B as well, so its "saved vs. the dispatcher" figure is really a comparison with the address-only sweep.
+REPORTED_VARIANTS = {k: v for k, v in VARIANTS.items() if k != "no_clues"}
 
 
 # ---------------------------------------------------------------------------
