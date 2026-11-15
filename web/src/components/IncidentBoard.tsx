@@ -31,6 +31,7 @@ interface Entry {
   room: string | null;
 }
 
+/** "+m:ss" into the call; null when either time is missing or the fact predates the call (premise records). */
 function elapsedSince(start: string | null, at: string | null): string | null {
   if (!start || !at) return null;
   const s = Math.round((Date.parse(at) - Date.parse(start)) / 1000);
@@ -111,6 +112,7 @@ export function IncidentBoard({ facts, transcript, building, callStartedAt }: Pr
       room: room ? `${room.name}, Floor ${room.floor_label}` : f.room_id,
     };
   };
+  // newest observation first; facts with no time sort last, ties broken by later transcript turn first
   const newestFirst = (a: Fact, b: Fact) =>
     (Date.parse(b.observed_at ?? "") || 0) - (Date.parse(a.observed_at ?? "") || 0) || (b.turn ?? -1) - (a.turn ?? -1);
 
@@ -128,6 +130,7 @@ export function IncidentBoard({ facts, transcript, building, callStartedAt }: Pr
     const ok = await copyText(text);
     setCopied(ok ? "ok" : "failed");
     if (!ok) setShowText(true);
+    // the "Copied" / "Copy failed" label reverts after 2.5 s (UI feedback only; tuned by eye)
     if (timer.current !== null) window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => setCopied(null), 2500);
   };

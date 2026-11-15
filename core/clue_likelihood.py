@@ -29,7 +29,6 @@ from core.schema import Building, Clue, Room
 
 VOCAB_PATH = Path(__file__).resolve().parents[1] / "configs" / "clue_vocab.yaml"
 
-# Clue.type -> vocab section
 TYPE_TO_SECTION = {
     "room_type": "room_types",
     "view": "views",

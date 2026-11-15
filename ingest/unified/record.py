@@ -12,9 +12,10 @@ from typing import Optional
 from ingest.costar import MATTERPORT_REFERENCE_TYPES, floor_number
 from ingest.unified import index
 
-SQFT_M2 = 0.09290304
-FT_M = 0.3048
+SQFT_M2 = 0.09290304  # exact: 0.3048^2 m2 per square foot
+FT_M = 0.3048  # exact: metres per international foot
 
+# CoStar propertyType / apartmentStyleType codes -> this pipeline's vocabulary; unlisted codes become "other" / "".
 USE_TYPES = {1: "hotel", 2: "industrial", 5: "office", 6: "retail", 7: "flex", 9: "mixed_use",
              11: "apartment", 13: "healthcare"}
 APARTMENT_STYLES = {1: "garden", 2: "mid_rise", 3: "high_rise", 4: "low_rise", 5: "house", 6: "townhome"}

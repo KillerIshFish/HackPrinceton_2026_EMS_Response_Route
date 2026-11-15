@@ -44,6 +44,7 @@ from core.clue_likelihood import clue_match
 from core.schema import Building, Evidence, Room, RoomSelector
 
 # A vocab room counts towards ``matched_room_ids`` (for the UI outline) above this match.
+# Display threshold: leaves out partial credit such as the +/-1 floor (0.25) and route "no information" (0.5).
 VOCAB_MATCHED_ABOVE = 0.5
 
 # Edge kinds that stay on one floor (``within_m_of`` walks only these).
@@ -221,7 +222,7 @@ def _within_walking_m(building: Building, room_id: str, radius_m: float) -> set[
             continue
         H.add_edge(u, v, length_m=float(d.get("length_m", 0.0)))
     dist = nx.single_source_dijkstra_path_length(H, room_id, cutoff=radius_m, weight="length_m")
-    return {rid for rid, d in dist.items() if d <= radius_m + 1e-9}
+    return {rid for rid, d in dist.items() if d <= radius_m + 1e-9}  # float slack: a room exactly at the radius counts
 
 
 def _selector_is_empty(sel: RoomSelector) -> bool:

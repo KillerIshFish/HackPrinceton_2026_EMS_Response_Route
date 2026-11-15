@@ -15,7 +15,10 @@ interface Props {
   onToggleDetails: () => void;
 }
 
-/** A second floor joins the band when it holds at least this share. */
+/**
+ * A second floor joins the band when it holds at least this share. Tuned heuristic (no source): keeps
+ * a near-zero runner-up from being read out as a second candidate floor. Display only.
+ */
 const SECOND_FLOOR_MIN = 0.05;
 
 /**
@@ -34,10 +37,12 @@ export function AnswerStrip({ state, building, outlineRoomIds, onHoverRooms, sho
   const foundRoom = state.found_room_id ? rooms.get(state.found_room_id) : undefined;
   const topRoom = foundRoom ?? (topId ? rooms.get(topId) : undefined);
   const floors = Object.entries(posterior.p_floor).sort((a, b) => b[1] - a[1]);
+  // the top floor always, plus the runner-up when it clears SECOND_FLOOR_MIN; never more than two
   const band = floors.filter(([, p], i) => i === 0 || (i === 1 && p >= SECOND_FLOOR_MIN)).slice(0, 2);
   const floorName = (label: string) => `Floor ${label}`;
   const topOutlined = topRoom !== undefined && (outlineRoomIds?.includes(topRoom.id) ?? false);
 
+  // distinct rooms: a room searched twice (re_search) counts once
   const searchedRooms = new Set(state.searched.map((s) => s.room_id)).size;
   const routeOn = policy.route_enabled;
 

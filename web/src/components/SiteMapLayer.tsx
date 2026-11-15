@@ -27,7 +27,10 @@ export const MAP_COLORS = {
   place: "#9fd0ff",
 } as const;
 
+/** drawn width of every street (m). Assumed: the features are OpenStreetMap centrelines with no width, so one
+ * width of about a two-lane street is used for all of them. */
 const ROAD_WIDTH_M = 9;
+/** at most this many place names are written, nearest the building first (UI choice); the rest keep dot and tooltip */
 const MAX_PLACE_LABELS = 8;
 
 const overlaps = (a: Box, b: Box) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
@@ -85,6 +88,8 @@ const pathOf = (pts: Pt[]) => "M " + pts.map((p) => `${p[0].toFixed(1)} ${p[1].t
  */
 export function SiteMapLayer({ surroundings, px, view, u, mPerPx, fontPx, avoid }: Props) {
   const shapes = useMemo(() => {
+    // a feature is kept when any point is in the view or within 20% of its size outside it (a road that crosses
+    // the view between two far-off points can still be dropped; acceptable for a context map)
     const inView = (pts: [number, number][]) =>
       pts.some((p) => p[0] >= view.x - view.w * 0.2 && p[0] <= view.x + view.w * 1.2 && p[1] >= view.y - view.h * 0.2 && p[1] <= view.y + view.h * 1.2);
     const areas: { key: string; points: string; fill: string; title: string; cx: number; cy: number; cls: string }[] = [];
@@ -92,7 +97,7 @@ export function SiteMapLayer({ surroundings, px, view, u, mPerPx, fontPx, avoid 
     // one label per street name, on its longest stretch inside the view, so that a name is
     // neither cut off at the edge nor centred on a part of the road that is out of sight
     const named = new Map<string, { key: string; name: string; labelD: string; length: number }>();
-    const pad = view.w * 0.02;
+    const pad = view.w * 0.02; // street names stay 2% of the view in from its edges
     const inner: Box = [view.x + pad, view.y + pad, view.x + view.w - pad, view.y + view.h - pad];
     surroundings.features.forEach((f, i) => {
       if (f.own) return; // the modelled building is drawn by the outline on top
@@ -139,8 +144,8 @@ export function SiteMapLayer({ surroundings, px, view, u, mPerPx, fontPx, avoid 
     return { areas, roads, roadLabels: [...named.values()], places };
   }, [surroundings, px, view]);
 
-  const roadW = ROAD_WIDTH_M / mPerPx;
-  const small = fontPx * 0.82;
+  const roadW = ROAD_WIDTH_M / mPerPx; // metres -> mosaic pixels
+  const small = fontPx * 0.82; // map names a size under the overlay's own labels
 
   // Place names, nearest the building first: to the right of the dot, or to its left when the
   // right side runs out of the view or under a marker or name drawn on top. A place with no
@@ -148,6 +153,7 @@ export function SiteMapLayer({ surroundings, px, view, u, mPerPx, fontPx, avoid 
   const placeLabels = useMemo(() => {
     const out = new Map<string, { x: number; anchor: "start" | "end" }>();
     const taken: Box[] = [...(avoid ?? [])];
+    // estimated label box, as in AerialSite: 1.25 em tall, 0.56 em per character
     const tall = small * 1.25;
     const gap = 6 * u;
     for (const p of shapes.places) {
@@ -195,6 +201,7 @@ export function SiteMapLayer({ surroundings, px, view, u, mPerPx, fontPx, avoid 
         ))}
       </defs>
       {shapes.roadLabels
+        // only where the stretch in view is longer than the name (about 0.6 em per character)
         .filter((r) => r.length > r.name.length * small * 0.6)
         .map((r) => (
           <text key={`${r.key}-t`} fontSize={small} fontWeight="600" fill="#e6edf3" dy={small * 0.34} pointerEvents="none">

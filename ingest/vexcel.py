@@ -39,9 +39,11 @@ from core.schema import Building
 API_BASE = "https://api.vexcelgroup.com/v2"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_LAYER = "urban"
-TILE_PX = 256
+TILE_PX = 256  # standard WMTS / Web-Mercator tile size
+# Deepest WMTS zoom accepted per layer. At the equator zoom 20 is ~15 cm/px and zoom 21 ~7.5 cm/px, matching the
+# wide-area (15 cm) and urban (7.5 cm) resolutions noted in ingest.mp3d.aerial; requests are clamped to these.
 MAX_ZOOM = {"urban": 21, "urban-r": 22, "urban-g": 22, "graysky": 21, "wide-area": 20}
-EARTH_RADIUS_M = 6378137.0
+EARTH_RADIUS_M = 6378137.0  # WGS-84 equatorial radius, the sphere Web-Mercator is defined on
 
 
 class VexcelError(RuntimeError):
@@ -67,6 +69,7 @@ def api_key() -> str:
     return key
 
 
+# Assumed: 45 s per request, no retry. Tiles and collections are cached on disk, so a failure is just re-requested.
 def _get(path: str, params: dict[str, str], timeout: float = 45.0) -> tuple[bytes, str]:
     url = f"{API_BASE}/{path.lstrip('/')}?{urllib.parse.urlencode(params)}"
     req = urllib.request.Request(
@@ -167,6 +170,7 @@ def fetch_tile(layer: str, zoom: int, x: int, y: int) -> bytes:
 
 def collections_at(lat: float, lng: float) -> list[dict]:
     """Ortho collections covering a point: ``[{"collection": ..., "product-type": ...}, ...]``."""
+    # 5 decimal places (~1 m) in the cache key: nearby queries for the same building share one file.
     cache = vexcel_data_dir() / "collections" / f"{lat:.5f}_{lng:.5f}.json"
     if cache.is_file():
         return json.loads(cache.read_text(encoding="utf-8"))

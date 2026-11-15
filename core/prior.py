@@ -17,6 +17,9 @@ import yaml
 
 from core.schema import Building
 
+# Fallbacks for configs/priors.yaml (same values; the config wins). alpha < 1 is a judgement that a
+# larger room holds more people, but less than in proportion to its area (alpha = 1 would let big
+# open plan and garage levels dominate). Not fitted to incident data.
 ALPHA = 0.7
 P_NOT_IN_MODEL = 0.0
 DEFAULT_ROOM_WEIGHT = 0.3
@@ -43,7 +46,7 @@ def hour_band(hour: int, priors_cfg: dict) -> str:
                 return name
         elif hour >= start or hour < end:
             return name
-    return "business"
+    return "business"  # hour in no configured band: use the business-hours multipliers
 
 
 def type_weight(room_type: str, use_type: str, hour: int, priors_cfg: dict) -> float:
@@ -65,7 +68,7 @@ def compute_prior(
     """Return (room_probs, p_not_in_model).
 
     pi(r) ∝ area^alpha * w(type, use, hour) * occupancy_factor, scaled so that
-    sum(room_probs) == 1 - p_not_in_model.
+    sum(room_probs) == 1 - p_not_in_model. ``hour`` defaults to 14:00 (the business band).
     """
     cfg = priors_cfg if priors_cfg is not None else load_priors()
     alpha = float(cfg.get("alpha", ALPHA))

@@ -49,7 +49,9 @@ Pipeline
                  (one-team time to cover every candidate / number of teams); each room it
                  searches is multiplied by (1 - q); team 2 is planned on what is left, and
                  so on; then single rooms move between routes when that lowers the cost.
-                 A team is a pair (``crew_size // 2`` teams at most).
+                 A team is a pair (``crew_size // 2`` teams at most). Team speed-up is not
+                 modelled beyond splitting the rooms; ``NIST_TN_1797_NOTE`` tells the user the one
+                 measured figure (two pairs about 1.55x a crew of three, not 2x).
 7. Koopman     = posterior after an unsuccessful look with detection probability q:
                  ``p_r <- p_r * (1 - q)`` then renormalise with the outside mass
                  (``koopman_update`` / ``residual_probs``).
@@ -108,20 +110,32 @@ from planning.baselines import (
 )
 from situation.config import section, setting_value
 
-# Fallbacks when configs/situations.yaml has no search section (same numbers as the file).
-SEARCH_S_PER_M2 = 0.5
-WALKING_PENALTY_SCALE = 1.0  # fallback for search.walking_penalty_scale
-MIN_SEARCH_S = 10.0
-P_DETECT = 0.9
+# Fallbacks when configs/situations.yaml has no search section (same numbers as the file). Every one is labelled
+# "unverified" there: no published value, planning settings carried over from the original planner.
+SEARCH_S_PER_M2 = 0.5  # clear-air look time (s per m² of floor): a 20 m² office takes 10 s, a 100 m² room 50 s
+WALKING_PENALTY_SCALE = 1.0  # fallback for search.walking_penalty_scale (judgement; 1 = the phantom stop at face value)
+MIN_SEARCH_S = 10.0  # floor on one look (s), so a tiny room (closet, restroom) never costs ~0 s
+P_DETECT = 0.9  # default q for koopman_update; equals the rapid look's detection probability
+# mode -> (q = chance one look finds a person who is there, look-time multiplier). Rapid defines the time unit;
+# a thorough look costs twice the time for a smaller miss rate (0.03 vs 0.10). Unverified settings.
 _DEFAULT_MODES: dict[str, tuple[float, float]] = {"rapid": (0.9, 1.0), "thorough": (0.97, 2.0)}
 
-_OPT_BUDGET_S = 0.25  # wall-clock cap on local search per plan_search call
+# Solver limits. The console replans on every state request, so each phase gets a wall-clock cap. The cap is per
+# optimisation phase, not per call: the linear solve, the sequential team planner and the survival pass each get
+# their own _OPT_BUDGET_S, plus _SEED_BUDGET_S for extra seeds. The exact solver is not under this cap.
+_OPT_BUDGET_S = 0.25  # wall-clock cap (s) on one local-search phase (tuned heuristic: keeps a replan interactive)
+# Past _LARGE_ROUTE stops a full 2-opt / or-opt sweep (O(n^3)) is too slow, so moves are limited to a window of
+# _LARGE_ROUTE_SPAN positions either side. Tuned heuristic: a wider window finds more moves but costs O(n * span).
 _LARGE_ROUTE = 200       # routes longer than this use windowed moves (see _improve_route)
 _LARGE_ROUTE_SPAN = 30
-_SEED_BUDGET_S = 0.1     # extra local-search time for a second seed (cluster / baseline)
-_EPS = 1e-9
+_SEED_BUDGET_S = 0.1     # extra local-search time (s) for a second seed (cluster / baseline / team-2 block)
+_EPS = 1e-9              # strict-improvement margin on costs (s x probability): ignores float noise, stops cycling
+# Tuned heuristic: rooms on one floor within ~25 m of walking (about 21 s at 1.2 m/s) count as one wing for the
+# densest-wing-first seed. Larger merges a floor into one wing (the seed is skipped); smaller splits real wings.
 WING_LINK_M = 25.0       # same-floor candidates this close (walking) form one wing
-_SURVIVAL_GRID_S = 1.0   # survival functions are interpolated on this grid (memoised)
+_SURVIVAL_GRID_S = 1.0   # survival functions are interpolated on this grid (s, memoised); finer than any leg time
+# Shown with multi-team plans. The 1.55x figure is the only measured team-size result the repo cites
+# (docs/BUILD_PLAN.md, A2); pinned by tests/test_search_maths.py. Not used in any time calculation.
 NIST_TN_1797_NOTE = (
     "Teams are pairs. In the one measured study (NIST TN 1797), a crew of five or six "
     "working as two pairs searched about 1.55 times as fast as a crew of three, not twice."
@@ -175,7 +189,7 @@ def wall_length_m(room: Room) -> float:
     if len(pts) >= 3 and area > 0.0:
         n = len(pts)
         shoelace = abs(sum(pts[i][0] * pts[(i + 1) % n][1] - pts[(i + 1) % n][0] * pts[i][1] for i in range(n))) / 2.0
-        if 0.5 * area <= shoelace <= 2.0 * area:
+        if 0.5 * area <= shoelace <= 2.0 * area:  # tuned sanity band: an outline off by >2x is not trusted
             return float(sum(math.dist(pts[i], pts[(i + 1) % n]) for i in range(n)))
     return 4.0 * math.sqrt(area)
 
@@ -332,6 +346,10 @@ def select_candidates(
     Rooms in ``exclude`` (officer gates) are never candidates; coverage is measured
     over the remaining rooms. ``plan_search`` passes residual masses here, so a room
     already searched competes on what is left of its probability.
+
+    The 0.99 default is carried over from the first planner (assumed, not tuned): it drops the long tail of
+    near-zero rooms so a route is not stretched over every room in the building. The dropped mass is still
+    charged by the walking penalty (it is part of ``lam``), not ignored.
     """
     known = {r.id for r in building.rooms} - set(exclude)
     ranked = sorted(
@@ -346,7 +364,7 @@ def select_candidates(
     for rid, p in ranked:
         out.append(rid)
         acc += p
-        if acc >= coverage * total - 1e-12:
+        if acc >= coverage * total - 1e-12:  # tolerance: coverage=1.0 must still stop at the last room
             break
     return out
 
@@ -355,6 +373,8 @@ def select_candidates(
 # (profile, gates) for the building being planned (one building at a time, matched by
 # identity); each graph keeps the Dijkstra rows already computed in ``G.graph``.
 _graph_cache: dict = {"building": None, "graphs": {}}
+# Tuned heuristic: one call sees a handful of (profile, gates) combinations; 16 covers them with room to spare.
+# Oldest entry is evicted first (FIFO). Each graph also holds its cached Dijkstra rows, so this bounds memory.
 _GRAPH_CACHE_MAX = 16
 
 
@@ -656,7 +676,7 @@ def _cluster_seed(T, s, p, start: int, floors: Sequence[int], link_s: float, lam
             t += T[prev][k] + s[k]
             prev = k
         score = sum(p[k] for k in g) / (t + _EPS)
-        if score > best_score + 1e-15:
+        if score > best_score + 1e-15:  # strictly better only, so ties keep the lowest-index wing (deterministic)
             best_inner, best_score = inner, score
     assert best_inner is not None
     chosen = set(best_inner)
@@ -681,6 +701,7 @@ def _solve_single(
     if exact_ok and 0 < n <= EXACT_MAX_ROOMS:
         o3, _ = solve_exact(T, s, p, start, lam)
         c3 = _route_cost(o3, T, s, p, start, lam)
+        # Relative tolerance: switch to the programme's order only when it is really cheaper, not a float tie.
         if c3 < cost - 1e-9 * max(1.0, abs(cost)):
             order, cost = o3, c3
         return order, cost, "exact"
@@ -746,6 +767,8 @@ def _improve_route_value(
     best = value(order)
     if n < 2:
         return order, best
+    # Windowed from 60 stops, not _LARGE_ROUTE (200): every move here re-evaluates the whole route (O(n)), so a full
+    # sweep is O(n^3) evaluations of the curve and gets slow sooner. Tuned heuristic.
     span = _LARGE_ROUTE_SPAN if n > 60 else n
     improved = True
     while improved and time.perf_counter() < deadline:
@@ -810,7 +833,7 @@ def _drop_early_repeats(routes: list[list[int]], V: _Visits) -> tuple[list[list[
                 if n_look == 0:
                     continue
                 before = room_looks.get(n_look - 1)
-                if before is None or arrive[k] < finish[before] - 1e-9:
+                if before is None or arrive[k] < finish[before] - 1e-9:  # 1e-9 s: back-to-back looks are allowed
                     bad = k
                     break
             if bad is not None:
@@ -869,11 +892,14 @@ def _plan_teams(
         s = [look_s(r) for r in ids]
         p = [belief[r] for r in ids]
         floors = [rooms[r].floor for r in ids]
+        # Split what is left of the time budget evenly over the teams still to plan.
         budget = max(0.0, deadline - time.perf_counter()) / (n_teams - team)
         order, _, _ = _solve_single(T, s, p, len(ids), floors, link_s, time.perf_counter() + budget, lam=lam)
         if team < n_teams - 1:
             done = list(completion_times([ids[k] for k in order], travel, dict(zip(ids, s)), start).values())
             if team == 0:
+                # Ideal-split assumption: n teams would cover everything in 1/n of the one-team time. Fixed by
+                # team 1 and reused for later teams; every team keeps at least one stop.
                 horizon = done[-1] / n_teams
             keep = max(1, sum(1 for c in done if c <= horizon + 1e-9))
             order = order[:keep]
@@ -1135,6 +1161,7 @@ def plan_search(
     s = [search_times[rid] for rid in cand_ids]
     p = [probs[rid] for rid in cand_ids]
     floors = [rooms[rid].floor for rid in cand_ids]
+    # Wing link as a walking time; 1.2 m/s is core.building_graph.WALK_SPEED_MPS (configs travel.walk_mps, ODPM 2/2005).
     link_s = WING_LINK_M / (profile.walk_mps if profile is not None else 1.2)
 
     # ---- baselines (single team, same candidates, same start) ---------------
@@ -1176,8 +1203,8 @@ def plan_search(
         ev_et = sum(_route_cost(r, T, s, p, START) for r in ev) / base_mass
         ev_pen = sum(_route_cost(r, T, s, p, START, lam) for r in ev)
         # (b) Sequential (build plan A2), on its own budget: team 1 on the full belief, team 2 on
-        # what is left. The plan with the lower expected time to find is kept (both scored on
-        # sum p_find C / sum p_find).
+        # what is left. The plan with the lower penalised cost per unit of mass found is kept (below); the
+        # note reports both plans' unpenalised E[T] (sum p_find C / sum p_find).
         V, routes, team_notes = _plan_teams(
             n_teams, building, G, start, residual, cand_ids, closed, coverage, s_of, q_look, link_s,
             time.perf_counter() + _OPT_BUDGET_S, lam,

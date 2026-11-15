@@ -56,6 +56,7 @@ export function describeSelector(sel: Partial<RoomSelector> | null | undefined, 
   if (sel.tenant_contains) parts.push(`tenant "${sel.tenant_contains}"`);
   if (sel.name_contains) parts.push(`named ${sel.name_contains}`);
   if (sel.room_ids && sel.room_ids.length > 0 && parts.length === 0) {
+    // name at most two rooms, then "and N more", so the chip stays one line
     const names = sel.room_ids.slice(0, 2).map((id) => roomLabel(rooms, id));
     parts.push(sel.room_ids.length > 2 ? `${names.join(", ")} and ${sel.room_ids.length - 2} more` : list(names));
   }

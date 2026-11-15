@@ -18,6 +18,8 @@ import type {
 } from "./types";
 import type { FixtureBackend } from "./fixtures";
 
+// VITE_API_BASE points the UI straight at a backend; the default "/api" goes through the Vite dev
+// proxy (vite.config.ts), which strips the prefix and forwards to :8000. A trailing slash is dropped.
 const BASE: string =
   (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") ?? "/api";
 
@@ -43,6 +45,10 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * One JSON request. There is deliberately no timeout and no retry here: a failure becomes an
+ * ApiError that App shows in a banner with "Reload state", and the dispatcher decides when to retry.
+ */
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
@@ -61,7 +67,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       /* non-JSON error body, e.g. the Vite proxy's ECONNREFUSED page */
     }
-    // The dev proxy answers 500/502/504 when nothing is listening on :8000.
+    // The dev proxy answers 500/502/504 when nothing is listening on :8000, so a 5xx gateway-type
+    // status with no JSON `detail` is reported as "unreachable" (503 is treated the same way).
+    // A 5xx that carries a FastAPI `detail` is a real backend error and is shown as one.
     const unreachable = !detail && [500, 502, 503, 504].includes(res.status);
     throw new ApiError(
       unreachable

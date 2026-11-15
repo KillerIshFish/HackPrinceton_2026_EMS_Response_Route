@@ -245,7 +245,6 @@ from planning.search_order import (  # noqa: E402
     NIST_TN_1797_NOTE,
     _cluster_seed,
     _drop_early_repeats,
-    _greedy_single,
     _improve_route_value,
     _plan_teams,
     _route_cost,

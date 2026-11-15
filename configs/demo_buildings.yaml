@@ -23,6 +23,7 @@ buildings:
     rotation_deg: 0.0                    # CCW rotation of local +x from true east
     footprint_m: {width: 44.0, depth: 22.0}
     floors: [1, 2, 3, 4]
+    # Assumed 4 m floor-to-floor (synthetic building), wider than the 2.34 m height sigma of a phone fix.
     floor_heights_m: {1: 0.0, 2: 4.0, 3: 8.0, 4: 12.0}
 
     bands:                               # [y_min, y_max]
@@ -37,8 +38,8 @@ buildings:
       - [14.0, 30.0, mid]
       - [30.0, 44.0, east]
 
-    near_radius_m: 8.0                   # near_elevator / near_stairs threshold
-    stair_run_m: 8.0                     # walking length of one stair flight pair
+    near_radius_m: 8.0                   # near_elevator / near_stairs threshold (assumed)
+    stair_run_m: 8.0                     # walking length of one stair flight pair (assumed)
     # elevator edge length = floor-to-floor height
 
     # Core rooms present on every floor. door: north | south (corridor side),
@@ -51,6 +52,8 @@ buildings:
       - {slug: corridor-link-e, name: "Cross Corridor East", type: corridor, x: [36.0, 38.0]}
       - {slug: stair-east, name: "Stair B (East)", type: stairwell, x: [38.0, 44.0], door: corridor-link-e}
 
+    # `occupancy` (default 1.0) scales a room's prior: below 1 for rooms with fewer people
+    # than their type suggests (a vacant suite 0.3). Judgement for the demo.
     floor_programs:
       1:
         north_row:

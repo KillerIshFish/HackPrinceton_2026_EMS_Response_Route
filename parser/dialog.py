@@ -16,8 +16,8 @@ extractor (``parser.extract``) cannot:
    "apartment 4", "my office, 302", "the door says 302" -> grounded evidence with
    ``selector.unit``. Its confidence is the stated share of ``core.fusion``: 0.95 for a
    plain, exact statement down to 0.40 for a hesitant, vague one, from the rule rating of
-   the caller's words (``parser.statement_rating.rate_statement``; in Claude Haiku mode the
-   model's rating replaces it). The number is resolved against the building's own labels: the
+   the caller's words (``parser.statement_rating.rate_statement``; the model modes run no word
+   rules: the model rates its own records). The number is resolved against the building's own labels: the
    sidecar suite records and the numbers in room names ("Office 302", "Unit 202"). Every
    room carrying the number is selected; when no room does, the statement is kept as
    unmatched and a floor clue is added from the leading digits (3+ digit numbers: 304 ->
@@ -52,14 +52,18 @@ from core.schema import Building, Clue, Evidence, EvidenceSource, Question, Room
 from parser.extract import SECTION_FOR_TYPE, TYPE_FOR_SECTION, extract_clues_rules
 from parser.statement_rating import PLAIN, Rating, rate_statement
 
+# Yes / no answers. 0.85 for a typed or spoken reply and 0.9 for the dispatcher's buttons are the
+# values of docs/BUILD_PLAN.md step C1 (a button is the dispatcher's own reading, so it ranks higher).
 ANSWER_CONFIDENCE = 0.85
 BUTTON_CONFIDENCE = 0.9
+# Tuned heuristic: below 0.85 because the question itself was guessed from the dispatcher's free text.
 INFERRED_QUESTION_CONFIDENCE = 0.75
-HEDGED_YES_FACTOR = 0.7  # "I think so"
+HEDGED_YES_FACTOR = 0.7  # "I think so"; same 0.7 as parser.extract.HEDGE_FACTOR (tuned heuristic)
 # A number or a name printed on a room, and a floor, are specific statements (core.fusion):
 # their confidence is the stated share, mapped from how sure and how exact the caller sounds
 # (parser.statement_rating; configs/statements.yaml). A floor read off the leading digits of
-# a number no room carries is an inference, not a statement, and keeps this fixed share.
+# a number no room carries is an inference, not a statement, and keeps this fixed share
+# (0.5, docs/BUILD_PLAN.md step C1: many buildings number rooms by floor, not all do).
 UNIT_FLOOR_FALLBACK_CONFIDENCE = 0.5
 
 
@@ -229,7 +233,7 @@ def resolve_answer(
         if a.answer == "unsure":
             return key, "unsure", None
         start, end = (reply[1], reply[2]) if reply else (-1, -1)
-        span = text[start:end] if reply else text.strip()[:60]
+        span = text[start:end] if reply else text.strip()[:60]  # no yes / no words: show the reply's opening
         clue = answer_clue(a.clue_type, a.value, a.answer == "yes", BUTTON_CONFIDENCE, span)
         return key, a.answer, DialogStatement(
             confidence=BUTTON_CONFIDENCE, span=span, source="dispatcher", clue=clue, start=start, end=end,
@@ -387,7 +391,12 @@ _CALLER_MOVED = re.compile(
 
 
 def _clause_head(text: str, start: int, window: int = 70) -> str:
-    """The text of the mention's clause before ``start``."""
+    """The text of the mention's clause before ``start``.
+
+    ``window`` (characters) bounds the look-back; the clause break usually comes first. The
+    shorter 40-character windows below (negation, relative place) keep those cues close to
+    the mention. Both are hand-set heuristics, not measured.
+    """
     head = text[max(0, start - window):start]
     breaks = list(_CLAUSE_BREAK.finditer(head))
     return head[breaks[-1].end():] if breaks else head
@@ -481,7 +490,7 @@ def spoken_number(words: str) -> Optional[str]:
         else:
             return None
         i += 1
-    return out if 2 <= len(out) <= 5 else None
+    return out if 2 <= len(out) <= 5 else None  # same 2..5 digits as _LABEL_NUMBER / _LOCATIVE_UNIT
 
 
 def _opens_clause(text: str, start: int) -> bool:
@@ -522,6 +531,7 @@ def find_units(text: str, *, labels: Optional[set[str]] = None, where_reply: boo
                 continue  # "next to suite 520", "the fire's in 301"
             keyword = (m.groupdict().get("kw") or "").lower().rstrip(".") or None
             if (rx in (_UNIT_KEYWORD, _UNIT_KEYWORD_LOOSE) and keyword in ("room", "rm")
+                    # 30 chars: enough for the one room-type word right before "room" ("examination ")
                     and _ROOM_NAME_WORD.search(text[max(0, m.start() - 30):m.start()])):
                 continue  # "conference room 2" is a room name
             if rx is _UNIT_ACROSS and m.group("subj") is None and not _opens_clause(text, m.start()):
@@ -790,6 +800,8 @@ def name_index(building: Building, meta: Optional[dict] = None, vocab: Optional[
         if len(word_rooms[w]) == 1 and (w,) not in carried:
             carried[(w,)] = [rid]
             whole_name[(w,)] = False
+    # A real name may repeat once per floor ("Mail Room" on every floor) or on a handful of rooms;
+    # beyond that it is a room type. Tuned heuristic; parser.agent._NameCheck uses the same limit.
     n_floors = len({r.floor for r in building.rooms})
     limit = max(4, n_floors)
     by_type: dict[str, set[str]] = {}
@@ -800,7 +812,7 @@ def name_index(building: Building, meta: Optional[dict] = None, vocab: Optional[
         if len(ids) > limit:
             continue
         if len(phrase) == 1 and (len(phrase[0]) < 5 or phrase[0] in _GENERIC_NAME):
-            continue
+            continue  # short single words ("lab", "hall") turn up in speech too often to mean this room
         if all(any(ch.isdigit() for ch in w) for w in phrase):
             continue  # numbers alone are the unit rule's job
         spoken = " ".join(phrase)
@@ -1022,6 +1034,7 @@ def _confirmed_place(building: Building, transcript: Sequence[TranscriptTurn], i
         return None
     start, end = reply[1], reply[2]
     span = text[start:end]
+    # the question was read from free text, so it gets the inferred-question confidence, not the stated share
     confidence = INFERRED_QUESTION_CONFIDENCE * (HEDGED_YES_FACTOR if _HEDGED_YES.fullmatch(span.strip()) else 1.0)
     if units:
         base = unit_statements(building, units[0], meta=meta)[0]

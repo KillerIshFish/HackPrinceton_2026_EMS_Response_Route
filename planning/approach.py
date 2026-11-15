@@ -39,14 +39,14 @@ from core.schema import Building, Gates, Situation, TravelProfile
 from situation.config import section, setting_value
 from situation.travel import profile_for, travel_settings
 
-UNREACHABLE_S = 3600.0
+UNREACHABLE_S = 3600.0  # same 1 h placeholder as planning.baselines: an unreachable room makes an entrance look bad
 
 NO_KEY_HOLDER = "No key holder recorded for this entrance"
 CLOSED_BY_OFFICER = "Closed by the officer in charge"
 FASTER_THAN_MEASURED = (
     "Predicted time is faster than measured curb-to-patient intervals for this kind of building"
 )
-_OPEN_ACCESS = ("open", "public", "unlocked")
+_OPEN_ACCESS = ("open", "public", "unlocked")  # access values that draw no barrier / key-holder warning
 
 
 def _latlng(d: Mapping) -> tuple[float, float]:
@@ -84,6 +84,8 @@ def _distance_m(a: Mapping, b: Mapping) -> Optional[float]:
         return math.hypot(float(a["xy"][0]) - float(b["xy"][0]), float(a["xy"][1]) - float(b["xy"][1]))
     if a.get("latlng") and b.get("latlng"):
         (la, lo), (lb, lob) = _latlng(a), _latlng(b)
+        # Metres per degree at the equator (2 pi x 6,378,137 m / 360); equirectangular approximation, within about
+        # 1% (under a metre) over the tens of metres between a staging spot and its entrance.
         k = 111_320.0
         dx = (lob - lo) * k * math.cos(math.radians((la + lb) / 2.0))
         dy = (lb - la) * k
@@ -212,8 +214,10 @@ def recommend_approach(
             access_s[eid] = round(dist / outdoor_mps, 1)
         ent_warnings[eid] = entrance_warnings(ent)
 
+    # The defaults below mirror configs/situations.yaml (travel section), used only when the file lacks the key.
     credit = 0.0
     if situation is not None and situation.meet_person:
+        # 24 s: escorted 1.9 min against 2.3 min unescorted (Silverman 2007, via configs), applied once.
         credit = _travel_setting("meet_person_credit_s", default=24.0)
 
     result = {
@@ -261,6 +265,7 @@ def recommend_approach(
         if crossed and elevator_serves(building, ent_room.floor, target.floor, closed_rooms):
             ride = elevator_ride_s(prof, len(crossed))
             result["elevator_s_to_target_floor"] = None if ride is None else round(ride, 1)
+        # Highest floor the light-load stair rate was timed to (ODPM 2/2005, via configs); above it, warn.
         light_to = _travel_setting("light_rate_measured_to_floor", default=10)
         if situation is not None and situation.load == "light" and crossed and max(crossed) > light_to:
             result["warnings"].append(
@@ -273,6 +278,8 @@ def recommend_approach(
         if inside is not None and math.isfinite(inside):
             predicted = max(0.0, access_s.get(best_id, 0.0) + inside - credit)
             result["predicted_curb_to_target_s"] = round(predicted, 1)
+            # Judgement settings: in a building of 3+ floors, a curb-to-room prediction under 2 min (between the
+            # measured house median, 1.3 min, and multi-storey residential median, 2.8 min) is flagged as too fast.
             min_floors = _travel_setting("sanity_check", "min_floors_exclusive", default=2)
             floor_min = _travel_setting("sanity_check", "floor_min", default=2.0)
             if len(building.floors) > min_floors and predicted < floor_min * 60.0:

@@ -36,6 +36,7 @@ TIME_CRITICAL = "Time-critical"
 SURVIVAL_UNIT = "percentage points of survival per minute"
 # Smallest per-minute value ever reported. The curve never reaches zero, but floating point can.
 MIN_REPORTED_PER_MIN = 0.01
+# Below this the console shows "under 0.1", never 0 (docs/BUILD_PLAN.md step B2, ground rule 1).
 DISPLAY_FLOOR = 0.1
 
 _UNQUANTIFIED = {

@@ -23,11 +23,15 @@ import math
 from dataclasses import dataclass
 from typing import Iterator, Optional, Sequence
 
+# Tuned heuristic: edges under 5 cm are vertex-snapping slivers, not walls; dropping them avoids zero-length geometry.
 MIN_WALL_LEN_M = 0.05
+# Tuned heuristic: skip solid panels thinner than these; slivers left between near-touching openings or a sill
+# that sits on the slab would only add render noise.
 MIN_PANEL_SPAN = 0.004      # fraction of wall length
 MIN_PANEL_HEIGHT_M = 0.03
+# Assumed: a typical interior partition thickness, used only when Edge.thickness is missing (flagged as unmeasured).
 DEFAULT_THICKNESS_M = 0.12
-DP = 4
+DP = 4  # 0.1 mm rounding, for byte-identical output across runs
 
 OPENING_KINDS = ("doorway", "window", "opening", "divider")
 TRAVERSABLE = frozenset({"doorway", "opening", "divider"})
@@ -66,6 +70,7 @@ def opening_span(
         return None
     if None in (centre, width, lower, height) or length_m <= 0:
         return None
+    # Cap the opening at 98% of the wall so an over-wide survey value still leaves a sliver of wall at each end.
     half = min(float(width), length_m * 0.98) / 2.0 / length_m
     t0 = max(0.0, float(centre) - half)
     t1 = min(1.0, float(centre) + half)

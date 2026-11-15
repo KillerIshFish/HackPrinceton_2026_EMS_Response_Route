@@ -46,10 +46,15 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = REPO_ROOT / "configs" / "real_buildings.yaml"
 PROCESSED_DIR = REPO_ROOT / "data" / "processed"
 
-SF_TO_M2 = 0.09290304
+SF_TO_M2 = 0.09290304  # exact: 0.3048 m/ft squared
 FT_TO_M = 0.3048
+# Assumed: 12 ft (3.66 m), a typical office slab-to-slab height; used only when CoStar has no slabToSlabHeightFeet.
 DEFAULT_SLAB_TO_SLAB_M = 3.66
+# Assumed: walking length of one storey of stairs (two flights plus landing), the same value as the synthetic
+# building in configs/demo_buildings.yaml.
 STAIR_RUN_M = 8.0
+# Tuned heuristic: centroid-to-centroid distance that counts as "near the elevator/stairs" for room flags and
+# clues. Not derived from data; the synthetic building uses 8 m.
 NEAR_RADIUS_M = 10.0
 MIN_SCAN_ROOM_M2 = 2.0  # smaller scan "rooms" are shafts / voids
 SEGMENTS = ("west", "center", "east")
@@ -103,6 +108,7 @@ def _scan_room_type(room: dict, is_largest: bool) -> str:
         if tag in TAG_TO_TYPE:
             return TAG_TO_TYPE[tag]
     area = float((room.get("dimensions") or {}).get("areaFloor") or 0.0)
+    # Untagged: the suite's largest room, or any room of 40 m2 or more (more than a private office), is open office.
     return "open_office" if is_largest or area >= 40.0 else "office"
 
 
@@ -197,6 +203,7 @@ def build_real_building(building_id: str, refresh: bool = False) -> tuple[Buildi
     floor_heights = {f: round((f - 1) * slab, 3) for f in floors}
     parking_floors = {int(f) for f in cfg.get("parking_floors") or []}
     floor_sf = {f["floor"]: float(f["sf"] or prop["typical_floor_sf"]) for f in prop["floors"]}
+    # Assumed: 15% of the gross floor plate is core (stairs, lifts, restrooms) when CoStar has no coreFactor.
     core_factor = float(prop.get("core_factor_pct") or 15.0) / 100.0
 
     # ---- plate geometry ---------------------------------------------------
@@ -271,7 +278,7 @@ def build_real_building(building_id: str, refresh: bool = False) -> tuple[Buildi
 
     def suite_sort_key(s: dict) -> tuple:
         m = re.match(r"\d+", s["suite"])
-        return (int(m.group()) if m else 10**6, s["suite"])
+        return (int(m.group()) if m else 10**6, s["suite"])  # non-numeric suite names sort last
 
     for floor in floors:
         f = f"f{floor}"
@@ -283,6 +290,8 @@ def build_real_building(building_id: str, refresh: bool = False) -> tuple[Buildi
             for a, b in zip(SEGMENTS, SEGMENTS[1:]):
                 add_edge(f"{f}-corridor-{side}-{a}", f"{f}-corridor-{side}-{b}", kind="corridor")
         mid = L / 2
+        # Inferred core layout (no dataset has it), metres along the plate: a 5 m stair 2 m in from each end, an 8 m
+        # elevator lobby and a 6 m elevator bank about the middle, and two 6 m restrooms west of the lobby.
         add_room(f"{f}-stair-a", "Stair A (west)", floor, "stairwell", 2.0, 7.0, "core")
         add_room(f"{f}-stair-b", "Stair B (east)", floor, "stairwell", L - 7.0, L - 2.0, "core")
         add_room(f"{f}-elev-lobby", "Elevator lobby", floor, "corridor", mid - 5.0, mid + 3.0, "core")
@@ -308,12 +317,15 @@ def build_real_building(building_id: str, refresh: bool = False) -> tuple[Buildi
 
         # ---- suites along the two perimeter rows --------------------------
         cells: list[dict] = [
+            # Assumed: 1,500 sf (a small office suite) when CoStar gives a suite no area, so it still gets a cell.
             {"kind": "suite", "suite": s["suite"], "sf": float(s["sf"] or 0.0) or 1500.0, "record": s}
             for s in sorted(suites_by_floor.get(floor, []), key=suite_sort_key)
         ]
         rentable_sf = floor_sf.get(floor, float(prop["typical_floor_sf"])) * (1.0 - core_factor)
         lobby_sf = float(plate.get("lobby_sf") or 0.0) if floor == 1 else 0.0
         unlisted_sf = rentable_sf - lobby_sf - sum(c["sf"] for c in cells)
+        # Tuned heuristic: only show leftover area over 10% of the rentable floor; smaller remainders are rounding
+        # between CoStar's floor and suite figures and are absorbed into the listed suites.
         if unlisted_sf > 0.1 * rentable_sf:
             cells.append({"kind": "unlisted", "suite": None, "sf": unlisted_sf, "record": None})
         if not cells:

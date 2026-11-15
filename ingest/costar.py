@@ -34,6 +34,8 @@ PROCESSED_DIR = REPO_ROOT / "data" / "processed"
 KIT_NAME = "costar-hackathon-kit"
 
 MATTERPORT_REFERENCE_TYPES = (36, 234)  # MatterportScan, MatterportStreamingKey
+# Room.occupancy_factor multiplies the room prior (configs/priors.yaml). Tuned heuristic values: an occupied suite
+# keeps full weight, vacant space keeps a little for occasional visitors, and unknown space sits halfway.
 OCCUPIED_FACTOR = 1.0
 VACANT_FACTOR = 0.15  # marketed space with no current tenant: cleaners, brokers, contractors
 UNKNOWN_FACTOR = 0.5  # floor area CoStar says nothing about
@@ -69,7 +71,7 @@ def floor_number(floor_name_code: int | None) -> int | None:
         return 2
     if c == 27:
         return 3
-    if c >= 28:  # FourthFloor = 28, FifthFloor = 29, ...
+    if c >= 28:  # FourthFloor = 28, FifthFloor = 29, ... (other codes, e.g. 26, map to None)
         return c - 24
     return None
 
@@ -79,7 +81,7 @@ def _suite_floor(suite: str | None) -> int | None:
     m = re.match(r"\d+", suite or "")
     if not m or len(m.group()) < 3:
         return None
-    return int(m.group()[:-2])
+    return int(m.group()[:-2])  # US convention: the last two digits are the unit on the floor
 
 
 def _matterport_attachments(obj: Any) -> Iterator[dict]:
@@ -101,6 +103,7 @@ def load_property(property_id: int, refresh: bool = False) -> dict:
     if not kit_dir().is_dir():
         raise FileNotFoundError(f"CoStar kit not found at {kit_dir()}")
 
+    # Try both JSON spacings so the substring pre-filter matches either serialisation; the parsed id is re-checked.
     pid_needles = (f'"id": {property_id},', f'"id":{property_id},')
     prop = next(
         (r for needle in pid_needles for r in _jsonl("commercial-property", needle) if r.get("id") == property_id),

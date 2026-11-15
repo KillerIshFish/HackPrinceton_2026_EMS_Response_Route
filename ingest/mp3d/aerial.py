@@ -59,6 +59,8 @@ USER_AGENT = "ingest.mp3d aerial sidecar/1.0"
 ALL_LAYERS = "urban,urban-r,wide-area,urban-g"
 OBLIQUE_DIRECTIONS = ("oblique-north", "oblique-south", "oblique-east", "oblique-west")
 
+# Tuned heuristic: 5 retries with exponential backoff (1, 2, 4, 8, 16 s, plus 0.25 s) rides out Vexcel 429s and
+# Overpass 502s, about 32 s of waiting in all. The 30 s cap is a safety net; 5 retries never reach it.
 MAX_RETRIES = 5
 BACKOFF_CAP_S = 30.0
 
@@ -69,6 +71,8 @@ ROAD_CLASS_RANK = {
     "motorway": 0, "trunk": 1, "primary": 2, "secondary": 3, "tertiary": 4,
     "residential": 5, "unclassified": 6, "living_street": 7, "service": 8,
 }
+# Assumed: 150 m reaches the fronting street of a building set back across a lot, without pulling in
+# streets a block away that would compete for the bearing.
 DEFAULT_SEARCH_RADIUS_M = 150.0
 
 SOURCE_OSM = "osm-centreline"
@@ -76,6 +80,8 @@ SOURCE_ENTRANCE = "entrance-heuristic"
 SOURCE_MANUAL = "manual"
 SOURCE_UNKNOWN = "unknown"
 
+# Equirectangular approximation: ~110.54 km per degree of latitude, and 111.32 km x cos(lat) per degree of longitude.
+# Error is well under 1% at mid-latitudes, which is negligible over the ~150 m distances used here.
 EARTH_M_PER_DEG_LAT = 110540.0
 EARTH_M_PER_DEG_LON = 111320.0
 
@@ -220,6 +226,8 @@ class AerialRef:
 class VexcelClient:
     """Vexcel REST API 2.0. Key goes in the X-API-KEY header, per the docs."""
 
+    # Assumed: 180 s per request, because ortho/extract renders a 1024 px image server-side and can be slow;
+    # a short timeout would turn a slow render into a retry that re-renders it.
     def __init__(self, api_key: Optional[str] = None, base: str = VEXCEL_API,
                  timeout_s: float = 180.0) -> None:
         if api_key is None:
@@ -256,7 +264,7 @@ class VexcelClient:
                 with urllib.request.urlopen(req, timeout=self.timeout_s) as resp:
                     return resp.status, resp.headers.get("Content-Type", ""), resp.read()
             except urllib.error.HTTPError as exc:
-                payload = exc.read()[:500]
+                payload = exc.read()[:500]  # cap the body kept for the error message
                 # 429 is the documented rate limit; back off ~1,2,4,8,16 s.
                 if exc.code == 429 and attempt < MAX_RETRIES:
                     time.sleep(min(2 ** attempt, BACKOFF_CAP_S) + 0.25)
@@ -331,6 +339,8 @@ class VexcelClient:
 def overpass_query(lat: float, lon: float,
                    radius_m: float = DEFAULT_SEARCH_RADIUS_M) -> str:
     classes = "|".join(ROAD_CLASS_RANK)
+    # [timeout:60] is the Overpass server-side budget; the client waits 90 s (fetch_osm_roads) to leave slack for
+    # queueing and transfer on the public endpoint.
     return (f"[out:json][timeout:60];"
             f'way(around:{radius_m:.0f},{lat},{lon})["highway"~"^({classes})$"];'
             f"out geom tags;")
@@ -393,6 +403,9 @@ def street_bearing_from_roads(
 ) -> StreetBearing:
     """Pick the street direction, and say how much to trust it.
 
+    Tuned heuristic defaults: a rival road within 1.5x the chosen road's distance that points more than 45 deg
+    away (over one compass sector) is close enough, and different enough, to make the pick ambiguous.
+
     A named, higher-class road wins over a closer service drive: in a gated
     complex the nearest centreline is an internal driveway on whichever side
     the geometry happens to favour. When the two best candidates are of the
@@ -439,7 +452,7 @@ def street_bearing_from_roads(
         confidence=confidence,
         ambiguous=ambiguous,
         note=note,
-        candidates=tuple(ranked[:8]),
+        candidates=tuple(ranked[:8]),  # keep the top 8 as provenance; enough to audit the pick, small on disk
     )
 
 
@@ -463,12 +476,14 @@ def _internal_drive_signature(osm: StreetBearing) -> Optional[RoadCandidate]:
     """
     if osm.bearing_deg is None:
         return None
+    # Bearings are stored rounded to 0.1 deg, so a match within 0.05 deg finds the candidate that was chosen.
     chosen = next((c for c in osm.candidates
                    if abs(c.bearing_deg - osm.bearing_deg) < 0.05), None)
     services = [c for c in osm.candidates if c.is_service]
     if not chosen or chosen.is_service or not services:
         return None
     nearest_service = min(services, key=lambda c: c.distance_m)
+    # Tuned heuristic: the drive must be at most half the street's distance to count as the unit's real frontage.
     if nearest_service.distance_m * 2.0 <= chosen.distance_m:
         return nearest_service
     return None
@@ -515,6 +530,8 @@ def reconcile_bearings(osm: StreetBearing,
 
     gap = angular_gap(osm.bearing_deg, entrance_bearing_deg)
     result["gap_deg"] = round(gap, 1)
+    # Gap bands: < 45 deg is the same facade (within one compass sector), > 135 deg the opposite facade, and the band
+    # between is a side facade. 45 deg also matches the ambiguity gap used for the OSM pick.
 
     drive = _internal_drive_signature(osm)
     if drive is not None and gap >= 45.0:
@@ -618,7 +635,7 @@ def coverage_report(models: Iterable[dict]) -> dict:
         "with_geolocation": located,
         "without_geolocation": total - located,
         "coverage_share": round(located / total, 4) if total else 0.0,
-        "missing_ids": missing[:50],
+        "missing_ids": missing[:50],  # a sample for inspection, not the full list
     }
 
 
@@ -633,6 +650,7 @@ def build_aerial_ref(
     entrance_bearing_deg: Optional[float] = None,
     client: Optional[VexcelClient] = None,
     root: str | Path = "data/processed/aerial",
+    # 60 m half-width -> a 120 m square at 1024 px, about 12 cm per pixel: the building plus its lot and street.
     buffer_m: float = 60.0,
     dimensions: str = "1024,1024",
     fetch_image: bool = True,
@@ -689,7 +707,7 @@ def build_aerial_ref(
         gsd_m = meta.get("min_gsd_m")
         if meta.get("bbox"):
             # what the file says it covers, not what we asked for
-            bbox = tuple(round(v, 9) for v in meta["bbox"])
+            bbox = tuple(round(v, 9) for v in meta["bbox"])  # 1e-9 deg ~ 0.1 mm, i.e. keep the file's precision
             bbox_source = "image-xmp"
         else:
             dlat = buffer_m / EARTH_M_PER_DEG_LAT
@@ -724,6 +742,7 @@ def build_aerial_ref(
         bbox_source=bbox_source,
         gsd_m=gsd_m,
         road_candidates=osm.candidates,
+        # 7 decimal places of a degree is about 1 cm on the ground.
         footprint_lonlat=tuple((round(x, 7), round(y, 7)) for x, y in footprint),
         outline_lonlat=tuple(model_outline_lonlat(model, lat, lng, yaw_deg)
                              if model is not None else ()),
@@ -887,6 +906,7 @@ def parse_image_xmp(image_bytes: bytes) -> dict:
     start = image_bytes.find(XMP_NS)
     if start < 0:
         return {}
+    # 20 kB past the namespace marker is assumed to hold the whole XMP packet (it is a few kB of text).
     chunk = image_bytes[start:start + 20000].decode("utf8", "ignore")
 
     def tag(name: str) -> Optional[str]:
@@ -902,7 +922,7 @@ def parse_image_xmp(image_bytes: bytes) -> dict:
     geometry = tag("geometry")
     if geometry:
         ring = parse_polygon_wkt(geometry)
-        if len(ring) >= 4:
+        if len(ring) >= 4:  # a closed ring repeats its first point, so a real polygon has at least 4
             lons = [p[0] for p in ring]
             lats = [p[1] for p in ring]
             out["bbox"] = (min(lons), min(lats), max(lons), max(lats))

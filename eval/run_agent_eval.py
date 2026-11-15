@@ -46,7 +46,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import statistics
 import sys
 import time
@@ -205,6 +204,8 @@ def _describe(e: Any, building: Any) -> str:
 
 
 def _rank(probs: dict, room_id: str) -> int:
+    # Ties (within 1e-12, float noise) count against the true room, so an undecided posterior never scores top-1.
+    # eval.metrics.true_room_rank instead breaks ties by room id.
     p = probs.get(room_id, 0.0)
     above = sum(1 for rid, q in probs.items() if rid != room_id and q >= p - 1e-12)
     return above + 1
@@ -215,7 +216,6 @@ def _interpret(building, transcript, i, mode, prior, facts, incident_type, vocab
     from parser.interpret import _rules_path, interpret_turn
 
     if mode == "vocab":
-        import parser.extract as ex
 
         before = _usage()["calls"]
         started = time.perf_counter()
@@ -271,6 +271,8 @@ def run_call(call: dict, mode: str, vocab: dict) -> CallResult:
     fix = None
 
     def posterior(upto: int):
+        # ``upto`` is unused: the posterior is always over all evidence recorded so far.
+        # No hour is passed, so the prior uses posterior_probs's default (14:00, as in the benchmark).
         active = [e for e in prior if e.status == "active"]
         return posterior_probs(building, fix=fix, clues=active, vocab=vocab)[0], active
 
@@ -362,6 +364,7 @@ def _secs(values: Sequence[float]) -> Optional[dict]:
     if not values:
         return None
     vs = sorted(values)
+    # p90 is the nearest-rank value (no interpolation), clamped to the last element.
     return {"mean": statistics.mean(vs), "median": statistics.median(vs),
             "p90": vs[min(len(vs) - 1, int(round(0.9 * (len(vs) - 1))))], "max": vs[-1], "n": len(vs)}
 

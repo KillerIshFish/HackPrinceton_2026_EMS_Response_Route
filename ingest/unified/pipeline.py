@@ -36,7 +36,7 @@ from ingest.unified.stamp import CACHE_DIR, load_unit_model, make_interior
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED = REPO_ROOT / "data" / "processed"
 MODELS_DIR = PROCESSED / "models"
-MAX_SCANS = 6
+MAX_SCANS = 6  # tuned: unit-type scans fetched per property (most-covering first); each is a Matterport request
 PLAN_MAP_WAIT_S = 60.0  # how long a traced plan waits for OpenStreetMap (roads, neighbours) to answer
 
 
@@ -177,7 +177,7 @@ def _meta(bm: BuildingModel, building, context: Optional[dict], facts: Optional[
         models = [{"model_id": bm.id[3:], "suite": None, "name": bm.name, "floor": None}]
     else:
         models = [{"model_id": mid, "suite": None, "name": name, "floor": None}
-                  for mid, name in sorted(scan_names.items(), key=lambda kv: (kv[1], kv[0]))[:12]]
+                  for mid, name in sorted(scan_names.items(), key=lambda kv: (kv[1], kv[0]))[:12]]  # display cap
     sources = Counter(r["source"] for r in rooms.values())
     return {
         "building_id": bm.id, "name": bm.name, "address": bm.address or None, "real": True,
@@ -216,7 +216,7 @@ def _fit_caveat(context: Optional[dict]) -> list[str]:
     if not fit:
         return []
     worst = max(max(fit), 1.0 / max(min(fit), 1e-6))
-    if worst < 1.3:
+    if worst < 1.3:  # tuned: a stretch or squeeze under 30% on either axis is not worth a caveat
         return []
     return [f"The generated layout and the real building differ in size (the layout is drawn at {fit[0]:.2f}x by "
             f"{fit[1]:.2f}x to fit the building's outline); walking distances inside it are approximate."]
@@ -339,7 +339,7 @@ def generate(query: str, stamp: bool = True, context: bool = True, offline: bool
     def late(state: dict) -> None:
         # a source answered after the deadline: lay the building out again if what it brought
         # (an outline, or the street that says which side is the front) changes the layout
-        ready.wait(60.0)
+        ready.wait(60.0)  # let the first write finish so a late answer cannot be overwritten by it (60 s cap)
         site = layout_site(state, geo, buildings, plate_m2)
         model = current["bm"] if _same_site(site, current["site"]) else build_property_model(facts, models, site=site)
         current.update(bm=model, site=site)

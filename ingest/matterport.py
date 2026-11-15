@@ -31,7 +31,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = REPO_ROOT / "configs" / "demo_buildings.yaml"
 PROCESSED_DIR = REPO_ROOT / "data" / "processed"
 
-_ND = 3  # decimal places kept in generated geometry
+_ND = 3  # decimal places kept in generated geometry (1 mm), so the same YAML gives byte-identical output
 
 
 # ---------------------------------------------------------------------------
@@ -113,6 +113,7 @@ def build_from_config(cfg: dict) -> Building:
     bands = {k: (float(v[0]), float(v[1])) for k, v in cfg["bands"].items()}
     facing = cfg.get("facing", {})
     segments = [(float(a), float(b), str(name)) for a, b, name in cfg["corridor_segments"]]
+    # Fallbacks mirror the values in demo_buildings.yaml (near-elevator/stairs radius; walk length of one flight pair).
     near_radius = float(cfg.get("near_radius_m", 8.0))
     stair_run = float(cfg.get("stair_run_m", 8.0))
     origin = cfg["origin_latlng"]
@@ -233,7 +234,7 @@ def build_from_config(cfg: dict) -> Building:
                 )
                 x += w
                 add_edge(room.id, rid(floor, f"corridor-{side}-{segment_for(room.centroid[0])}"))
-            if abs(x - width) > 1e-6:
+            if abs(x - width) > 1e-6:  # float tolerance; the YAML widths must tile the footprint exactly
                 raise ValueError(f"Floor {floor} {band}: widths sum to {x}, footprint is {width}")
 
         for u, v in program.get("extra_edges", []):

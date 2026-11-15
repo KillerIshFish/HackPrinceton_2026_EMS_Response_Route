@@ -101,6 +101,7 @@ function check(file) {
       if (!m) continue;
       // the line the matched word sits on (multi-line JSX text / template text)
       const line = loc.start.line + (text.slice(0, m.index).match(/\n/g)?.length ?? 0);
+      // an allow comment on the word's own line, or on the line where its (multi-line) text node starts
       if (allow.has(line) || allow.has(loc.start.line)) continue;
       hits.push({ line, phrase: f.phrase, text: text.replace(/\s+/g, " ").trim().slice(0, 90) });
     }

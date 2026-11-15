@@ -67,6 +67,8 @@ room_types:
 # suites that were never scanned: the model knows the suite's floor, area and
 # tenant, but not its interior. A clue about an interior room type ("I'm in a
 # closet") matches such a room partially, by how likely a suite is to contain one.
+# The `contains` weights are judgement (not surveyed): near-certain for offices, lower for
+# rooms only some suites have.
 composite_room_types:
   suite:
     contains:
@@ -125,6 +127,8 @@ landmarks:
     synonyms: [sink, sinks]
     match: {room_type: [restroom, break_room]}
 
+# `miss` (tuned heuristic): sounds and smells carry beyond their room, so rooms that fail
+# `match` keep this partial score instead of 0.
 sounds:
   elevator_ding:
     synonyms: [elevator ding, elevator bell, hear the elevator, elevator dinging]
@@ -208,6 +212,7 @@ routes:
 
 floors:
   # Words -> floor index. Clue.value is the floor label as a string ("4").
+  # Only tried when no floor label matches; index == label holds in the synthetic building (floors 1-4).
   ordinals: {first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6,
              1st: 1, 2nd: 2, 3rd: 3, 4th: 4, 5th: 5, 6th: 6}
   relative:
@@ -223,6 +228,8 @@ negation_cues: ["no ", "not ", "don't see", "do not see", "can't see", "cannot s
                 "there's no", "there is no", "there are no", "without", "isn't", "aren't"]
 
 # Parser confidence defaults per clue type (the LLM parser will emit its own).
+# Judgement. Used as the fusion exponent c, except a positive floor clue, where it is the stated
+# share (core/fusion.py). Room type is said outright; sounds and smells say less about the room.
 default_confidence:
   room_type: 1.0
   floor: 0.8

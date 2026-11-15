@@ -8,7 +8,7 @@ import pytest
 
 import parser.agent as agent
 import parser.extract as extract
-from core.fusion import names_rooms, posterior_probs
+from core.fusion import names_rooms
 from core.schema import Answer, Clue, Evidence, RoomSelector, TranscriptTurn
 from ingest.matterport import generate_synthetic_office
 from parser.building_tools import TOOLS, BuildingIndex, floor_summary, rooms_near, search_rooms, select_rooms

@@ -38,7 +38,9 @@ from typing import Sequence
 
 import numpy as np
 
-EXACT_MAX_ROOMS = 12  # largest candidate set solved exactly (measured well under 150 ms)
+# Largest candidate set solved exactly: the build plan's 12 (docs/BUILD_PLAN.md, A2), measured well under its
+# 150 ms budget (timings above). tests/test_search_maths.py pins both the value and the 150 ms bound.
+EXACT_MAX_ROOMS = 12
 
 
 def solve_exact(T: Sequence[Sequence[float]], s: Sequence[float], p: Sequence[float], start: int,
@@ -52,6 +54,7 @@ def solve_exact(T: Sequence[Sequence[float]], s: Sequence[float], p: Sequence[fl
     n = len(p)
     if n == 0:
         return [], 0.0
+    # Hard memory cap: f, parent and bits are (2^n, n) arrays; at 20 rooms f alone is 2^20 x 20 x 8 B = 168 MB.
     if n > 20:
         raise ValueError(f"exact solver limited to 20 rooms, got {n}")
     Tm = np.asarray(T, dtype=float)
@@ -107,6 +110,8 @@ def time_exact(n: int, trials: int = 3, seed: int = 0) -> float:
     rng = np.random.default_rng(seed)
     out = []
     for _ in range(trials):
+        # Synthetic floor: points in a 60 m square, straight-line walks at 1.2 m/s, looks of 10-40 s.
+        # Run time depends only on n, so these just need to be plausible.
         pts = rng.random((n + 1, 2)) * 60.0
         T = np.sqrt(((pts[:, None, :] - pts[None, :, :]) ** 2).sum(-1)) / 1.2
         s = rng.uniform(10, 40, n)

@@ -33,9 +33,16 @@ import networkx as nx
 from core.schema import Room
 
 CIRCULATION = {"corridor", "stairwell", "elevator"}
-WALL_GAP_M = 0.6  # two outlines this close share a wall / a door
+# Two outlines this close share a wall / a door. Assumed: room polygons are drawn on wall centre lines
+# or faces, so a wall's thickness plus tracing slop leaves gaps well under 0.6 m.
+WALL_GAP_M = 0.6
+# Max centre-to-centre metres for "across the hall": two room depths plus a corridor (assumed), so a
+# room far down the same corridor is not called "across".
 ACROSS_MAX_M = 16.0
-EDGE_BAND_M = 2.5  # a room this close to the floor plate's outline is on the outer edge
+# A room this close to the floor plate's outline is on the outer edge; the band widens to 6% of the
+# plate on big floors (``_position``). Hand-set tolerance for tracing slop; not measured.
+EDGE_BAND_M = 2.5
+# Below this floor area a room is "tiny" (closet / single WC size; assumed).
 TINY_M2 = 6.0
 
 
@@ -196,8 +203,8 @@ def _size_word(rank: int, of: int, area: float) -> str:
     elif of <= 2:
         base = "large" if rank == 1 else "small"
     else:
-        frac = (rank - 1) / max(1, of - 1)
-        base = "large" if frac < 1 / 3 else "medium" if frac < 2 / 3 else "small"
+        frac = (rank - 1) / max(1, of - 1)  # 0 = largest, 1 = smallest on the floor
+        base = "large" if frac < 1 / 3 else "medium" if frac < 2 / 3 else "small"  # thirds by rank
     if rank == 1 and of > 1:
         return f"{base}, largest on floor"
     if rank == of and of > 2:
@@ -208,7 +215,7 @@ def _size_word(rank: int, of: int, area: float) -> str:
 def _position(box: tuple[float, float, float, float], plate: tuple[float, float, float, float]) -> str:
     x0, y0, x1, y1 = plate
     w, d = x1 - x0, y1 - y0
-    band_x = max(EDGE_BAND_M, 0.06 * w)
+    band_x = max(EDGE_BAND_M, 0.06 * w)  # 6% of the plate: scales the edge band on large floors (tuned)
     band_y = max(EDGE_BAND_M, 0.06 * d)
     west, east = box[0] - x0 <= band_x, x1 - box[2] <= band_x
     south, north = box[1] - y0 <= band_y, y1 - box[3] <= band_y
@@ -231,6 +238,8 @@ def _hall_layout(hall: Room, touching: dict[str, set[str]], by_id: dict[str, Roo
     start_end, finish_end = ("plan W end", "plan E end") if along_x else ("plan S end", "plan N end")
     h = HallLayout(id=hall.id, name=hall.name, floor_label=hall.floor_label, length_m=round(hi - lo, 1),
                    axis="plan W-E" if along_x else "plan S-N", start_end=start_end, finish_end=finish_end)
+    # A room whose centre lies within a quarter of the hall's width of an end counts as at that end
+    # (tuned heuristic; at least 0.25 m for a sliver-thin corridor polygon).
     slack = 0.25 * max(1.0, min(x1 - x0, y1 - y0))
     sided: list[tuple[float, str, str]] = []
     for oid in sorted(touching.get(hall.id, ())):
@@ -323,6 +332,8 @@ def build_layout(idx) -> BuildingLayout:
             def centre_m(o: str) -> float:
                 return round(_straight_m(r, by_id[o]), 3)
 
+            # Neighbour lists are capped to keep the cached layout block short: 8 for circulation (a
+            # hallway opens onto many rooms), 5 for a room; 3 "across" below. Prompt-size heuristic.
             lay.next_to = sorted((o for o in touching.get(r.id, ()) if by_id[o].room_type not in CIRCULATION),
                                  key=lambda o: (centre_m(o), o))[:8 if r.room_type in CIRCULATION else 5]
             if r.room_type not in CIRCULATION:
@@ -382,7 +393,7 @@ def room_layout_text(idx, layout: BuildingLayout, room: Room, *, compact: bool =
     lay = layout.rooms.get(room.id) or RoomLayout(id=room.id)
     size = f"{room.room_type}, {round(room.area_m2)} m2" + (f" ({lay.size_word})" if lay.size_word else "")
     parts = [room.id, room.name, size, lay.position]
-    if lay.halls:
+    if lay.halls:  # at most 3 hallways per room line (prompt size)
         parts.append("opens onto " + "; ".join(hall_slot_text(s) for s in lay.halls[:3]))
     elif room.room_type not in CIRCULATION:
         parts.append("no hallway touches it (reached through a neighbouring room)")
@@ -443,7 +454,9 @@ def hall_text(h: HallLayout, idx) -> str:
 # scores the answers)
 # ---------------------------------------------------------------------------
 
-NEAR_ENTRANCE_M = 25.0  # walking metres that count as "a short walk from the door you came in by"
+# Walking metres that count as "a short walk from the door you came in by". Assumed: under half a
+# minute's walk at a normal indoor pace; not measured.
+NEAR_ENTRANCE_M = 25.0
 
 # feature key -> the yes / no question that asks about it
 LAYOUT_QUESTIONS: dict[str, str] = {
@@ -481,6 +494,7 @@ def _features(layout: BuildingLayout, rooms: list[Room]) -> dict[str, frozenset[
                 out["large"].add(r.id)
             if lay.size_word.startswith(("small", "tiny")):
                 out["small"].add(r.id)
+            # at an end, or the first / last door of a side with 3+ doors (with 1-2 every door is an "end")
             if any(s.door == 0 or (s.of >= 3 and s.door in (1, s.of)) for s in lay.halls):
                 out["hall_end"].add(r.id)
         if lay.entrance_m is not None and lay.entrance_m <= NEAR_ENTRANCE_M:
@@ -505,7 +519,7 @@ def layout_features(building) -> dict[str, frozenset[str]]:
         feats = _features(BuildingIndex(building).layout, list(building.rooms))
     except Exception:  # noqa: BLE001 - a layout failure must not break the question list
         feats = {}
-    if len(_FEATURE_CACHE) > 32:
+    if len(_FEATURE_CACHE) > 32:  # a demo loads a handful of buildings; the bound only stops unbounded growth
         _FEATURE_CACHE.clear()
     _FEATURE_CACHE[key] = feats
     return feats

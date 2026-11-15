@@ -51,7 +51,9 @@ INDEX_PATH = REPO_ROOT / "data" / "processed" / "osm_index.sqlite"
 PACK_PATH = REPO_ROOT / "data" / "osm" / "site_pack.sqlite.gz"
 PROPERTY_INDEX = REPO_ROOT / "data" / "processed" / "property_index.sqlite"
 INDEX_VERSION = 1
-PACK_REACH_M = 230.0   # the pack keeps everything this close to a property
+# The pack keeps everything this close to a property. Sized so a lookup SITE_MATCH_M off a property still covers
+# context.fetch_site's 150 m radius (ROAD_RADIUS_M): covers() requires 150 + 60 = 210 <= 230, with 20 m spare.
+PACK_REACH_M = 230.0
 SITE_MATCH_M = 60.0    # a lookup this close to a packed property is answered from the pack
 
 # name -> (extract file, download URL, (south, west, north, east) of what is kept)
@@ -63,7 +65,7 @@ REGIONS = {
 }
 KEPT_TAGS = ("name", "highway", "service", "building", "amenity", "parking", "landuse", "shop", "tourism", "leisure")
 PLACE_KEYS = ("amenity", "shop", "tourism", "leisure")
-M_PER_DEG_LAT = 111_320.0
+M_PER_DEG_LAT = 111_320.0  # approx. metres per degree of latitude (spherical Earth); longitude scales by cos(lat)
 
 
 def _tags(obj) -> dict:
@@ -103,6 +105,7 @@ def _elements(pbf: Path, box: tuple[float, float, float, float]):
                 if len(geometry) >= 4 and touches(geometry):
                     # one element per outer ring, shaped like a closed way; an area's id is unique
                     # across ways and relations, and the ring number keeps a multipolygon's parts apart
+                    # (x100 assumes no area has 100+ outer rings)
                     yield {"type": "way", "id": o.id * 100 + i, "tags": _tags(o), "geometry": geometry}
 
 
@@ -158,6 +161,7 @@ def build_index(index_path: Optional[Path] = None, extract_dir: Optional[Path] =
 
 
 def _reach(lat: float, radius_m: float) -> tuple[float, float]:
+    # (dlat, dlon) in degrees for a radius in metres; the 0.01 floor on cos(lat) avoids dividing by zero at the poles
     return radius_m / M_PER_DEG_LAT, radius_m / (M_PER_DEG_LAT * max(math.cos(math.radians(lat)), 0.01))
 
 

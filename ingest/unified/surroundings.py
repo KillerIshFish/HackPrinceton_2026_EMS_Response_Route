@@ -41,9 +41,10 @@ from typing import Iterable, Optional
 from ingest.georegister import latlng_to_local, local_to_latlng
 
 SURROUNDINGS_RADIUS_M = 120.0   # how far around the address point features are requested
-RANGE_M = 60.0                  # how far a window "sees"
-FAN_DEG = (-30.0, -15.0, 0.0, 15.0, 30.0)
+RANGE_M = 60.0                  # how far a window "sees" (assumed: what a caller would call "out the window")
+FAN_DEG = (-30.0, -15.0, 0.0, 15.0, 30.0)  # assumed 60-degree view cone, 5 rays, so one thin feature can't decide
 START_OFFSET_M = 0.5            # rays start just outside the glass
+# Assumed: an untagged ("yes") building under 300 m2 standing on residential land is a house.
 SMALL_BUILDING_M2 = 300.0
 HOUSE_TAGS = frozenset({"house", "detached", "semidetached_house", "terrace", "bungalow", "residential",
                         "cabin", "static_caravan", "farm"})
@@ -88,7 +89,7 @@ def _ray_hit(ox: float, oy: float, dx: float, dy: float, points, closed: bool) -
         (ax, ay), (bx, by) = points[i], points[(i + 1) % n]
         ex, ey = bx - ax, by - ay
         denom = dx * ey - dy * ex
-        if abs(denom) < 1e-12:
+        if abs(denom) < 1e-12:  # ray parallel to the edge
             continue
         t = ((ax - ox) * ey - (ay - oy) * ex) / denom   # along the ray
         u = ((ax - ox) * dy - (ay - oy) * dx) / denom   # along the edge
@@ -144,6 +145,7 @@ def surroundings_from_payload(payload: dict, lat: float, lon: float) -> dict:
         if highway:
             if highway in ROAD_CLASS_RANK and highway not in NOT_A_VIEW_ROAD and e.get("geometry"):
                 line = [latlng_to_local(p["lat"], p["lon"], origin) for p in e["geometry"] if "lat" in p]
+                # a street can be seen from up to RANGE_M beyond the request radius, so its reach is wider
                 if len(line) >= 2 and _within(line, SURROUNDINGS_RADIUS_M + RANGE_M):
                     found.append(("street", "line", name, False, line))
             continue

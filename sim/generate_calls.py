@@ -8,6 +8,9 @@ Each call is a list of turns::
 ``phone_fix`` is set on the turn where a (new) device fix arrives; consumers keep
 the most recent non-null fix. Caller text is run through
 ``parser.extract.extract_clues`` by the API - no clues are hard-coded here.
+
+Scripted z readings are hand-picked: the true room's floor elevation + 1.2 m (held-phone height,
+``core.features``) plus a small offset well inside the +/-3 m bound the fix is quoted with.
 """
 
 from __future__ import annotations
@@ -41,7 +44,7 @@ def demo_call_script() -> list[dict]:
                 "system",
                 "Device barometric z-axis fix received: 12.6 m above ground (±3 m). "
                 "No usable horizontal fix indoors.",
-                PhoneFix(z_m=12.6),
+                PhoneFix(z_m=12.6),  # true ~13.2 m: floor 4 at 12.0 m (configs/demo_buildings.yaml) + 1.2 m
             ),
             (
                 "Caller: room type",
@@ -84,7 +87,7 @@ def bundy_olympic_call_script() -> list[dict]:
                 "system",
                 "Device barometric z-axis fix received: 26.4 m above ground (±3 m). "
                 "No usable horizontal fix indoors.",
-                PhoneFix(z_m=26.4),
+                PhoneFix(z_m=26.4),  # true ~26.8 m (floor 8 at 25.6 m + 1.2 m)
             ),
             (
                 "Caller: room and floor",
@@ -128,6 +131,7 @@ def washington_call_script() -> list[dict]:
                 "system",
                 "Device barometric z-axis fix received: 4.4 m above ground (±3 m). "
                 "The floors are 3 m apart, so this leans to the second floor but cannot rule out the first.",
+                # True ~4.2 m (floor 2 at 3.0 m + 1.2 m). Floor 1 would read 1.2 m and floor 3 (at 4.1 m) 5.3 m.
                 PhoneFix(z_m=4.4),
             ),
             (
@@ -180,7 +184,7 @@ def jrr_call_script() -> list[dict]:
                 "system",
                 "Device barometric z-axis fix received: 5.2 m above the building's lowest floor (±3 m). "
                 "The levels are about 4 m apart, so this is the A level or Level 1.",
-                PhoneFix(z_m=5.2),
+                PhoneFix(z_m=5.2),  # exactly the A level (4.0 m) + 1.2 m; B and Level 1 would read 1.2 m and 9.2 m
             ),
             (
                 "Caller: room type",
@@ -217,6 +221,7 @@ def generic_call_script(building) -> list[dict]:
     units = sorted((r for r in building.rooms if r.room_type in ("unit", "suite", "office", "room")), key=lambda r: r.id)
     if units and len(building.floors) > 1:
         room = units[(2 * len(units)) // 3]
+        # A noiseless reading: floor elevation + 1.2 m held-phone height (core.features).
         z = round(float(building.floor_heights_m.get(room.floor, 0.0)) + 1.2, 1)
         rows.append(("Phone z-axis fix", "system",
                      f"Device barometric z-axis fix received: {z} m above ground (±3 m). "
@@ -253,7 +258,7 @@ def scripted_calls() -> dict[str, list[dict]]:
                  "911 call connected. Dispatchable address: 100 Princeton Tech Center.", None),
                 ("Phone fix", "system",
                  "Device fix received: z 5.4 m above ground (±3 m), horizontal uncertainty 20 m.",
-                 PhoneFix(x_m=24.0, y_m=12.0, horizontal_sigma_m=20.0, z_m=5.4)),
+                 PhoneFix(x_m=24.0, y_m=12.0, horizontal_sigma_m=20.0, z_m=5.4)),  # z: floor 2 (4.0 m) + 1.2 m + 0.2
                 ("Caller: room type", "caller",
                  "I'm stuck in the elevator, it stopped and the doors won't open", None),
                 ("Caller: floor", "caller",
@@ -267,7 +272,7 @@ def scripted_calls() -> dict[str, list[dict]]:
                  "911 call connected. Dispatchable address: 100 Princeton Tech Center.", None),
                 ("Phone z-axis fix", "system",
                  "Device barometric z-axis fix received: 9.0 m above ground (±3 m).",
-                 PhoneFix(z_m=9.0)),
+                 PhoneFix(z_m=9.0)),  # floor 3 (8.0 m) + 1.2 m - 0.2
                 ("Caller: room type", "caller",
                  "I'm hiding in a supply closet, I have to be quiet", None),
                 ("Caller: negatives", "caller",
@@ -321,7 +326,7 @@ def cardiac_arrest_office_script() -> list[dict]:
          "We're in the fishbowl. The fishbowl - the glass one, past the big plants, everybody calls it that.", None),
         ("Phone z-axis fix", "system",
          "Device barometric z-axis fix received: 5.3 m above ground (±3 m). No usable horizontal fix indoors.",
-         PhoneFix(z_m=5.3)),
+         PhoneFix(z_m=5.3)),  # true room on floor 2: 4.0 m + 1.2 m = 5.2 m
         ("Dispatcher", "dispatcher", "Is anyone doing CPR?", None),
         ("Caller", "caller",
          "Yes - Maria's doing compressions, she's doing CPR right now. Dave's going down to meet you "
@@ -345,7 +350,7 @@ def fire_smoke_office_script() -> list[dict]:
          "Third floor. Third. I'm in my office, 302. I shut the door, it's all smoke out there.", None),
         ("Phone z-axis fix", "system",
          "Device barometric z-axis fix received: 9.4 m above ground (±3 m). No usable horizontal fix indoors.",
-         PhoneFix(z_m=9.4)),
+         PhoneFix(z_m=9.4)),  # true room on floor 3: 8.0 m + 1.2 m = 9.2 m
         ("Dispatcher", "dispatcher", "Are you near a window?", None),
         ("Caller", "caller",
          "Yeah. Yes. I can see the street, I can see people down there. "
@@ -372,6 +377,7 @@ def active_threat_office_script() -> list[dict]:
         ("Caller 1", "caller",
          "No. No, I'm okay. We're hiding in the supply closet, third floor. There's three of us. "
          "The door's locked.", None),
+        # Caller 1's true room is on floor 3: 8.0 m + 1.2 m = 9.2 m.
         ("Phone z-axis fix (caller 1)", "system",
          "Device barometric z-axis fix received for caller 1: 9.1 m above ground (±3 m).", PhoneFix(z_m=9.1)),
         ("Call 2 connected", "system",

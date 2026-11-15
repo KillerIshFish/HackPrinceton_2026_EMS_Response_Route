@@ -19,13 +19,17 @@ Opening elevations from the API share that datum before the shift, so the same
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import Sequence
 
+# Assumed: typical Matterport tripod camera height. Only used by the pano-z fallback; doorway sills are preferred.
 PANO_ABOVE_FLOOR_M = 1.5  # Matterport tripod height
+# Assumed: typical floor-to-floor height, used only when no plausible measured spacing exists (e.g. a 1-floor model).
 DEFAULT_FLOOR_HEIGHT_M = 3.0
 MIN_STACK_GAP_M = 0.3     # below this, two "floors" are the same plane
+# Assumed: no habitable storey is under 2 m slab-to-slab, so a smaller gap is a split-level, mezzanine or
+# segmentation split.
 MIN_PLAUSIBLE_STOREY_M = 2.0  # a real storey is not shorter than this
-ELEV_DP = 3
+ELEV_DP = 3  # round elevations to 1 mm: well below scan noise, and keeps output byte-identical across runs
 
 SOURCE_DOORWAY = "doorway-median"
 SOURCE_PANO = "pano-z-fallback"

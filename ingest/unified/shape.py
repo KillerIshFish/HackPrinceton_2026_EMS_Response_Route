@@ -55,23 +55,26 @@ from shapely.strtree import STRtree
 from ingest.georegister import latlng_to_local, local_to_latlng
 from ingest.unified.schema import Entrance, Level, Link, Space, make_space, r, rp
 
+# All lengths in metres, areas in m2, in the plate's local frame. The values below are tuned heuristics unless
+# a comment says otherwise: picked so the test outlines (rectangle, L, U, courtyard, sliver) lay out cleanly.
 GRID = 0.001            # every polygon is kept on a millimetre grid, so neighbours share edges exactly
-TOL = 0.02              # two outlines closer than this share a wall
-EPS = 0.03              # offset used to look at either side of a wall
-BIG = 1.0e4
-MIN_PIECE_M2 = 0.05     # smaller scraps are dropped
-SIMPLIFY_M = 0.25       # outline vertices closer to a straight line than this are removed
-HOLE_MIN_M2 = 30.0      # a smaller hole is a light well: the plate runs over it
-MIN_OUTLINE_M2 = 60.0
+TOL = 0.02              # two outlines closer than this (m) share a wall; 20x GRID, so grid rounding never splits one
+EPS = 0.03              # offset (m) used to look at either side of a wall; just past TOL, far thinner than any room
+BIG = 1.0e4             # stands in for infinity in half-plane boxes: 10 km, far beyond any plate
+MIN_PIECE_M2 = 0.05     # smaller scraps are dropped (overlay slivers, not floor anyone could stand on)
+SIMPLIFY_M = 0.25       # outline vertices closer to a straight line than this are removed (map/footprint jitter)
+HOLE_MIN_M2 = 30.0      # a smaller hole is a light well: the plate runs over it (assumed; not measured)
+MIN_OUTLINE_M2 = 60.0   # smaller outlines are a shed, not the building (tests: a 6 x 5 m outline falls back to the bar)
 MIN_DEPTH_M = 2.6       # shallowest strip of rooms worth a corridor
-MIN_FRONT_M = 1.2       # a strip must touch its corridor for at least this length
+MIN_FRONT_M = 1.2       # a strip must touch its corridor for at least this length (room for a 0.95 m door and jambs)
 UNIT_FRONT_M = 1.8      # corridor frontage a unit needs; decides how many units a strip can hold
-MAX_WINGS = 8
-MAX_LINK_M = 70.0
-MAX_END_STAIRS = 4
-STAIR_SPREAD_M = 30.0
-ELEVATOR_D = 3.0
+MAX_WINGS = 8           # most rectangles kept as wings; a courtyard block needs four, so eight leaves headroom
+MAX_LINK_M = 70.0       # longest corridor run or jog (m) that joins a new wing to the corridors already placed
+MAX_END_STAIRS = 4      # most stairs placed at corridor dead ends on one plate
+STAIR_SPREAD_M = 30.0   # a third or fourth dead-end stair is added only this far (m) from every stair already chosen
+ELEVATOR_D = 3.0        # depth (m) of the elevator shaft cut from the lobby slab; its width is layout.ELEVATOR_W
 MIN_AREA_SHARE = 0.35   # a plate smaller than this share of the recorded unit areas is the wrong outline
+#                         (tests: a 22 x 9 m garage under 744 m2 of units a floor, about 0.27, falls back)
 
 
 class ShapeError(Exception):
@@ -210,7 +213,8 @@ def _largest_rect(mask: np.ndarray, cap: int) -> Optional[tuple[int, int, int, i
             start = col
             while stack and stack[-1][1] >= cur:
                 s0, hh = stack.pop()
-                # (of two equally long, the deeper: its extra depth becomes a second corridor)
+                # (of two equally long, the deeper: its extra depth becomes a second corridor). Tuned: depth
+                # past ``cap`` adds at most a 30% bonus (0.15 x 2), so length still wins over fatness.
                 short = min(hh, col - s0)
                 score = max(hh, col - s0) * min(short, cap) * (1.0 + 0.15 * min(short / cap, 2.0))
                 if score > best_area:
@@ -223,11 +227,13 @@ def _largest_rect(mask: np.ndarray, cap: int) -> Optional[tuple[int, int, int, i
 def _rects(P: Polygon, min_short: float, min_long: float, min_area: float, deep: float) -> list[tuple[float, float, float, float]]:
     """Rectangles inside ``P``, largest first, that do not overlap: the candidate wings."""
     x0, y0, x1, y1 = P.bounds
+    # raster cell size (m): about 160 cells along the long side, kept within 0.4-1.5 m. Tuned for speed vs.
+    # fit; ``snug`` below grows each rectangle back out to the real walls, so the coarse grid costs little.
     c = min(max(max(x1 - x0, y1 - y0) / 160.0, 0.4), 1.5)
     nx, ny = max(1, math.ceil((x1 - x0) / c)), max(1, math.ceil((y1 - y0) / c))
     xs = x0 + (np.arange(nx) + 0.5) * c
     ys = y0 + (np.arange(ny) + 0.5) * c
-    core = P.buffer(-0.71 * c)  # a cell whose centre is in here lies wholly inside P
+    core = P.buffer(-0.71 * c)  # a cell whose centre is in here lies wholly inside P (0.71 c ~ half a cell diagonal)
     if core.is_empty:
         return []
     gx, gy = np.meshgrid(xs, ys)
@@ -247,6 +253,8 @@ def _rects(P: Polygon, min_short: float, min_long: float, min_area: float, deep:
             return inside.covers(box(*t)) and not any(
                 a[2] > t[0] + 1e-6 and a[0] < t[2] - 1e-6 and a[3] > t[1] + 1e-6 and a[1] < t[3] - 1e-6 for a in out)
 
+        # each side may grow up to 1.6 cells (more than the one cell the raster can lose), found by
+        # 8 halvings: about 1.6 c / 256, i.e. a few millimetres
         for side, sgn in ((0, -1), (2, 1), (1, -1), (3, 1)):
             lo, hi = 0.0, 1.6 * c
             trial = list(rect)
@@ -260,7 +268,7 @@ def _rects(P: Polygon, min_short: float, min_long: float, min_area: float, deep:
             rect = trial
         return tuple(round(v, 3) for v in rect)
 
-    for _ in range(4 * MAX_WINGS):
+    for _ in range(4 * MAX_WINGS):  # rejected rectangles are skipped, so allow a few tries per wing kept
         rc = _largest_rect(mask, max(1, int(deep / c)))
         if rc is None:
             break
@@ -285,6 +293,7 @@ def _reach(P: Polygon, a: int, v: float, u_from: float, sgn: int) -> float:
     for g in _lines(line.intersection(P)):
         us = [p[a] for p in g.coords]
         lo, hi = min(us), max(us)
+        # only the piece that starts at ``u_from`` (within 5 cm of rounding) counts, not one beyond a gap
         if sgn > 0 and lo <= u_from + 0.05:
             best = max(best, hi)
         if sgn < 0 and hi >= u_from - 0.05:
@@ -311,7 +320,8 @@ def _skeleton(P: Polygon, depth: float, cw: float, archetype: str, busiest: int,
                 "side_stairs": 0, "end_band": None}
     bar = 2 * depth + cw  # a corridor with a row of rooms either side
     # a further wing must be long enough to be worth a corridor of its own; anything less is a
-    # bump on its neighbour, whose rooms simply run deeper there
+    # bump on its neighbour, whose rooms simply run deeper there. Tuned floors: a wing is at least
+    # 15 m (or 0.8 bar) long and 60 m2 (or 8% of the plate); depth beyond 1.3 bar earns little in ranking.
     rects = _rects(P, cw + MIN_DEPTH_M, max(15.0, 0.8 * bar), max(60.0, 0.08 * P.area), 1.3 * bar)
     if not rects or min(rects[0][2] - rects[0][0], rects[0][3] - rects[0][1]) < cw + MIN_DEPTH_M:
         raise ShapeError("is too narrow to hold a corridor and a row of rooms")
@@ -331,6 +341,9 @@ def _skeleton(P: Polygon, depth: float, cw: float, archetype: str, busiest: int,
             # corridors side by side: as many as the wing's depth suggests, and enough of them
             # that the busiest floor's units each get a sensible width of corridor wall
             here = busiest * (U1 - U0) * S / P.area  # the wing's share of the busiest floor's units
+            # tuned: one corridor per 1.3 bars of depth, or enough wall (two sides x length) for ``here`` units of
+            # ``unit_w`` (the -0.25 forgives a small shortfall); then at most one corridor per 6 units, and each
+            # corridor keeps rooms at least 3.5 m deep on both sides
             k = max(1, round(S / (1.3 * (2 * depth + cw))), math.ceil(here * unit_w / (2.0 * (U1 - U0)) - 0.25))
             k = min(k, max(1, int(here) // 6))
             while k > 1 and S / k < cw + 2 * 3.5:
@@ -374,7 +387,7 @@ def _skeleton(P: Polygon, depth: float, cw: float, archetype: str, busiest: int,
                         if e["a"] != a or e["role"] != "spine" or dv < 1e-6 or dv > MAX_LINK_M:
                             continue
                         if hi - lo < 0.5 * min(U1 - U0, e["u1"] - e["u0"]):
-                            continue
+                            continue  # sharing less than half the shorter length: end to end, not side by side
                         if not cover.covers(LineString([_pt(a, (lo + hi) / 2, s["v"]), _pt(a, (lo + hi) / 2, e["v"])])):
                             continue  # open air between them: two arms, joined at an end below
                         beside = True
@@ -383,6 +396,7 @@ def _skeleton(P: Polygon, depth: float, cw: float, archetype: str, busiest: int,
                             jog = (dv, s, 0, e, (lo + hi) / 2, None)
                 for s in (new[0], new[-1]) if not beside else ():
                     for sgn in (-1, 1):
+                        # the cross corridor sits half its width (plus 5 cm) inside the wing's end wall
                         ue = (U1 - h - 0.05) if sgn > 0 else (U0 + h + 0.05)
                         for e in segs:
                             dv = abs(e["v"] - s["v"])
@@ -425,6 +439,7 @@ def _skeleton(P: Polygon, depth: float, cw: float, archetype: str, busiest: int,
         for rect in todo:
             w, hgt = rect[2] - rect[0], rect[3] - rect[1]
             axes = [0, 1] if w >= hgt else [1, 0]
+            # a rectangle nearer square than 2:3 tries a corridor both ways; a longer one only along its length
             if min(w, hgt) / max(w, hgt) < 0.67:
                 axes = axes[:1]
             plans = [pl for pl in (plan_wing(len(wings), rect, a) for a in axes) if pl is not None]
@@ -444,7 +459,9 @@ def _skeleton(P: Polygon, depth: float, cw: float, archetype: str, busiest: int,
             wings.append(wing)
             if len(wings) == 1:
                 # the street lies off the end of the main wing: its corridor stops short of that end wall,
-                # leaving room there for the way in
+                # leaving room there for the way in. Tuned: only when the street lies within about 40 degrees
+                # of the wing's axis (|f| >= 0.75) and the wing is 14 m or longer; the band is 0.8 of a room
+                # depth (at least 5 m) but never over 30% of the wing
                 w0 = wings[0]
                 f = front[w0["a"]]
                 L = w0["U1"] - w0["U0"]
@@ -479,6 +496,8 @@ def _skeleton(P: Polygon, depth: float, cw: float, archetype: str, busiest: int,
             if sgn in s["joined"] or sgn in s["open"]:
                 continue
             last = min(us) if sgn < 0 else max(us)
+            # "a little way": a stub no longer than about one room depth plus the corridor, and the trimmed
+            # corridor still at least 3 m long (tuned)
             if 1e-6 < abs(s[key] - last) <= 1.2 * depth + cw and (s["u1"] - s["u0"]) - abs(s[key] - last) >= 3.0:
                 s[key] = last
                 s["joined"].add(sgn)
@@ -487,7 +506,7 @@ def _skeleton(P: Polygon, depth: float, cw: float, archetype: str, busiest: int,
     lines = [_seg_line(s) for s in segs]
     ends = []
     for si, s in enumerate(segs):
-        if s["role"] != "spine" or s["u1"] - s["u0"] < 9.0:
+        if s["role"] != "spine" or s["u1"] - s["u0"] < 9.0:  # tuned: a spine under 9 m has no dead-end stair
             continue
         for sgn in (-1, 1):
             if sgn in s["joined"] or sgn in s["open"]:
@@ -496,6 +515,8 @@ def _skeleton(P: Polygon, depth: float, cw: float, archetype: str, busiest: int,
             if any(j != si and ln.distance(SPoint(p)) < 0.05 for j, ln in enumerate(lines)):
                 continue
             ends.append((si, sgn, p))
+    # two dead ends or fewer: a stair at each. More: the two farthest apart, then (farthest-point first) any
+    # end at least STAIR_SPREAD_M from every stair chosen, up to MAX_END_STAIRS
     chosen: list[tuple[int, int, tuple]] = []
     if archetype != "central_core" and ends:
         if len(ends) <= 2:
@@ -520,8 +541,11 @@ def _skeleton(P: Polygon, depth: float, cw: float, archetype: str, busiest: int,
         s = segs[si]
         on_seg = sum(1 for c in chosen if c[0] == si)
         length = s["u1"] - s["u0"]
+        # the stairs on a corridor leave at least 6 m of it open; on a shorter corridor they shrink, never
+        # below 2.8 m (= layout.STAIR_W, i.e. square)
         sd = STAIR_D if length >= on_seg * STAIR_D + 6.0 else max(2.8, (length - 6.0) / on_seg)
         ue = s["u1"] if sgn > 0 else s["u0"]
+        # the box runs 1 m past the corridor's end so it reaches the end wall; clipping to P trims it
         lo, hi = (ue - sd, ue + 1.0) if sgn > 0 else (ue - 1.0, ue + sd)
         parts = _parts(_inter(_rect(s["a"], lo, hi, s["v"] - STAIR_W / 2, s["v"] + STAIR_W / 2), P))
         if not parts:
@@ -534,13 +558,14 @@ def _skeleton(P: Polygon, depth: float, cw: float, archetype: str, busiest: int,
     corridors: list[Polygon] = []
     corr_seg: list[int] = []
     for si, s in enumerate(segs):
-        if s["u1"] - s["u0"] < 0.3:
+        if s["u1"] - s["u0"] < 0.3:  # eaten to a stub by stairs or trimming
             continue
         # an end that meets another corridor runs on by half a width, so the corner between them is filled
         lo = s["u0"] - (h if -1 in s["joined"] else 0.0)
         hi = s["u1"] + (h if 1 in s["joined"] else 0.0)
         mid = SPoint(_pt(s["a"], (s["u0"] + s["u1"]) / 2, s["v"]))
-        # a corridor against a wall takes the sliver between the wing's rectangle and that wall
+        # a corridor against a wall takes the sliver between the wing's rectangle and that wall (tuned: up to
+        # 1.2 m of it; clipping to P stops it at the wall)
         wall = s.get("wall", 0)
         parts = _parts(_diff(_inter(_rect(s["a"], lo, hi, s["v"] - h - (1.2 if wall < 0 else 0.0),
                                           s["v"] + h + (1.2 if wall > 0 else 0.0)), P), taken))
@@ -571,6 +596,8 @@ def _skeleton(P: Polygon, depth: float, cw: float, archetype: str, busiest: int,
         edges.append((vs[-1] + h, w["V1"], (vs[-1] + h, BIG)))
         cells.extend((_rect(a, U0, U1, lo, hi), _rect(a, U0, U1, *ext) if ext else None)
                      for lo, hi, ext in edges if hi - lo > 0.3)
+    # assumed: a multi-storey plate gets two stairs (two ways down). A central core gets both beside the
+    # corridor; otherwise side stairs only make up what the dead ends did not give
     side = 0
     if stories > 1:
         side = 2 if archetype == "central_core" else max(0, 2 - len(stairs))
@@ -616,6 +643,7 @@ class _Plate:
             for g in (_parts(_inter(grow, left)) if grow is not None and mine else []):
                 gb = _buf(g)  # the sliver or bump between this band and the wall behind it
                 j = max(range(len(mine)), key=lambda j: _contact(mine[j], gb))
+                # 0.3 m of shared edge (here and in ``_absorb``): less is a corner touch, not a real join
                 merged = _union([mine[j], g]) if _contact(mine[j], gb) >= 0.3 else None
                 if merged is not None and merged.geom_type == "Polygon" and not merged.interiors:
                     mine[j] = merged
@@ -633,7 +661,7 @@ class _Plate:
             raise ShapeError("leaves no room for a stair")
         self.base = [self._describe(p) for p in regions]
         self.base = [d for d in self.base if d is not None]
-        if self.dropped > 0.02 * P.area:
+        if self.dropped > 0.02 * P.area:  # tolerance: lose at most 2% of the plate (tests check plates to 2%)
             raise ShapeError(f"leaves {self.dropped:.0f} m2 that no corridor reaches")
         with_entry = self._entry(regions)
         self.variants = {False: (self.base, None, None), True: with_entry}
@@ -646,7 +674,7 @@ class _Plate:
         for ci, si in enumerate(self.sk["corr_seg"]):
             s = self.sk["segs"][si]
             out[ci] = at - s["u0"]
-            at += (s["u1"] - s["u0"]) + 1.0
+            at += (s["u1"] - s["u0"]) + 1.0  # a 1 m gap so the next corridor's stations never tie with this one's
         return out
 
     def _front_of(self, poly: Polygon) -> Optional[tuple[int, float]]:
@@ -663,6 +691,7 @@ class _Plate:
         regions, orphans = [], []
         for p in polys:
             f = self._front_of(p)
+            # a strip needs real frontage and at least 2 m2; anything less is a scrap to absorb
             (regions if f is not None and f[1] >= MIN_FRONT_M and p.area >= 2.0 else orphans).append(p)
         return regions, orphans
 
@@ -671,7 +700,7 @@ class _Plate:
         circulation becomes a strip of its own when it is big enough, otherwise part of that
         circulation space (``others`` first: the lobby, then a corridor)."""
         orphans = sorted(orphans, key=lambda p: -p.area)
-        for _ in range(len(orphans) + 8):
+        for _ in range(len(orphans) + 8):  # bounded: a round may split a scrap in two; it stops when nothing joins
             if not orphans:
                 break
             pending = []
@@ -708,6 +737,7 @@ class _Plate:
         for o in orphans:
             ob = _buf(o)
             f = self._front_of(o)
+            # tuned: a strip of its own needs 6 m2 and to be at least 1.2 m deep on average behind its frontage
             if f is not None and f[1] >= MIN_FRONT_M and o.area >= 6.0 and o.area / f[1] >= 1.2:
                 regions.append(o)
                 continue
@@ -721,6 +751,7 @@ class _Plate:
                 if not group:
                     continue
                 i = max(range(len(group)), key=lambda i: _contact(group[i], ob))
+                # a looser 0.2 m than the strips' 0.3: the last place a scrap can go before it is dropped
                 merged = _union([group[i], o]) if _contact(group[i], ob) >= 0.2 else None
                 if merged is not None and merged.geom_type == "Polygon":
                     group[i] = merged
@@ -772,9 +803,11 @@ class _Plate:
         best = None
         for i, poly in enumerate(regions):
             d = self._describe(poly)
-            if d is None or d["fb"] - d["fa"] < count * stair_w + 2 * UNIT_FRONT_M:
+            if d is None or d["fb"] - d["fa"] < count * stair_w + 2 * UNIT_FRONT_M:  # room for a unit either side
                 continue
             n = _pt(d["axis"], 0.0, float(d["sign"]))
+            # prefer the main wing, then a strip clearly behind the corridor (facing away from the front by
+            # more than 0.3), then the longest frontage
             score = (d["wing"] == 0, -(n[0] * self.front[0] + n[1] * self.front[1]) > 0.3, d["fb"] - d["fa"])
             if best is None or score > best[0]:
                 best = (score, i, d)
@@ -813,13 +846,14 @@ class _Plate:
             cs = list(ln.coords)
             for a, b in zip(cs, cs[1:]):
                 length = math.dist(a, b)
-                if length < 1.2:
+                if length < 1.2:  # too short to hold a door
                     continue
                 nx, ny = (b[1] - a[1]) / length, -(b[0] - a[0]) / length
                 mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
                 if self.shell.contains(SPoint(mx + nx * 0.1, my + ny * 0.1)):
                     nx, ny = -nx, -ny
                 facing = nx * self.front[0] + ny * self.front[1]
+                # facing first (to 0.1, so near-equal walls tie), then length; beyond 6 m length stops counting
                 key = (round(facing, 1), min(length, 6.0))
                 if best is None or key > best[0]:
                     best = (key, a, b, (nx, ny), facing)
@@ -841,6 +875,8 @@ class _Plate:
             room = (fb - fa) - w - 2 * UNIT_FRONT_M
             if room >= 0:
                 target = cx if a == 0 else cy
+                # candidate lobby positions: at the plate's centre, then 6 m and 14 m either side (tuned), each
+                # clamped to leave a unit's frontage at both ends of the strip
                 mids = [min(max(target + off, fa + w / 2 + UNIT_FRONT_M), fb - w / 2 - UNIT_FRONT_M)
                         for off in (0.0, -6.0, 6.0, -14.0, 14.0)]
                 spans = [(m - w / 2, m + w / 2) for m in dict.fromkeys(round(m, 3) for m in mids)]
@@ -867,6 +903,8 @@ class _Plate:
         if self.has_core:
             a = d["axis"]
             across = [p[1 - a] for p in slab.exterior.coords]
+            # a slab at least 1.5 m deeper than the shaft keeps the floor behind the shaft as lobby; a shallower
+            # one gives the elevator its full depth
             deep = (max(across) - min(across)) >= ELEVATOR_D + 1.5
             v0, v1 = sorted((d["vedge"], d["vedge"] + d["sign"] * ELEVATOR_D)) if deep else (-BIG, BIG)
             parts = _parts(_inter(slab, _rect(a, s0, s0 + ELEVATOR_W, v0, v1)))
@@ -890,9 +928,10 @@ class _Plate:
             a = reg["axis"]
             b = reg["poly"].bounds
             lo, hi = (b[0], b[2]) if a == 0 else (b[1], b[3])
-            step = max(0.25, (hi - lo) / 240.0)
+            step = max(0.25, (hi - lo) / 240.0)  # at most ~240 clips per strip, never finer than 25 cm
             us = np.append(np.arange(lo, hi, step), hi)
             areas = np.array([shapely.clip_by_rect(reg["poly"], *(_rect(a, -BIG, u, -BIG, BIG).bounds)).area for u in us])
+            # forced strictly increasing (the 1e-9 ramp) so ``np.interp`` can invert area -> station
             areas = np.maximum.accumulate(areas) + np.arange(len(us)) * 1e-9
             self._tables[key] = (us, areas)
         return self._tables[key]
@@ -910,7 +949,7 @@ class _Plate:
             targets = np.cumsum(weights)[:-1] / sum(weights) * areas[-1]
             st = np.interp(targets, areas, us).tolist()
             fa, fb = reg["fa"], reg["fb"]
-            g = min(1.5, 0.8 * (fb - fa) / n)
+            g = min(1.5, 0.8 * (fb - fa) / n)  # least frontage per piece: 1.5 m, or 80% of an even share
             for i in range(n - 1):  # every piece keeps some frontage on the corridor
                 st[i] = max(st[i], fa + g * (i + 1))
             for i in range(n - 2, -1, -1):
@@ -950,7 +989,6 @@ def _deal(units: list[dict], regions: list[dict], weight: Callable[[dict], float
     else:
         raise ShapeError(f"has corridor walls for {sum(caps)} units on a floor where the record lists {n}")
     areas = [reg["poly"].area for reg in regions]
-    by_area = sorted(range(m), key=lambda i: (-areas[i], i))
     counts = [0] * m
     if n <= m:
         # fewer units than strips: each unit takes a whole strip. Which strips, keeping the units in
@@ -960,7 +998,7 @@ def _deal(units: list[dict], regions: list[dict], weight: Callable[[dict], float
         tour = sorted(range(m), key=lambda i: ((regions[i]["t0"] + regions[i]["t1"]) / 2, i))
         ws = [weight(u) for u in units]
         options = []
-        for pick in itertools.islice(itertools.combinations(range(m), n), 20000):
+        for pick in itertools.islice(itertools.combinations(range(m), n), 20000):  # caps the search's run time
             scale = [areas[tour[j]] / ws[q] for q, j in enumerate(pick)]
             options.append((max(scale) / min(scale), sum(areas[tour[j]] for j in pick), pick))
         fair = [o for o in options if o[0] <= 2.5]
@@ -1045,7 +1083,7 @@ def _shell_walls(polys: dict[str, Polygon]) -> list[tuple[tuple, tuple, tuple]]:
     for pair in sorted(groups):
         merged = linemerge(MultiLineString(groups[pair]))
         for ln in _lines(merged):
-            cs = list(ln.simplify(0.0005).coords)
+            cs = list(ln.simplify(0.0005).coords)  # half the grid: drops only collinear nodes
             out.extend((a, b, pair if len(pair) == 2 else (pair[0], None)) for a, b in zip(cs, cs[1:]))
     return out
 
@@ -1073,7 +1111,7 @@ def site_frame(site: dict) -> dict:
     hint = site.get("street_bearing_deg")
     if hint is None and site.get("address_latlng"):
         east, north = latlng_to_local(site["address_latlng"][0], site["address_latlng"][1], origin)
-        if math.hypot(east, north) >= 5.0:
+        if math.hypot(east, north) >= 5.0:  # an address point within 5 m of the centre gives no usable direction
             hint = math.degrees(math.atan2(east, north)) % 360.0
     options = [box_["axis_deg"], box_["axis_deg"] + 180.0]
     if hint is not None:
@@ -1142,7 +1180,7 @@ def build_outline_layout(facts: dict, roster: dict, site: dict, interior=None) -
     "address_latlng"}`` (see ``context.layout_site``). Raises ``ShapeError`` when the outlines
     cannot hold the record.
     """
-    from ingest.unified.layout import (DOOR_H, DOOR_W, ELEVATOR_W, INTERIOR_MAX_UNITS, PROFILE, STAIR_RUN_M, WALKWAY_M,
+    from ingest.unified.layout import (DOOR_H, DOOR_W, INTERIOR_MAX_UNITS, PROFILE, STAIR_RUN_M, WALKWAY_M,
                                        WINDOW_HEAD, WINDOW_SILL, _opening, _Walls, choose_archetype, generic_interior)
 
     use = facts.get("use_type") or "other"
@@ -1152,6 +1190,7 @@ def build_outline_layout(facts: dict, roster: dict, site: dict, interior=None) -
     levels = [Level(f, str(f), r((f - 1) * hgt), r(hgt), roster["height_source"]) for f in range(1, stories + 1)]
     slots = roster["slots"]
     with_interiors = use in ("apartment", "hotel") and sum(s["kind"] == "unit" for s in slots) <= INTERIOR_MAX_UNITS
+    # assumed: when the record does not say, a building of 4 storeys or more has an elevator
     has_core = archetype == "central_core" or (archetype in ("double_loaded_corridor", "floor_stack") and (
         facts.get("has_elevator") is True or (facts.get("has_elevator") is None and stories >= 4)))
     cw = corridor_w if archetype != "bays" else 0.0
@@ -1241,7 +1280,8 @@ def build_outline_layout(facts: dict, roster: dict, site: dict, interior=None) -
         need = max((sum(weight(s) for s in v) for v in per_floor.values()), default=0.0)
         if need and P.area < MIN_AREA_SHARE * need:
             raise ShapeError(f"({P.area:.0f} m2) is far smaller than the units recorded on one floor ({need:.0f} m2)")
-        # the corridor wall a unit should get: a unit about one and a half times as deep as it is wide
+        # the corridor wall a unit should get: a unit about one and a half times as deep as it is wide.
+        # Assumed: units fill 85% of the plate (the rest is circulation); width capped at 9 m
         unit_w = min(max(_min_w, math.sqrt(0.85 * P.area / busiest / 1.5)), 9.0) if busiest else _min_w
         plate = _Plate(P, depth, cw, archetype, has_core, busiest, front, stories, unit_w)
         outline_area += P.area
@@ -1328,7 +1368,6 @@ def build_outline_layout(facts: dict, roster: dict, site: dict, interior=None) -
                 else:
                     by_pair[(s1, s2)].append((a, b))
             openings: dict[tuple, list] = defaultdict(list)
-            circulation = [sid for sid in polys if kind_of[sid] in ("corridor", "lobby")]
 
             def shared(sid: str, others) -> Optional[tuple]:
                 """Longest wall ``sid`` shares with any of ``others``: ``(length, a, b, other)``."""
@@ -1369,13 +1408,14 @@ def build_outline_layout(facts: dict, roster: dict, site: dict, interior=None) -
                 if kind == "lobby":
                     wall = shared(sid, corridors) or shared(sid, [o for o in polys if o != sid])
                     if wall is not None:
-                        door(sid, wall, "opening", 2.0, "opening")
+                        door(sid, wall, "opening", 2.0, "opening")  # 2 m doorless opening (also for undivided floor)
                     continue
                 if archetype == "bays":
                     continue
                 reg = unit_region.get(sid)
                 own = [f"{btag}w{reg['corr'] + 1}f{f}-cor"] if reg is not None and reg["corr"] is not None else []
                 wall = shared(sid, own) if own else None
+                # under 0.7 m of shared wall is too short for a usable door: look at other circulation first
                 if wall is None or wall[0] < 0.7:
                     wall = shared(sid, corridors) or wall
                 if (wall is None or wall[0] < 0.7) and lobby_id:
@@ -1387,7 +1427,7 @@ def build_outline_layout(facts: dict, roster: dict, site: dict, interior=None) -
                 if kind == "floor":
                     door(sid, wall, "opening", 2.0, "opening")
                 elif kind == "elevator":
-                    door(sid, wall, "doorway", 1.1, "door")
+                    door(sid, wall, "doorway", 1.1, "door")  # same 1.1 m elevator door as the bar in layout.py
                 else:
                     door(sid, wall, "doorway", DOOR_W, "door")
 
@@ -1422,6 +1462,8 @@ def build_outline_layout(facts: dict, roster: dict, site: dict, interior=None) -
                             add(_move_space(child, move))
                 if sid in child_done:
                     continue
+                # assumed glazing: one window on each outer wall 1.5 m or longer (up to six per unit), else one on
+                # the longest wall if it is 0.9 m; each window 1.8 m wide or 45% of its wall, whichever is less
                 glass = sorted(outer.get(sid, ()), key=lambda ab: -math.dist(*ab))
                 glass = [ab for ab in glass if math.dist(*ab) >= 1.5][:6] or [ab for ab in glass[:1] if math.dist(*ab) >= 0.9]
                 for a, b in glass:
@@ -1437,7 +1479,7 @@ def build_outline_layout(facts: dict, roster: dict, site: dict, interior=None) -
                     best = None
                     for a, b in outer.get(sid, ()):
                         d = math.dist(a, b)
-                        if d < 1.1:
+                        if d < 1.1:  # too short for a door
                             continue
                         n = outward(sid, a, b)
                         mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
@@ -1472,7 +1514,7 @@ def build_outline_layout(facts: dict, roster: dict, site: dict, interior=None) -
                         else:
                             link(sid, walk_id, "door", xy=at)
                 else:
-                    if lobby_id:
+                    if lobby_id:  # 1.6 m: the same lobby door width as the bar in layout.py
                         entrance(lobby_id, "Lobby entrance" if has_core else "Main entrance", 1.6)
                     for name in sorted(k for k in here if k.startswith("st")):
                         entrance(here[name], f"Stair {name[-1]} entrance", DOOR_W)
@@ -1517,6 +1559,7 @@ def build_outline_layout(facts: dict, roster: dict, site: dict, interior=None) -
                 pads.append(sid)
                 continue
             half = WALKWAY_M / 2
+            # a WALKWAY_M square pad whose inner edge sits 0.3 m out from the entrance, outside the facade
             cx, cy = xy[0] + out_[0] * (half + 0.3), xy[1] + out_[1] * (half + 0.3)
             tx, ty = -out_[1], out_[0]
             ring = [(cx + sx * half * out_[0] + sy * half * tx, cy + sx * half * out_[1] + sy * half * ty)
@@ -1576,7 +1619,7 @@ def build_outline_layout(facts: dict, roster: dict, site: dict, interior=None) -
         notes.append(f"The building's outline is taken from {source}{detail}; every floor is drawn to that outline.")
     notes.append("The interior is generated by rule from the property record: corridors, stairs, elevators, the lobby "
                  "and the walls between units are not measured.")
-    if scale_hi and (scale_hi > 1.5 or scale_lo < 0.67):
+    if scale_hi and (scale_hi > 1.5 or scale_lo < 0.67):  # only worth a note past about 1.5x either way
         notes.append(f"Units are scaled to fill the outline while keeping their recorded proportions: they are drawn at "
                      f"{scale_lo:.1f} to {scale_hi:.1f} times their recorded areas.")
     if floor_spaces and slots:
@@ -1629,11 +1672,13 @@ def _inner_box(poly: Polygon, reg: dict) -> Optional[tuple[tuple, Callable]]:
     pts = [(p[a], (p[1 - a] - vedge) * sign) for p in poly.exterior.coords]
     ua, ub = min(p[0] for p in pts), max(p[0] for p in pts)
     top = max(p[1] for p in pts)
-    inside = prep(poly.buffer(0.03, join_style="mitre"))
+    inside = prep(poly.buffer(0.03, join_style="mitre"))  # 3 cm slack (the tests allow 5 cm) for grid rounding
 
     def fits(u0: float, u1: float, y0: float, y1: float) -> bool:
         return inside.contains(Polygon([to_local(p) for p in ((u0, y0), (u1, y0), (u1, y1), (u0, y1))]))
 
+    # tuned tries: the full width, then trimmed 15% or 30% at each end, and starting on the corridor wall or
+    # 0.6 m in from it. A box must be at least 2.2 m wide and 2.4 m deep to hold an interior.
     best = None
     for shrink, y0 in ((0.0, 0.0), (0.0, 0.6), (0.15, 0.0), (0.15, 0.6), (0.3, 0.6)):
         u0, u1 = ua + shrink * (ub - ua), ub - shrink * (ub - ua)

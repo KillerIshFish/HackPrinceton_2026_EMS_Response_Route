@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Optional
 
 SCHEMA_VERSION = "bm/1"
-DP = 3
+DP = 3  # coordinates rounded to 1 mm: far below any geometry error here, and keeps the JSON byte-stable
 
 FIDELITY_ORDER = ("surveyed", "traced", "stamped", "cluster", "template", "roster")
 
@@ -63,7 +63,8 @@ class Level:
     label: str
     z0: float
     height_m: float
-    source: str  # doorway-median | pano-z-fallback | assumed | record | default
+    # doorway-median | pano-z-fallback (scan slabs) | scan | plan | assumed | building | record | default
+    source: str
 
 
 @dataclass(frozen=True)
@@ -116,7 +117,7 @@ class Link:
     a: str
     b: str
     kind: str      # door | opening | corridor | stairs | elevator | walkway
-    evidence: str  # opening | scan-graph | template | inferred
+    evidence: str  # opening | scan-graph | template | inferred | plan | building
     length_m: float
     floors: int = 0
     xy: Optional[Point] = None

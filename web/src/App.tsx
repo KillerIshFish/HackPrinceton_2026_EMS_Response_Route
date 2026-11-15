@@ -31,7 +31,9 @@ import type { ViewDef, ViewId } from "./components/ViewTabs";
 import { IncidentBoard } from "./components/IncidentBoard";
 import { StakeCard } from "./components/StakeCard";
 
+// Shown on the load-error screen. Port 8000 must match the dev proxy target in vite.config.ts.
 const BACKEND_CMD = "uv run uvicorn api.server:app --reload --port 8000";
+// allowed values for the remembered view: a stale or tampered localStorage entry falls back to "plan"
 const VIEW_IDS: ViewId[] = ["plan", "3d", "scan", "approach"];
 
 /**
@@ -186,6 +188,8 @@ export default function App() {
   // A generated building's position on the map is refined when the OpenStreetMap lookup
   // returns (it can take a minute). While that is pending, ask for the metadata again and,
   // once it has settled, reload the buildings so entrances and staging carry the new position.
+  // Polls every 6 s and gives up after 30 polls (~3 min), about twice the backend's worst case for
+  // one Overpass lookup (2 attempts x 45 s timeout, ingest/unified/context.py). Tuned, not measured.
   const sitePending = meta?.building_id === buildingId && meta?.site.pending === true;
   useEffect(() => {
     if (!sitePending || !buildingId) return;
@@ -274,6 +278,7 @@ export default function App() {
     return <LoadScreen loading={loading} error={loadError} onRetry={() => void load()} />;
   }
 
+  // pinned/followed floor, else the most probable one, else the first floor (1 only if the building lists none)
   const shownFloor = floor ?? topFloor ?? building.floors[0] ?? 1;
   const selectFloor = (f: number) => {
     setFollow(false);
@@ -291,7 +296,7 @@ export default function App() {
   const { policy } = state;
 
   // -------------------------------------------------------------------------
-  // SLOTS for step D4. Each renders nothing until D4 fills it; D4 edits only these lines.
+  // Slots from build-plan step D4 (docs/BUILD_PLAN.md), now filled.
   // -------------------------------------------------------------------------
   /** D4: <IncidentBoard .../>. Replaces the search plan when policy.show_incident_board (active threat). */
   const incidentBoard: ReactNode = (
@@ -606,7 +611,10 @@ function ScenarioPicker({
   );
 }
 
-/** "28 scanned, 21 from suite records, 99 inferred", or "all scanned" for a whole-building scan */
+/**
+ * "28 scanned, 21 from unit and tenant records, 99 inferred"; a single phrase when every room has one
+ * source ("all from one Matterport scan", "traced from the published floor plans").
+ */
 function sourceSummary(sources: Record<string, number>, total: number): string {
   const scanned = sources.matterport ?? 0;
   if (scanned === total) return "all from one Matterport scan";

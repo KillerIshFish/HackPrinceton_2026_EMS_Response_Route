@@ -8,6 +8,8 @@ interface Props {
   incidentType: IncidentType;
 }
 
+// Incident types for which stairs-vs-elevator times are shown. Fire/smoke is left out (the backend offers
+// no elevator option there; docs/BUILD_PLAN.md), as are active threat (route off) and unknown.
 const MEDICAL: ReadonlySet<IncidentType> = new Set([
   "cardiac_arrest",
   "stroke",
@@ -20,6 +22,7 @@ const MEDICAL: ReadonlySet<IncidentType> = new Set([
 /**
  * One figure for the stake: "under 0.1" below 0.1, two decimals (trailing zeros trimmed)
  * below 1, one decimal otherwise. Never "0": zero and anything below 0.1 read "under 0.1".
+ * docs/BUILD_PLAN.md: "A quantified stake is never reported as 0: floor the display at 'under 0.1'."
  */
 export function formatStake(v: number): string {
   if (!Number.isFinite(v) || v < 0.1) return "under 0.1";

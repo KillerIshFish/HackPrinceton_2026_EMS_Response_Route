@@ -34,8 +34,10 @@ ROOM_TYPE_BY_KIND = {"unit": "unit", "tenant": "suite", "floor": "suite", "corri
                      "amenity": "common_area", "room": "room"}
 EDGE_KIND = {"door": "door", "opening": "door", "corridor": "corridor", "walkway": "corridor", "stairs": "stairs",
              "elevator": "elevator"}
-NEAR_M = 10.0
-STAGING_OFFSET_M = 7.0
+NEAR_M = 10.0  # assumed: a room within 10 m (centroid to centroid) of a stair/elevator counts as "near" it
+STAGING_OFFSET_M = 7.0  # assumed: responders stage 7 m straight out from an entrance door
+# Fallback when OSM shows nothing in front of the glass: a window within 60 degrees of the street bearing
+# counts as facing the street (tuned heuristic; wider would call side windows street-facing).
 FACING_TOLERANCE_DEG = 60.0
 
 
@@ -128,7 +130,7 @@ def to_building(bm: BuildingModel, context: Optional[dict] = None) -> Building:
             if drawn:
                 # a unit cut from a real outline can wrap a corner, so its middle does not say which
                 # side of a wall is inside: step off the wall and see
-                if point_in_polygon(mx + nx * 0.2, my + ny * 0.2, by_id[rid].polygon):
+                if point_in_polygon(mx + nx * 0.2, my + ny * 0.2, by_id[rid].polygon):  # 0.2 m: past wall thickness
                     nx, ny = -nx, -ny
             elif (mx + nx - c[0]) ** 2 + (my + ny - c[1]) ** 2 < (mx - nx - c[0]) ** 2 + (my - ny - c[1]) ** 2:
                 nx, ny = -nx, -ny
@@ -170,6 +172,8 @@ def to_building(bm: BuildingModel, context: Optional[dict] = None) -> Building:
             area_m2=max(s.area_m2, 0.01), room_type=s.room_type or ROOM_TYPE_BY_KIND.get(s.kind, "room"),
             has_windows=bool(dirs), window_facing=facing, near_elevator=near(s, "elevator"),
             near_stairs=near(s, "stair"),
+            # prior weight (core.prior multiplies it in): an outdoor walkway rarely holds a caller (0.05); a
+            # "no unit data" plate is half-weighted (0.5) as its use is unknown. Tuned heuristic.
             occupancy_factor=0.05 if s.kind == "walkway" else 0.5 if s.kind == "floor" else 1.0,
         ))
 
@@ -204,7 +208,7 @@ def to_building(bm: BuildingModel, context: Optional[dict] = None) -> Building:
         entrances.append({"id": e.id, "name": e.name, "room_id": rid, "xy": [e.xy[0], e.xy[1]],
                           "latlng": ground(*e.xy), "facing": "street"})
         sx, sy = e.xy[0] + e.outward[0] * STAGING_OFFSET_M, e.xy[1] + e.outward[1] * STAGING_OFFSET_M
-        if all(math.dist((sx, sy), s["xy"]) > 10.0 for s in staging):
+        if all(math.dist((sx, sy), s["xy"]) > 10.0 for s in staging):  # merge staging spots within 10 m
             staging.append({"id": f"stage-{len(staging) + 1}", "name": f"Outside {e.name[:1].lower()}{e.name[1:]}",
                             "xy": [round(sx, 2), round(sy, 2)],
                             "latlng": ground(e.xy[0], e.xy[1], (e.outward[0] * STAGING_OFFSET_M,

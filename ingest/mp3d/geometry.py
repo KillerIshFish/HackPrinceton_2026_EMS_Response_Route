@@ -12,8 +12,8 @@ from typing import Iterable, Mapping, Optional, Sequence
 
 Point = tuple[float, float]
 
-COORD_DP = 4  # decimal places kept in emitted coordinates (determinism)
-EPS = 1e-9
+COORD_DP = 4  # decimal places kept in emitted coordinates (determinism); 0.1 mm, far below scan precision
+EPS = 1e-9  # float tolerance for zero area / collinearity tests on metre-scale coordinates
 
 
 def ring_from_edges(edges: Sequence[dict]) -> Optional[list[Point]]:
@@ -157,7 +157,7 @@ def triangulate(polygon: Sequence[Point]) -> list[tuple[int, int, int]]:
         return []
     remaining = list(range(n))
     triangles: list[tuple[int, int, int]] = []
-    guard = 0
+    guard = 0  # each pass clips one ear, so n*n passes is a generous cap that only trips on a degenerate ring
     while len(remaining) > 3 and guard <= n * n:
         guard += 1
         clipped = False
@@ -196,6 +196,7 @@ def convex_hull(points: Sequence[Point]) -> list[Point]:
     hull of its scan positions is the best available footprint. It is always an
     under-estimate: a camera never stands against the walls.
     """
+    # Round to 1 micrometre so float-noise duplicates collapse before the hull is built.
     pts = sorted(set((round(x, 6), round(y, 6)) for x, y in points))
     if len(pts) <= 2:
         return list(pts)

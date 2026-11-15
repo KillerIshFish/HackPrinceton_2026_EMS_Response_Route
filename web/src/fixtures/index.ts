@@ -100,6 +100,8 @@ export class FixtureBackend {
   async load(name: FixtureName = this.name): Promise<DemoState> {
     this.name = name;
     const raw = await loadJson<DemoState>(name);
+    // Move the capture moment to now. Only times from the call start on are shifted, so premise-record
+    // dates (older than the call) keep their real values.
     const start = Date.parse(raw.situation.call_started_at ?? "") || capturedAt(raw);
     const delta = Date.now() - capturedAt(raw);
     this.state = shiftTimes(raw, start, delta) as DemoState;

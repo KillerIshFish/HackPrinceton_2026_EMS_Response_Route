@@ -19,7 +19,11 @@ import urllib.request
 from typing import Any, Mapping, Optional
 
 ENDPOINT = "https://api.matterport.com/api/models/graph"
+# Assumed: generous ceiling for an offline ingest call; a GEOMETRY fetch measures ~225 ms (see fetch.py), so 60 s only
+# trips on a hung connection.
 DEFAULT_TIMEOUT_S = 60.0
+# Tuned heuristic: 3 tries with linear backoff (0.75 s, then 1.5 s) rides out a brief 429/5xx blip while keeping a
+# dead endpoint's worst case to roughly 3 timeouts plus 2.25 s of sleep.
 MAX_ATTEMPTS = 3
 BACKOFF_S = 0.75
 
@@ -83,7 +87,7 @@ class MatterportClient:
                     payload = json.loads(response.read().decode())
                 break
             except urllib.error.HTTPError as exc:
-                detail = exc.read()[:400].decode("utf8", "ignore")
+                detail = exc.read()[:400].decode("utf8", "ignore")  # cap the body echoed into the error message
                 if exc.code in (429, 500, 502, 503, 504) and attempt < MAX_ATTEMPTS:
                     last = f"HTTP {exc.code}: {detail}"
                     time.sleep(BACKOFF_S * attempt)
@@ -105,6 +109,7 @@ class MatterportClient:
             raise MatterportError(last or "request failed")
 
         if payload.get("errors"):
+            # First 4 GraphQL errors only: enough to diagnose, short enough to read in a traceback.
             messages = "; ".join(
                 str(e.get("message", e)) for e in payload["errors"][:4]
             )

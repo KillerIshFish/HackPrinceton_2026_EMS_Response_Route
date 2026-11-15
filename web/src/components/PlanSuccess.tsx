@@ -4,6 +4,7 @@ import { pct } from "../lib";
 /** Under the plan header: the chance the plan finds the caller by its last stop. */
 export function PlanSuccess({ plan }: { plan: SearchPlan }) {
   const value = plan.cumulative_success;
+  // bar width in %, defensively clamped to 0..100 so an out-of-range value cannot overflow the track
   const w = value === null ? 0 : Math.min(100, Math.max(0, value * 100));
   return (
     <div className="shrink-0 border-b border-line px-3 py-1.5">

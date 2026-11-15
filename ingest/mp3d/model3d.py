@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Optional
 
 from ingest.mp3d import geometry as geo
 from ingest.mp3d import slabs as slabmod
@@ -24,8 +24,10 @@ from ingest.mp3d.fetch import fetch_geometry
 from ingest.mp3d.preflight import TIER_DEGRADED, TIER_FULL
 
 SCHEMA_VERSION = "mp3d/1"
+# Tuned heuristic: rings under 1.5 m2 are annotation slivers or shafts too small to hold a caller, so they are
+# dropped (and counted in stats) rather than becoming searchable rooms.
 MIN_ROOM_AREA_M2 = 1.5
-DROP_CLASSIFICATIONS = frozenset({"Void"})
+DROP_CLASSIFICATIONS = frozenset({"Void"})  # Matterport's label for non-room space (shafts, open-to-below)
 AREA_DP = 3
 
 
@@ -257,6 +259,7 @@ def model_from_payload(payload: dict, model_id: Optional[str] = None) -> Model3D
         for opening in wall.openings:
             overlap = min(opening.z1, hi) - max(opening.z0, lo)
             span = opening.z1 - opening.z0
+            # 1 cm tolerance so rounding noise at a slab edge is not counted as clipping.
             if overlap <= 0.01:
                 outside += 1
             elif overlap < span - 0.01:

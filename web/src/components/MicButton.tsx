@@ -77,7 +77,11 @@ const FATAL: Record<string, string> = {
 
 const NO_SPEECH = "No speech heard yet. Still listening.";
 
-/** More restarts than this inside RESTART_WINDOW_MS means the service keeps dropping: stop. */
+/**
+ * More restarts than this inside RESTART_WINDOW_MS means the service keeps dropping: stop.
+ * Tuned heuristic (not measured): more than 8 session ends in 10 s is read as a failing service rather
+ * than ordinary silence, and stops what would otherwise be a tight restart loop.
+ */
 const MAX_RESTARTS = 8;
 const RESTART_WINDOW_MS = 10_000;
 
@@ -135,6 +139,10 @@ export function MicButton({ speaker, busy, onFinal, onInterim }: Props) {
     if (!Ctor) return;
     teardown("abort");
     const rec = new Ctor();
+    // continuous: keep listening across sentences (one final result per sentence becomes one turn).
+    // interimResults: stream partial words so the dispatcher sees them greyed while the caller talks.
+    // maxAlternatives 1: only the top transcript is used; nothing downstream picks between guesses.
+    // lang: the page's lang attribute (index.html sets "en", so that wins), else the browser's, else en-US.
     rec.continuous = true;
     rec.interimResults = true;
     rec.maxAlternatives = 1;
@@ -237,7 +245,7 @@ export function MicButton({ speaker, busy, onFinal, onInterim }: Props) {
   useEffect(() => {
     if (busy || queued.length === 0) return;
     const [next, ...rest] = queued;
-    // after the parent's own "request settled" effects have run
+    // 0 ms: run after the parent's own "request settled" effects (e.g. clearing the pending turn)
     const id = window.setTimeout(() => {
       setQueued(rest);
       if (next) onFinalRef.current(next.text, next.speaker);

@@ -76,17 +76,21 @@ from core.phone_likelihood import phone_likelihood
 from core.prior import compute_prior
 from core.schema import Banner, Building, Clue, Evidence, PhoneFix
 
+# Noise floor of a descriptive statement (judgement; kept by docs/BUILD_PLAN.md step C1): no factor
+# drops below 0.1, so one wrong statement shifts the odds between two rooms by at most 1/eps = 10 to 1.
 EPS = 0.1
 STATEMENTS_PATH = Path(__file__).resolve().parents[1] / "configs" / "statements.yaml"
-# A room counts as named by a statement when its match value is at least this.
+# A room counts as named by a statement when its match value is at least this (1.0 less float slack).
 _NAMED_AT = 1.0 - 1e-9
 # Rationale prefix of the interpreter's overall conclusion (parser.agent record_conclusion).
 CONCLUSION_TAG = "Conclusion"
 # A floor is inside the phone's height fix when its likelihood is at least this share of the
 # best floor's: exp(-0.5 * 1.28^2), the 80 % bound the fix is quoted with (+/- 3 m).
+# 1.28 is the two-sided 80 % quantile of the standard normal (z = 1.2816), as in schema.Z_SIGMA_M.
 PHONE_BAND = math.exp(-0.5 * 1.28 ** 2)
 # With the phone's share, the stated rooms still hold at least this multiple of the mass on
 # the phone's floors (when the statement alone is strong enough for that).
+# Tuned heuristic: 10 % headroom so the stated place visibly leads rather than tying the phone's floor.
 _LEAD_MARGIN = 1.1
 
 
@@ -99,6 +103,8 @@ _LEAD_MARGIN = 1.1
 class StatementSettings:
     """Weights of a specific caller statement (see ``configs/statements.yaml``)."""
 
+    # Fallbacks equal the values in configs/statements.yaml (all labelled judgement there), so a
+    # missing or unreadable file gives the same weights.
     share_low: float = 0.40  # stated share of a hesitant, vague statement
     share_high: float = 0.95  # stated share of a plain, exact statement; cap on any one statement
     missing_rating: float = 0.5  # certainty / specificity used when a rating is missing
@@ -129,6 +135,8 @@ def _load_settings(path: str) -> StatementSettings:
     missing, l_missing = _entry(share.get("missing_rating"), d.missing_rating)
     reinforced, l_reinforced = _entry(data.get("reinforced_share_max"), d.reinforced_max)
     phone, l_phone = _entry(data.get("phone_share_when_caller_disagrees"), d.phone_share)
+    # Safety clamps on edited configs: shares stay below 1 so a room a statement does not name never
+    # reaches zero, and the phone keeps at most 0.9 so the caller's reading always keeps some mass.
     high = min(0.999, max(0.0, high))
     low = min(high, max(0.0, low))
     return StatementSettings(
@@ -438,6 +446,7 @@ def fuse_detail(
         return Fused(probs, nim, set_aside, [], 0.0, band)
 
     # Reading 1, the caller is right: the height fix is left out (any horizontal fix stays).
+    # Dividing out the height part; 1e-300 only guards the division (phone likelihoods are >= 1e-12).
     level = {rid: phone_lik.get(rid, 1.0) / max(phone_height.get(rid, 1.0), 1e-300) for rid in pri}
     caller, caller_nim = posterior(kept, level)
     # Reading 2, the phone is right: every statement it contradicts is left out, so an
@@ -565,7 +574,8 @@ def posterior_probs(
     """Full pipeline: prior -> phone likelihood -> statement matches -> fuse.
 
     ``clues`` may mix vocabulary ``Clue`` objects and ``Evidence`` items; inactive
-    evidence is skipped (see ``statement_matches``).
+    evidence is skipped (see ``statement_matches``). ``hour`` defaults to 14:00, inside the
+    ``business`` band of configs/priors.yaml (the daytime office prior).
     """
     prior, p_nim = compute_prior(building, hour=hour, priors_cfg=priors_cfg)
     return fuse(prior, p_nim, phone_likelihood(building, fix), statement_matches(building, clues, vocab),

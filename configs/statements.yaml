@@ -27,8 +27,9 @@ version: 1
 # specificity how exactly the words pin the place down, 0 to 1 (a number or a name given in
 #             full 1.0, "somewhere on three" / "the third or fourth floor" about 0.5)
 #
-# In Claude Haiku mode the model rates both for each statement; in rules mode fixed word
-# patterns estimate the same two things (parser/statement_rating.py). The mapping is the same.
+# In the model modes ("llm" / "agent", parser/agent.py) the model rates both for each statement;
+# in rules mode fixed word patterns estimate the same two things (parser/statement_rating.py).
+# The mapping is the same.
 # ---------------------------------------------------------------------------
 stated_share:
   low:
@@ -52,6 +53,7 @@ stated_share:
 # reinforce each other, up to this share. Below 1 so that later evidence can still move it.
 # ---------------------------------------------------------------------------
 reinforced_share_max:
+  # core/fusion.py clamps this to [stated_share.high, 0.999] and the phone share to at most 0.9.
   value: 0.999
   range: [0.99, 0.999]
   label: judgement

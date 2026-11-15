@@ -5,8 +5,8 @@ tenant name, or a floor. Its weight in fusion is the stated share
 ``core.fusion.stated_share(certainty, specificity)`` (0.40 to 0.95, ``configs/statements.yaml``).
 Two readers give the two ratings, and they differ only in who rates:
 
-* Claude Haiku mode: the model rates each statement (``parser.agent``); ``clean_rating``
-  checks what it wrote.
+* model modes ("llm" / "agent", ``parser.agent``): the model gives certainty and specificity
+  on each ``record_location`` / ``record_floor`` it makes; ``clean_rating`` checks what it wrote.
 * rules mode: ``rate_statement`` estimates the same two things from fixed word patterns.
 
 Ratings are numbers in [0, 1]:
@@ -28,6 +28,10 @@ from typing import Any, Optional
 
 from core.fusion import StatementSettings, stated_share, statement_settings
 
+# Rule ratings (see the module docstring). Hand-set judgements, like every number in
+# configs/statements.yaml: one hedge or a questioning tone halves certainty, real doubt quarters it,
+# an approximate place halves specificity. They match the anchors the record tools give the model
+# (``parser.building_tools._CERTAINTY`` / ``_SPECIFICITY``: "about 0.5" for one hedge or approximate).
 MILD_HEDGE_FACTOR = 0.5
 STRONG_HEDGE_FACTOR = 0.25
 QUESTION_FACTOR = 0.5
@@ -100,7 +104,7 @@ def _neighbour_clauses(text: str, lo: int, hi: int) -> str:
     fire is in 301" does not."""
     out = []
     breaks = [m for m in _CLAUSE_BREAK.finditer(text)]
-    # walk back over hedge-only clauses
+    # walk back over hedge-only clauses (at most 3 each way: "uh, well, I think, 302")
     edge = lo
     for _ in range(3):
         before_lo = max((m.end() for m in breaks if m.end() < edge), default=0)
@@ -128,8 +132,8 @@ def _neighbour_clauses(text: str, lo: int, hi: int) -> str:
 
 
 def rate_statement(text: str, start: int, end: int) -> Rating:
-    """Rule estimate for the statement at ``text[start:end]`` (rules mode, and the default the
-    model's rating replaces in Claude Haiku mode).
+    """Rule estimate for the statement at ``text[start:end]`` (rules mode; in the model modes,
+    the fallback ``clean_rating`` uses when the model leaves a rating out).
 
     Hedges count only in the statement's own clause, or in a neighbouring clause that is
     nothing but a hedge. A question mark closing the statement's sentence counts as a
@@ -151,6 +155,7 @@ def rate_statement(text: str, start: int, end: int) -> Rating:
         certainty *= QUESTION_FACTOR
     specificity = 1.0
     if (_APPROXIMATE_BEFORE.search(text[lo:start]) or _APPROXIMATE_AFTER.match(text[end:hi])
+            # 40 chars back: room for "the third or" before "fourth floor"
             or _ALTERNATIVE_AFTER.match(text[end:]) or _ALTERNATIVE_BEFORE.search(text[max(0, start - 40):start])):
         specificity = APPROXIMATE_SPECIFICITY
     return Rating(round(certainty, 4), specificity)

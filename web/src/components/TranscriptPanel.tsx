@@ -56,6 +56,7 @@ interface Props {
   building: Building;
   /** policy.show_incident_board: no caller-contact prompts */
   activeThreat: boolean;
+  /** 0-based index of the latest revealed scripted turn; shown 1-based and capped at totalTurns */
   turn: number;
   totalTurns: number;
   /** which interpreter the next caller turn goes through */
@@ -443,6 +444,7 @@ export function TranscriptPanel({
               ref={inputRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              // mirrors MAX_UTTERANCE_CHARS (api/session.py), so a typed turn is never rejected with a 422
               maxLength={600}
               autoComplete="off"
               placeholder={interim ? "" : speaker === "caller" ? "Type what the caller just said" : "Type what you said to the caller"}

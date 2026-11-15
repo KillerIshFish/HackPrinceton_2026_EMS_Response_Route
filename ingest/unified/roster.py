@@ -26,8 +26,12 @@ import re
 from collections import Counter, defaultdict
 from typing import Optional
 
+# Assumed floor-to-floor heights (m) by use type, used only when the record has no slab-to-slab height;
+# the level's height_source then says "default". Not measured or taken from a code.
 DEFAULT_STOREY_M = {"apartment": 3.0, "hotel": 3.2, "office": 4.0, "retail": 4.5, "industrial": 7.0,
                     "flex": 5.0, "healthcare": 4.2, "mixed_use": 3.6, "other": 3.5}
+# Tuned heuristic: a scheme must explain 85% of unit numbers; lower lets a wrong scheme win on a few
+# coincidental matches, higher rejects real schemes over a handful of odd labels.
 SCHEME_MIN_SHARE = 0.85
 STOREY_TOLERANCE = 2  # unit numbers may name a floor this far above the recorded storey count
 SCHEMES = ("floor_hundreds", "floor_first_digit", "building_floor", "building_hundreds", "sequential")
@@ -48,7 +52,7 @@ def parse_number(raw: str) -> tuple[str, Optional[int], str]:
     if "#" in text:
         text = text.split("#")[-1].strip()
     m = _PREFIXED.search(text)
-    if m and len(m.group(1)) <= 3:
+    if m and len(m.group(1)) <= 3:  # a building prefix is at most 3 characters ("B", "01")
         return m.group(1).lstrip("0") or "0", int(m.group(2)), text
     tail = text.split(" - ")[-1].split()[-1] if text.split() else text
     m = _PLAIN.search(tail)
@@ -85,7 +89,7 @@ def infer_scheme(numbers: list[int], stories: int, num_buildings: int) -> str:
 
     if share("floor_hundreds") >= SCHEME_MIN_SHARE:
         return "floor_hundreds"
-    if top <= 9 and share("floor_first_digit") >= SCHEME_MIN_SHARE:
+    if top <= 9 and share("floor_first_digit") >= SCHEME_MIN_SHARE:  # one digit can only name floors 1-9
         return "floor_first_digit"
     # Door numbers that run a floor or two past the recorded storey count ("2xx" to "6xx" in a
     # building listed with five storeys: a lobby or parking level the record does not count).
@@ -154,7 +158,7 @@ def build_roster(facts: dict, scheme_override: Optional[str] = None) -> dict:
                 "id": f"u{uid}", "kind": "unit", "label": label, "block": str(block or ""), "floor": floor,
                 "floor_source": source, "area_m2": u.get("area_m2"), "beds": u.get("beds"), "baths": u.get("baths"),
                 "type": u.get("type") or "", "scans": list(u.get("scans") or []), "tenant": "",
-                "sort": number if number is not None else 10 ** 9,
+                "sort": number if number is not None else 10 ** 9,  # 10**9: unnumbered units sort last
             })
     elif facts.get("total_units"):
         # a unit count but no unit list: numbered placeholders, spread over the floors
@@ -170,6 +174,7 @@ def build_roster(facts: dict, scheme_override: Optional[str] = None) -> dict:
             label = f"{t['suite']} {t['tenant']}"
         number = parse_number(t.get("suite") or "")[1]
         slots.append({
+            # label capped at 60 characters for display
             "id": f"t{t.get('id') or len(slots)}", "kind": "tenant", "label": label[:60], "block": "",
             "floor": t.get("floor"), "floor_source": "record" if t.get("floor") else "",
             "area_m2": t.get("area_m2") or None, "beds": None, "baths": None, "type": "", "scans": [],

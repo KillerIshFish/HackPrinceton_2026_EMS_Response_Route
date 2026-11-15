@@ -18,7 +18,7 @@ constant) + in-building time until the search of the TRUE room completes (per ar
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Mapping, Optional, Sequence
 
 import numpy as np
@@ -29,14 +29,18 @@ import numpy as np
 
 # Call-to-curb (911 call to EMS arrival on scene), urban US: median 7.0 min, IQR 5.0-10.0
 # (Mell et al. 2017, JAMA Surgery 152:983, NEMSIS). Lognormal with that median and the IQR's
-# log-width: sigma = ln(10/5) / (2 * 0.6745) = 0.514.
-CURB_MEDIAN_S = 420.0
+# log-width: sigma = ln(10/5) / (2 * 0.6745) = 0.514 (0.6745 = standard-normal 75th percentile).
+CURB_MEDIAN_S = 420.0  # 7.0 min
 CURB_SIGMA = math.log(10.0 / 5.0) / (2 * 0.6745)
-ENTRY_S = 60.0  # curb to the building entrance (shared by all arms; judgement)
+# Curb to the building entrance, shared by all arms. Judgement, not measured: it cancels in every
+# A/B/C time difference, but for cardiac arrest it moves where on the survival curve contact falls.
+ENTRY_S = 60.0  # 1 min, as stated in REPORT.md
 
 # Phone fix: z-axis present 90% of the time (FCC z-axis: +-3 m for 80% of calls, the
 # model's own sigma); horizontal fix present half the time with sigma 30 m, deliberately
 # looser than the simulator's 15 m default (FCC horizontal benchmark is 50 m for 80%).
+# The two availability rates (0.9, 0.5) are assumptions; no measured rate is cited in the repo.
+# They equal sim.sample_caller.sample_phone_fix's defaults; the no_phone variant drops the fix.
 P_Z = 0.9
 P_HORIZONTAL = 0.5
 HORIZONTAL_SIGMA_M = 30.0
@@ -59,14 +63,23 @@ BUILDING_SHORT = {
 class CallType:
     key: str
     label: str
-    situation: Mapping[str, Any]
-    personas: Mapping[str, float]
+    situation: Mapping[str, Any]  # core.schema.Situation fields; drive the travel profile and survival curve
+    personas: Mapping[str, float]  # sim/personas.yaml name -> sampling weight (normalised in _persona_for)
+    # curve: cardiac survival curve on the call clock; linear_call: rate x minutes from the call;
+    # linear_arrival: rate x minutes after reaching the entrance; time_only: no outcome model.
     outcome: str  # "curve" | "linear_call" | "linear_arrival" | "time_only"
     rate_pp_min: Optional[tuple[float, float, float]] = None  # low, mid, high (linear only)
     outcome_label: str = ""
     complaint: str = ""  # for the speech generator
 
 
+# Assumptions shared by every call type below:
+# - load="heavy": the crew carries kit, so stairs cost 29 s per floor (ODPM 2/2005, configs/situations.yaml).
+# - Persona mixes are judgement (who plausibly makes that call); no call-mix data is cited in the repo.
+# - rate_pp_min is copied by hand from configs/situations.yaml survival.<type>.stake_per_min as
+#   (range low, value, range high); it is not read from that file, so the two must be kept in sync.
+# - Cardiac curves are not set here: situation.survival picks Valenzuela 1997 when witnessed is True
+#   and De Maio 2003 otherwise, with coefficients from configs/situations.yaml.
 CALL_TYPES: list[CallType] = [
     CallType(
         "cardiac_cpr", "Cardiac arrest, witnessed, bystander CPR",
@@ -93,6 +106,7 @@ CALL_TYPES: list[CallType] = [
         "fire_smoke", "Fire / smoke, trapped occupant",
         dict(incident_type="fire_smoke", smoke_reported=True, load="heavy"),
         {"panicked": 0.6, "calm_employee": 0.2, "elderly": 0.2}, "linear_arrival",
+        # Voluntary survey in trade press, not a fitted curve (configs/situations.yaml survival.fire_smoke).
         rate_pp_min=(2.5, 3.75, 5.0),
         outcome_label="Survival points lost per minute after FD arrival (2.5-5 pp/min)",
         complaint="there is smoke filling the room and you cannot get out",
@@ -101,6 +115,7 @@ CALL_TYPES: list[CallType] = [
         "stroke", "Stroke",
         dict(incident_type="stroke", load="heavy"),
         {"elderly": 0.4, "bystander": 0.4, "calm_employee": 0.2}, "linear_call",
+        # Labelled "derived" from the project's evidence report (configs/situations.yaml survival.stroke).
         rate_pp_min=(0.03, 0.08, 0.13),
         outcome_label="Good functional outcome lost per minute (0.03-0.13 pp/min)",
         complaint="the person with you suddenly can't speak properly and one side of their face is drooping",
@@ -109,6 +124,7 @@ CALL_TYPES: list[CallType] = [
         "internal_bleeding", "Internal bleeding",
         dict(incident_type="internal_bleeding", load="heavy"),
         {"injured": 0.6, "calm_employee": 0.2, "panicked": 0.2}, "linear_call",
+        # Labelled "derived" from the evidence report (configs/situations.yaml survival.internal_bleeding).
         rate_pp_min=(0.2, 0.35, 0.5),
         outcome_label="Mortality added per minute (0.2-0.5 pp/min)",
         complaint="you fell hard, your belly hurts badly and you feel faint and dizzy",
@@ -123,7 +139,10 @@ CALL_TYPES: list[CallType] = [
 ]
 CALL_TYPE_BY_KEY = {c.key: c for c in CALL_TYPES}
 
-# Robustness variants (main = the default world).
+# Robustness variants (main = the default world). uniform_truth draws the true room uniformly instead of
+# from the occupancy prior; error_x2 / error_x4 scale each persona's error_rate (see _persona_for);
+# no_phone drops the fix (only arm C uses it); no_clues drops the clues for arms B and C alike, so arm B
+# has no stated floor or type and its order collapses to arm A's nearest-first sweep.
 VARIANTS = {
     "main": "Main benchmark",
     "uniform_truth": "Caller anywhere, equal odds",
@@ -150,7 +169,9 @@ def engine() -> dict[str, Any]:
     buildings = {}
     for bid in BUILDINGS:
         b = generate_synthetic_office() if bid == "ptc-100" else load_building(bid)
+        # hour=14 throughout the benchmark: the same 2 pm business-hours prior as api.session.DEMO_HOUR.
         prior, _ = compute_prior(b, hour=14)
+        # The searchable set: every room the prior gives any mass (all three arms sweep exactly these).
         universe = [r.id for r in b.rooms if prior.get(r.id, 0.0) > 0.0]
         buildings[bid] = {"b": b, "rooms": {r.id: r for r in b.rooms}, "universe": universe}
     _STATE["buildings"] = buildings
@@ -165,14 +186,17 @@ def engine() -> dict[str, Any]:
 def _t(travel, a, b) -> float:
     if a == b:
         return 0.0
+    # Pair missing from the travel table (no path in the graph): charge 1 h so it sorts last in a
+    # nearest-first chain. Placeholder penalty, not a measured time; the same for every arm.
     return travel.get(a, {}).get(b, 3600.0)
 
 
 def nearest_chain(members: Sequence[str], here: str, travel) -> tuple[list[str], str]:
+    """Greedy nearest-neighbour walk over ``members`` from ``here``; returns (order, last room)."""
     left = list(members)
     out = []
     while left:
-        nxt = min(left, key=lambda r: (_t(travel, here, r), r))
+        nxt = min(left, key=lambda r: (_t(travel, here, r), r))  # ties broken by room id, for determinism
         out.append(nxt)
         left.remove(nxt)
         here = nxt
@@ -180,6 +204,9 @@ def nearest_chain(members: Sequence[str], here: str, travel) -> tuple[list[str],
 
 
 def informed_order(universe, start, travel, rooms, stated_floor: Optional[int], stated_type: Optional[str]) -> list[str]:
+    """Arm B: tier 0 = stated type on stated floor, 1 = rest of that floor, 2 = that type elsewhere,
+    3 = everything else; each tier is walked nearest-first, continuing from where the last one ended.
+    With neither a floor nor a type stated every room is tier 3, i.e. arm A's sweep."""
     def tier(rid: str) -> int:
         r = rooms[rid]
         on_floor = stated_floor is not None and r.floor == stated_floor
@@ -202,6 +229,10 @@ def informed_order(universe, start, travel, rooms, stated_floor: Optional[int], 
 
 
 def completion_time(order: Sequence[str], target: str, start: str, travel, search: Mapping[str, float]) -> float:
+    """Seconds from the entrance until ``target``'s search is finished, walking ``order`` (travel + look per room).
+
+    Every look finds a person who is present (no missed detections), for all three arms.
+    """
     t, here = 0.0, start
     for rid in order:
         t += _t(travel, here, rid) + search[rid]
@@ -225,6 +256,7 @@ def _persona_for(ct: CallType, rng: np.random.Generator, variant: str) -> dict:
     p = resolve_persona(name)
     if variant in ("error_x2", "error_x4"):
         k = 2.0 if variant == "error_x2" else 4.0
+        # 0.9 cap keeps it a probability; never binds with the shipped personas (max 0.15 x 4 = 0.6).
         p = {**p, "error_rate": min(0.9, float(p["error_rate"]) * k)}
     return p
 
@@ -250,6 +282,9 @@ def sample_world(bid: str, ct: CallType, variant: str, rng: np.random.Generator)
 
 
 def stated_floor_and_type(b, clues) -> tuple[Optional[int], Optional[str]]:
+    """What arm B's dispatcher relays: the first positive floor clue (mapped from its label to a floor
+    index, so a wrong floor is relayed as said) and the first positive room-type clue. Negatives,
+    views and landmarks are not relayed."""
     label_to_floor = {}
     for r in b.rooms:
         label_to_floor.setdefault(str(r.floor_label), r.floor)
@@ -282,6 +317,8 @@ def run_arms(bid: str, ct: CallType, room, fix, clues, t_curb_s: float, *, evide
     situation = Situation(**ct.situation)
     profile = profile_for(situation)
     elapsed = t_curb_s + ENTRY_S
+    # Cardiac only: the planner gets the survival curve on a clock starting at the entrance, so it
+    # maximises survival; every other type is planned on expected time to find.
     survival = survival_from(situation, elapsed) if ct.outcome == "curve" else None
 
     room_probs, p_nim = posterior_probs(b, hour=14, fix=fix, clues=evidence if evidence is not None else clues)
@@ -292,6 +329,7 @@ def run_arms(bid: str, ct: CallType, room, fix, clues, t_curb_s: float, *, evide
     search = {rid: search_time_s(rooms[rid], profile) for rid in universe}
 
     # C: the app's plan, then (if the caller is outside the 99% plan) a nearest-first sweep of the rest.
+    # One crew: only the first team's stops are used (plan_search default n_teams=1).
     plan_order = list(dict.fromkeys(s.room_id for s in plan.teams[0] if s.room_id in search))
     in_plan = room.id in plan_order
     rest = [rid for rid in universe if rid not in set(plan_order)]
@@ -320,6 +358,9 @@ def run_arms(bid: str, ct: CallType, room, fix, clues, t_curb_s: float, *, evide
 
 
 def curb_time(seed_parts: Sequence[int]) -> float:
+    """One lognormal call-to-curb draw (s). The seed omits the variant, so a given building, call type
+    and trial index gets the same drive time in every variant; 9999 is an arbitrary tag that keeps this
+    stream apart from the world streams seeded in ``trial``."""
     rng = np.random.default_rng([9999, *seed_parts])
     return float(CURB_MEDIAN_S * math.exp(CURB_SIGMA * rng.standard_normal()))
 
@@ -329,6 +370,8 @@ def trial(bid: str, ct_key: str, variant: str, i: int) -> dict:
     b_idx = list(BUILDINGS).index(bid)
     c_idx = [c.key for c in CALL_TYPES].index(ct_key)
     v_idx = list(VARIANTS).index(variant)
+    # One independent, reproducible stream per (variant, building, call type, trial): reruns and any
+    # worker split give identical rows.
     rng = np.random.default_rng([v_idx, b_idx, c_idx, i])
     w = sample_world(bid, ct, variant, rng)
     t_curb = curb_time([b_idx, c_idx, i])

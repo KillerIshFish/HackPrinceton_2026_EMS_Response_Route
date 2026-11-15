@@ -35,14 +35,22 @@ from ingest import costar, matterport_api
 from ingest.georegister import latlng_to_local, local_to_latlng, register_matterport_model
 from ingest.matterport import polygon_area, polygon_centroid
 
-MIN_ROOM_M2 = 1.5
+MIN_ROOM_M2 = 1.5  # tuned heuristic, same cut as ingest.mp3d.model3d: smaller rings are slivers or shafts
+# Tuned heuristic: an "office" (or unlabelled room) of 60 m2 or more is too big for one person, so call it open office.
 OPEN_OFFICE_MIN_M2 = 60.0
+# Tuned heuristics for finding stairs from sweep positions. 0.6 m is well above the scatter of camera heights on a
+# level floor, yet below one stair flight; 3 m chains successive scans up one flight; 5 m is the furthest a flight's
+# top or foot may sit from the sweep that links it to a room.
 STAIR_SWEEP_RISE_M = 0.6      # a sweep this far above its floor is on a stair
 STAIR_FLIGHT_GAP_M = 3.0      # stair sweeps closer than this belong to the same flight
 STAIR_LINK_MAX_M = 5.0
+# Assumed: walking length of a stair edge. Shorter than the 8 m used by ingest.matterport/ingest.real_building.
 STAIR_RUN_M = 6.0
-NEAR_RADIUS_M = 8.0
+NEAR_RADIUS_M = 8.0  # tuned heuristic, same as configs/demo_buildings.yaml near_radius_m
+# Tuned heuristic: an opening within 1.2 m of the ground floor's bounding box is on an outer wall. Covers wall
+# thickness plus small facade jogs.
 EXTERIOR_WALL_TOLERANCE_M = 1.2
+# Assumed: a curb-side staging spot is placed 7 m straight out from an exterior door (past a sidewalk).
 STAGING_OFFSET_M = 7.0
 
 # (words to look for in the room's label / class / tags, room_type). First match wins;
@@ -141,6 +149,7 @@ def scan_room_type(room: dict, area_m2: float) -> str:
 def _floor_level(zs: list[float]) -> float:
     """Finished-floor height from sweep heights: sweeps on stairs sit above it, so use the low cluster."""
     low = min(zs)
+    # Sweeps within 0.5 m of the lowest are on the level floor (tripod heights vary a little); median of those.
     near = sorted(z for z in zs if z - low <= 0.5)
     return near[len(near) // 2]
 
@@ -173,6 +182,7 @@ def build_scan_building(cfg: dict, refresh: bool = False) -> tuple[Building, dic
     base = min(levels.values()) if levels else 0.0
     floors = [floor_no[f["id"]] for f in scan_floors]
     floor_heights = {
+        # A floor with no sweeps falls back to an assumed 3 m per storey above the lowest floor.
         floor_no[f["id"]]: round(levels.get(f["id"], base + 3.0 * i) - base, 2) for i, f in enumerate(scan_floors)
     }
 
@@ -254,6 +264,7 @@ def build_scan_building(cfg: dict, refresh: bool = False) -> tuple[Building, dic
             continue
         side = outer_side(*o["xy"]) if len(o["rooms"]) == 1 else None
         for sid in o["rooms"]:
+            # Floor at 10 cm so a window with no recorded width still counts toward its side.
             window_width[sid][facing_by_side.get(side) if side else None] += max(o["width"], 0.1)
 
     rooms: list[Room] = []
@@ -327,7 +338,7 @@ def build_scan_building(cfg: dict, refresh: bool = False) -> tuple[Building, dic
     def unit(a: tuple, b: tuple) -> Optional[list[float]]:
         dx, dy = b[0] - a[0], b[1] - a[1]
         n = math.hypot(dx, dy)
-        return [round(dx / n, 3), round(dy / n, 3)] if n >= 0.3 else None
+        return [round(dx / n, 3), round(dy / n, 3)] if n >= 0.3 else None  # under 30 cm the direction is noise
 
     stairs_found = 0
     for lower, upper in zip(scan_floors, scan_floors[1:]):
@@ -335,6 +346,8 @@ def build_scan_building(cfg: dict, refresh: bool = False) -> tuple[Building, dic
         if lf not in levels or uf not in levels:
             continue
         rise = levels[uf] - levels[lf]
+        # On a stair: higher than STAIR_SWEEP_RISE_M, or 40% of the storey rise when storeys are short. At the foot:
+        # within 0.3 m of the floor level.
         on_stairs = [s for s in sweeps_on[lf] if (s.get("room") or {}).get("id") in kept
                      and s["position"]["z"] - levels[lf] >= min(STAIR_SWEEP_RISE_M, 0.4 * rise)]
         landings = [t for t in sweeps_on[uf] if (t.get("room") or {}).get("id") in kept]
@@ -388,6 +401,7 @@ def build_scan_building(cfg: dict, refresh: bool = False) -> tuple[Building, dic
         for a in comp:
             for b in main:
                 ra, rb = by_id[a], by_id[b]
+                # Each floor of separation costs 6 m (one STAIR_RUN_M): a same-floor link wins unless much longer.
                 d = math.hypot(ra.centroid[0] - rb.centroid[0], ra.centroid[1] - rb.centroid[1]) + 6.0 * abs(ra.floor - rb.floor)
                 if best is None or d < best[0]:
                     best = (d, a, b)
@@ -440,7 +454,7 @@ def build_scan_building(cfg: dict, refresh: bool = False) -> tuple[Building, dic
         entrances.append(ent)
         dx, dy = outward[d["side"]]
         sx, sy = x + dx * STAGING_OFFSET_M, y + dy * STAGING_OFFSET_M
-        # one staging spot per stretch of frontage: skip a door within 10 m of an existing spot
+        # one staging spot per stretch of frontage: skip a door within 10 m of an existing spot (tuned heuristic)
         if all(math.hypot(sx - s["xy"][0], sy - s["xy"][1]) > 10.0 for s in staging):
             staging.append({"id": f"stage-{len(staging) + 1}", "name": f"Curb outside the {d['room'].name.lower()} door",
                             "xy": [round(sx, 2), round(sy, 2)], "latlng": to_latlng(sx, sy),
@@ -472,6 +486,8 @@ def build_scan_building(cfg: dict, refresh: bool = False) -> tuple[Building, dic
                          "frame": "matterport model coordinates"},
         "site": {
             "source": site.get("source"),
+            # Default view when the config has none: Vexcel's urban layer at zoom 21 (its finest; see ingest.vexcel
+            # MAX_ZOOM), 45 m around the centre, close to the 42 m set for the full-scan entry in real_buildings.yaml.
             "imagery": site.get("imagery") or {"layer": "urban", "zoom": 21, "radius_m": 45},
             "footprint_latlng": footprint,
         },

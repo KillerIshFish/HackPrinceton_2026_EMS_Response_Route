@@ -5,17 +5,20 @@ Pure functions over a ``Building`` and its sidecar metadata
 ``tenant``). Every tool returns a compact JSON-able dict; the agent serialises it as the
 ``tool_result`` content.
 
-Look-up tools (answer the model):
+Look-up tools offered to the model (answered in the loop, ``run_lookup``):
 
-* ``search_rooms(query, floor_label?, room_type?, limit)``
+* ``find_rooms(text?, floor_labels?, room_types?, area, hallway, walking-distance, position, ...)``
+* ``room_details(room_ids)``           full layout line per room (``parser.layout``)
 * ``rooms_near(room_id, radius_m)``    walking distance on ``core.building_graph``, same floor
-* ``floor_summary(floor_label)``
 
-Record tools (``record_location``, ``record_vocab_clue``, ``record_fact``,
-``suggest_incident_type``, ``supersede``) are defined here (schemas in ``TOOLS``) but only
-acknowledged during the loop: ``record_ack`` tells the model how many rooms a selector
-matches so it can correct itself. Whether a record is kept is decided in code after the
-loop (``parser.agent``), never by the model.
+``search_rooms`` and ``floor_summary`` are no longer offered in ``TOOLS``; ``run_lookup`` still
+answers them so an older cached run replays.
+
+Record tools (``record_location``, ``record_clue``, ``record_floor``, ``record_conclusion``,
+``record_fact``, ``suggest_incident_type``, ``supersede``) are defined here (schemas in
+``TOOLS``) but only acknowledged during the loop: ``record_ack`` warns when a record will be
+dropped as it stands so the model can correct it. Whether a record is kept is decided in code
+after the loop (``parser.agent``), never by the model.
 
 ``select_rooms`` (``core.evidence.selector_hits``) is the selector matcher used both for the
 acknowledgement and for the "selector matches no room" check.
@@ -33,6 +36,8 @@ import networkx as nx
 from core.evidence import normalize_unit, room_meta, selector_hits
 from core.schema import INCIDENT_TYPES, Building, Room, RoomSelector
 
+# Result caps for look-ups: each result goes back into the conversation as input tokens, so a few
+# good matches beat a long list. Hand-set sizes, not tuned on the eval.
 SEARCH_DEFAULT_LIMIT = 8
 SEARCH_MAX_LIMIT = 20
 NEAR_MAX_ROOMS = 20
@@ -184,6 +189,8 @@ def search_rooms(
         suite = idx.suite(r.id)
         tenant = idx.tenant(r.id) or ""
         hay = set(_tokens(r.name)) | set(_tokens(tenant)) | set(_tokens(r.room_type.replace("_", " "))) | set(_tokens(r.id))
+        # Hand-set ranking weights: the whole query is the suite number (3) > a word is the suite (2) >
+        # the query names the room type (1.5) > an exact word (1) > a prefix match (0.5).
         score = 0.0
         if suite and q_unit and normalize_unit(suite) == q_unit:
             score += 3.0
@@ -257,11 +264,13 @@ def building_digest(idx: BuildingIndex) -> str:
 
 # Up to this many rooms the whole building is listed, so the model can place a caller in one
 # request without a look-up. Larger buildings list their labelled rooms only (numbers,
-# tenants) and the model uses the look-up tools for the rest.
+# tenants) and the model uses the look-up tools for the rest. Prompt-size limit, hand-set.
 ROSTER_MAX_ROOMS = 1500
-# Neighbours ("next to", "across") are listed up to this building size.
+# Neighbours ("next to", "across") are listed up to this building size (used by building_roster only;
+# the layout reader's block uses LAYOUT_COMPACT_ABOVE_ROOMS below). Prompt-size limit, hand-set.
 ROSTER_NEIGHBOUR_MAX_ROOMS = 320
 _CIRCULATION = {"corridor", "stairwell", "elevator"}
+# Same values as parser.layout.WALL_GAP_M / ACROSS_MAX_M (see the reasons there); kept in step by hand.
 _WALL_GAP_M = 0.6  # two rooms share a wall when their outlines come this close
 _ACROSS_MAX_M = 16.0
 
@@ -336,7 +345,7 @@ def room_neighbours(idx: BuildingIndex) -> dict[str, dict[str, list[str]]]:
                         cands |= {o for o in touching[c] if o not in seen and by_id[o].room_type not in _CIRCULATION}
                 across = sorted((o for o in cands if dist(r.id, o) <= _ACROSS_MAX_M),
                                 key=lambda o: (round(dist(r.id, o), 3), o))[:3]
-            limit = 8 if r.room_type in _CIRCULATION else 4
+            limit = 8 if r.room_type in _CIRCULATION else 4  # prompt size (parser.layout lists 5 for a room)
             out[r.id] = {"next_to": walls[:limit], "across": across}
     return out
 
@@ -406,6 +415,7 @@ def building_roster(idx: BuildingIndex) -> str:
 
 # Above this many rooms each room line drops its neighbour lists (the hallway listings still
 # give who opens onto which hall, in order); find_rooms / room_details give the full lines.
+# Prompt-size limit, hand-set: keeps the cached system block of a big building manageable.
 LAYOUT_COMPACT_ABOVE_ROOMS = 600
 
 
@@ -470,7 +480,8 @@ def layout_roster(idx: BuildingIndex) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Tool schemas (strict). Optional properties are simply left out of `required`.
+# Tool schemas, declared strict; parser.agent.request_tools strips the flag unless LLM_STRICT_TOOLS=1
+# (the default is off). Optional properties are simply left out of `required`.
 # ---------------------------------------------------------------------------
 
 CLUE_TYPES = ["room_type", "floor", "landmark", "view", "sound", "smell", "negative", "route"]
@@ -679,6 +690,7 @@ RECORD_TOOLS = ("record_location", "record_clue", "record_floor", "record_conclu
 # is no longer offered; the name is kept so an older cached run still validates.
 RATE_TOOLS = ("rate_statement",)
 
+# find_rooms / room_details caps (the find_rooms tool description quotes 15 and 40). Hand-set sizes.
 FIND_DEFAULT_LIMIT = 15
 FIND_MAX_LIMIT = 40
 
@@ -885,7 +897,7 @@ def record_ack(idx: BuildingIndex, name: str, args: dict, record_no: int, turn_t
             return ack
         hits = select_rooms(idx, sel)
         ack["matches"] = len(hits)
-        ack["sample"] = hits[:6]
+        ack["sample"] = hits[:6]  # a few ids so the model can see what it selected, without echoing a long list
         if not hits:
             ack["warning"] = "selector matches no room: this record will be dropped"
     return ack

@@ -19,15 +19,22 @@ from parser.extract import load_vocab
 
 PERSONAS_PATH = Path(__file__).resolve().parent / "personas.yaml"
 
+# Same 1.2 m as core.features.PHONE_HEIGHT_ABOVE_FLOOR_M, so the simulated fix and the model agree on
+# where a phone sits (assumed held or pocketed height, not measured).
 PHONE_HEIGHT_M = 1.2  # phone is held ~1.2 m above the finished floor
+# Assumed default, not sourced: tighter than the FCC 50 m / 80% horizontal benchmark. The benchmark
+# (eval/benchmark/common.py) overrides it with a looser 30 m.
 HORIZONTAL_SIGMA_M = 15.0  # typical indoor horizontal uncertainty
 
+# Fills keys a persona leaves out; every persona in personas.yaml sets them all, so in practice this
+# serves custom dict personas. Judgement: values sit inside the range
+# spanned by sim/personas.yaml (e.g. clue_rate 0.40-0.85, error_rate 0.03-0.15); not fitted to calls.
 _FALLBACK_PERSONA: dict[str, Any] = {
     "clue_rate": 0.7, "error_rate": 0.05, "hedge_rate": 0.15, "hedge_factor": 0.7,
     "negative_rate": 0.25, "knows_floor": 0.85, "max_clues": 4,
 }
 
-# Words a caller would use for each clue (becomes Clue.span).
+# The wrong side a mistaken caller names for a view (used when error_rate fires on a view clue).
 _VIEW_OPPOSITE = {"parking_lot": "street", "street": "parking_lot"}
 
 
@@ -134,6 +141,8 @@ def truthful_clues(
     views = vocab.get("views") or {}
 
     def emit(ctype: str, value: str, span: str, polarity: bool = True) -> Clue:
+        # Start from the vocabulary's default confidence for the clue type (configs/clue_vocab.yaml);
+        # 0.7 only if the type is missing there.
         c = float(conf.get(ctype, 0.7))
         if rng.random() < p["hedge_rate"]:
             c *= float(p["hedge_factor"])
@@ -147,7 +156,7 @@ def truthful_clues(
     if room.room_type in room_types and said(p["clue_rate"]):
         clues.append(emit("room_type", room.room_type, _first_synonym(vocab, "room_types", room.room_type)))
 
-    # Floor, possibly miscounted by one.
+    # Floor, possibly miscounted by one (an off-by-one is the only floor error modelled).
     if said(float(p["clue_rate"]) * float(p["knows_floor"])):
         floor = room.floor
         if wrong():
@@ -171,7 +180,9 @@ def truthful_clues(
     elif said(p["negative_rate"]):
         clues.append(emit("negative", "landmarks:window", "no window", polarity=False))
 
-    # Elevator / stairs proximity: presence, or volunteered absence.
+    # Elevator / stairs proximity: presence, or volunteered absence. Tuned heuristic, unsourced: the 0.6
+    # and 0.3 multipliers make callers mention a nearby core less often than the room itself, and volunteer
+    # "no elevator / no stairs" rarely.
     for flag, key in ((room.near_elevator, "elevator"), (room.near_stairs, "stairs")):
         if flag:
             if said(float(p["clue_rate"]) * 0.6):
@@ -179,6 +190,8 @@ def truthful_clues(
         elif said(float(p["negative_rate"]) * 0.3):
             clues.append(emit("negative", f"landmarks:{key}", f"no {key}", polarity=False))
 
+    # Truncation keeps clues in the order built above, so a capped caller keeps room type and floor
+    # first and drops elevator / stairs mentions first.
     max_clues = int(p.get("max_clues", len(clues)))
     return clues[:max_clues]
 

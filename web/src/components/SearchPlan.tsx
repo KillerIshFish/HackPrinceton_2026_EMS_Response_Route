@@ -110,6 +110,7 @@ interface Props {
   onViewScan?: (roomId: string) => void;
 }
 
+/** stops listed per team before "Show all": the same count the 3D view draws its route through (ROUTE_STOPS) */
 const VISIBLE_STOPS = 8;
 
 /**
@@ -135,6 +136,8 @@ export function SearchPlan({ building, state, busy, actions, onHoverRooms, scann
   const setClosed = (roomId: string, close: boolean) => actions.setGates(gatesWithRoom(situation, roomId, close));
 
   return (
+    // time-breakdown tooltips open after 250 ms of hover (not on a pass over the list), and at once (100 ms window)
+    // when moving from one stop's tooltip to the next
     <Tooltip.Provider delayDuration={250} skipDelayDuration={100}>
       <Panel
         title={found ? "Search ended" : "Search plan"}
@@ -354,6 +357,7 @@ function stairSeconds(travel: TravelProfile, from: number, to: number): number {
   const lo = Math.min(from, to);
   const hi = Math.max(from, to);
   for (let f = lo; f < hi; f++) {
+    // each step enters floor f + 1
     const high = travel.high_floor_from !== null && f + 1 >= travel.high_floor_from;
     s += high ? travel.stair_s_per_floor_high : travel.stair_s_per_floor;
   }
@@ -401,7 +405,8 @@ function StopRow({
   const reSearch = stop.kind === "re_search";
   const lastLook = looks[looks.length - 1];
 
-  // time breakdown: the planner reports one travel leg; the stair share is estimated from the floors
+  // time breakdown: the planner reports one travel leg; the stair share is estimated from the floors,
+  // capped at the leg itself (an elevator ride or a shorter route can make the stair estimate too high)
   const travelS = stop.travel_s;
   const stairsS =
     travelS !== null && fromFloor !== null && room ? Math.min(travelS, stairSeconds(travel, fromFloor, room.floor)) : null;

@@ -76,11 +76,14 @@ _SUGGEST: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 _NEGATABLE = {"threat", "hazard", "active_threat", "fire_smoke"}
 
+# A room number in the caller's sentence: 3-4 digits (assumed: 1-2 digit numbers are more often counts
+# or floors), not part of a decimal. In a room name, 2-4 digits count ("Office 12").
 _ROOM_NUMBER = re.compile(r"(?<!\w)(?<!\d\.)(\d{3,4}[A-Za-z]?)(?!\w)(?!\.\d)")
 _NUMBER_IN_NAME = re.compile(r"(?<!\w)(\d{2,4}[A-Za-z]?)(?!\w)")
 
 
 def _negated(sentence: str, start: int) -> bool:
+    # 30 chars back, then cut at the last clause break: "no smoke", "didn't hear any shots" (hand-set)
     head = sentence[max(0, start - 30):start]
     breaks = list(_CLAUSE_BREAK.finditer(head))
     clause = head[breaks[-1].end():] if breaks else head
@@ -106,7 +109,7 @@ def room_named(building: Building, text: str) -> Optional[str]:
         names: dict[str, list[str]] = {}
         for r in building.rooms:
             name = re.sub(r"\s*\(.*?\)\s*", " ", r.name).strip().lower()
-            if len(name) >= 6:
+            if len(name) >= 6:  # skip short names ("Lab", "Hall") that would match ordinary words (hand-set)
                 names.setdefault(name, []).append(r.id)
         for name, ids in names.items():
             if len(ids) == 1 and re.search(rf"(?<!\w){re.escape(name)}(?!\w)", low):

@@ -36,8 +36,8 @@ from ingest.mp3d import slabs as slabmod
 from ingest.mp3d.client import MatterportClient
 
 SCHEMA_VERSION = "mp3d-scan/1"
-FT2_TO_M2 = 0.09290304
-COORD_DP = 3
+FT2_TO_M2 = 0.09290304  # exact: 0.3048 m/ft squared
+COORD_DP = 3  # 1 mm rounding, for byte-identical output across runs
 
 SCAN_QUERY = """
 query Scan($id: ID!) {
@@ -170,7 +170,7 @@ def scan_model_from_payload(
                 "area_m2": area,
             }
 
-    # anchors, grouped by room
+    # Scan anchors (x, y, z + scan-graph neighbours), grouped by the room Matterport assigned them to.
     anchors: dict[str, dict] = {}
     by_room: dict[str, list[str]] = {}
     for anchor in payload.get("locations") or []:
@@ -250,6 +250,7 @@ def scan_model_from_payload(
             ScanLink(
                 a=a,
                 b=b,
+                # Each anchor edge is seen once from each end, so halve; "or 1" keeps a one-sided neighbour link.
                 anchor_edges=pair_counts[(a, b)] // 2 or 1,
                 gap_m=round(math.dist(ra.centroid, rb.centroid), COORD_DP),
                 floors=abs(ra.floor - rb.floor),
@@ -300,6 +301,7 @@ def scan_model_from_payload(
     )
     if rooms:
         biggest = max(rooms, key=lambda r: r.area_m2 or 0.0)
+        # Tuned heuristic: one zone over 35 m2 (several rooms' worth) suggests the floor was not split into rooms.
         if (biggest.area_m2 or 0.0) > 35.0:
             notes.append(
                 f"coarse segmentation: the largest zone is {biggest.area_m2} m2 across "

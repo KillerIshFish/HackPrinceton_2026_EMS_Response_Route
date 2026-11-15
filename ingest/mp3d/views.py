@@ -17,7 +17,7 @@ argument rather than guessing.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Iterable, Mapping, Optional, Sequence
+from typing import Iterable, Optional, Sequence
 
 from ingest.mp3d import geometry as geo
 from ingest.mp3d.model3d import Model3D, RoomPlate, Wall
@@ -31,6 +31,8 @@ LARGE_MIN_M2 = 2.2
 # a floor-level sill is a patio door or full-height glazing. A sill measurably
 # below the slab is not glazing at all - it is an opening whose scan elevation
 # puts it on the wrong floor, and saying "floor-level" about it would be a lie.
+# Tuned heuristic values: -0.1 m leaves 10 cm for sill/median-slab scan noise before a sill counts as below-floor;
+# <= 0.4 m reads as floor-level glazing, >= 1.4 m sits above a standing adult's chest (the bathroom tell).
 SILL_BELOW_FLOOR_M = -0.1
 SILL_LOW_MAX_M = 0.4
 SILL_HIGH_MIN_M = 1.4
@@ -43,7 +45,7 @@ FACING_UNKNOWN = "unknown"
 
 def sector(bearing: float) -> str:
     """Eight-point compass sector containing ``bearing``."""
-    index = int((bearing % 360.0 + 22.5) // 45.0) % 8
+    index = int((bearing % 360.0 + 22.5) // 45.0) % 8  # 45-degree sectors centred on N, NE, ...
     return SECTORS[index]
 
 
@@ -140,6 +142,7 @@ class RoomView:
         if len(self.sectors) < 2:
             return False
         return any(
+            # More than one 45-degree sector apart, so two adjacent-sector windows on one bent facade do not count.
             geo.angular_gap(a.bearing_deg, b.bearing_deg) > 45.0
             for a in self.windows
             for b in self.windows
@@ -153,7 +156,7 @@ class RoomView:
         """
         return (
             self.classification,
-            min(self.window_count, 3),
+            min(self.window_count, 3),  # a caller says "one", "two" or "lots", so 3+ windows share a bucket
             tuple(sorted({w.size for w in self.windows})),
             tuple(sorted({w.sill for w in self.windows})),
             self.sectors,
@@ -263,6 +266,9 @@ def classify_facing(
     view: RoomView, street_bearing: Optional[float], tolerance_deg: float = 90.0
 ) -> str:
     """Name what a room's windows face, given a reference street bearing.
+
+    The default ``tolerance_deg`` of 90 splits the compass into front and back halves, so every bearing except
+    one exactly side-on to the street resolves to one of the two.
 
     Returns ``"street"``, ``"parking_lot"`` or ``"unknown"``. The split is a
     front/back dichotomy: it says which side of the building a room is on, not

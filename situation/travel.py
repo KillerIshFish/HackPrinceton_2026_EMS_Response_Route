@@ -27,6 +27,9 @@ from typing import Any
 from core.schema import Situation, TravelProfile
 from situation.config import section, setting_value
 
+# Copies of the configs/situations.yaml travel values; each label and source is there (ODPM Technical
+# Report 2/2005 for walking, stairs and search advance in smoke; a secondary citation for walking in
+# smoke; judgement for the high-rise rate, its floor and the elevator).
 _FALLBACK: dict[str, float] = {
     "walk_mps": 1.2,
     "stair_light": 15.0,

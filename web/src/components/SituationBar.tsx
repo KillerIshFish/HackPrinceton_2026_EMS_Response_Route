@@ -18,6 +18,8 @@ export const INCIDENT_LABEL: Record<IncidentType, string> = {
   other_medical: "Other medical",
 };
 
+// Search teams the dispatcher can pick. A UI choice: the backend accepts 1..MAX_TEAMS (3, api/session.py),
+// and the console offers only 1 or 2.
 const TEAM_OPTIONS = [1, 2];
 
 interface Props {
@@ -36,6 +38,9 @@ interface Props {
  */
 export function SituationBar({ situation, nTeams, busy, onPatch }: Props) {
   const s = situation;
+  // The interpreter's suggestion is offered only while no type is confirmed; it does not change
+  // incident_type until confirmed (situation/policy.py still acts on an active-threat suggestion).
+  // A set-but-unconfirmed type (other than "unknown") gets a "Not confirmed" button.
   const pendingSuggestion = s.suggested_type !== null && s.suggested_type !== s.incident_type && !s.incident_confirmed;
   const unconfirmed = !s.incident_confirmed && s.incident_type !== "unknown";
 
@@ -232,7 +237,7 @@ function Segmented({
   );
 }
 
-/** Seconds since `iso`, refreshed every second. */
+/** Seconds since `iso`, refreshed every second (the clock shows whole seconds); never negative. */
 function useElapsed(iso: string | null): number | null {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {

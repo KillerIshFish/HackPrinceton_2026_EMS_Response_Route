@@ -22,7 +22,9 @@ from __future__ import annotations
 
 from typing import Mapping, Sequence
 
-UNREACHABLE_S = 3600.0  # travel time assumed when the graph has no path
+# Travel time assumed when the graph has no path: one hour, far above any real in-building leg, so an unreachable
+# room sorts last, while staying finite so the E[T] sums stay finite. Placeholder, not a prediction.
+UNREACHABLE_S = 3600.0
 
 
 def _t(travel: Mapping[str, Mapping[str, float]], a: str, b: str) -> float:

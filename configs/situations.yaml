@@ -89,6 +89,7 @@ travel:
     label: judgement
     source: "Reconstructed, not timed: stair seconds per floor above high_floor_from, any load."
   high_floor_from:
+    # 18 is the floor given in the B1 step of docs/BUILD_PLAN.md ("90 s per floor above floor 18"); not timed.
     value: 18
     range: null
     label: judgement
@@ -116,6 +117,7 @@ travel:
       label: judgement
       source: "Judgement on measured EMS intervals in Singapore."
   meet_person_credit_s:
+    # (2.3 - 1.9) min x 60 s/min = 24 s.
     value: 24.0
     range: null
     label: derived
@@ -132,6 +134,7 @@ travel:
       label: measured
       source: "Whole-interval median, curb to patient, multi-storey residential buildings."
   sanity_check:
+    # Both thresholds come from the B1 step of docs/BUILD_PLAN.md ("more than two floors", "under 2 min").
     min_floors_exclusive:
       value: 2
       range: null
@@ -287,6 +290,7 @@ search:
 # toward danger, and active threat has none (enforced in code).
 # ---------------------------------------------------------------------------
 policy:
+  # Ground rule 4 (fire, smoke or an alarm); a hazard fact containing any of these withdraws the elevator.
   elevator_off_words: [fire, smoke, flame, burning, alarm]
   protocol_prompts:
     unknown:

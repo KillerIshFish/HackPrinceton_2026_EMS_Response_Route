@@ -64,6 +64,7 @@ from api.session import (  # noqa: F401  (models re-exported for older imports)
 
 load_dotenv()
 
+# Default demo buildings: the hand-built synthetic one always exists; the real one only after it has been built.
 SYNTHETIC_BUILDING_ID = "ptc-100"
 REAL_BUILDING_ID = "bundy-olympic"
 
@@ -116,6 +117,7 @@ app = FastAPI(
                 "synthetic building plus real buildings assembled from CoStar, Matterport and Vexcel.",
 )
 
+# Only the Vite dev server (web/vite.config.ts, port 5173) may call the API from a browser.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -184,6 +186,7 @@ def get_building_meta(building_id: str) -> dict[str, Any]:
     return meta
 
 
+# Assumed UI limits: 200 chars is far longer than any address; 8 results fill the picker, 25 caps a client request.
 @app.get("/lookup")
 def lookup(q: str = Query(..., min_length=1, max_length=200), limit: int = Query(8, ge=1, le=25)) -> list[dict]:
     """Properties matching an address, a building name or a property id (indexed; about a millisecond)."""
@@ -209,6 +212,7 @@ def generate_building(q: str = Query(..., min_length=1, max_length=200), stamp: 
         raise HTTPException(status_code=502, detail=str(exc))
 
 
+# Holds one payload, keyed by (building id, model file mtime): a regenerated model misses the cache.
 _model3d_cache: dict[tuple[str, float], dict] = {}
 
 
@@ -273,6 +277,7 @@ def get_floorplan(building_id: str, floor: int) -> FileResponse:
     path = matterport_api.floorplan_dir() / entry["file"] if entry else None
     if path is None or not path.is_file():
         raise HTTPException(status_code=404, detail=f"No plan image for floor {floor} of '{building_id}'")
+    # One day of browser caching (86,400 s): plan images change only when a building is re-ingested.
     return FileResponse(path, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
 
 
@@ -280,6 +285,7 @@ def _site_tiles(meta: dict) -> Optional[dict]:
     imagery = (meta.get("site") or {}).get("imagery") or {}
     if not imagery or not meta.get("center_latlng"):
         return None
+    # 90 m radius and zoom 20 are vexcel.site_tiles' own defaults, used when the meta does not set them.
     return vexcel.site_tiles(
         meta["center_latlng"], float(imagery.get("radius_m", 90.0)), int(imagery.get("zoom", 20)),
         imagery.get("layer", vexcel.DEFAULT_LAYER),
@@ -287,6 +293,8 @@ def _site_tiles(meta: dict) -> Optional[dict]:
 
 
 _tile_windows: dict = {"at": 0.0, "windows": []}
+# Tuned heuristic: long enough to cover one panel's burst of tile requests, short enough that a newly generated
+# building's tiles are served within seconds.
 TILE_WINDOW_TTL_S = 5.0
 
 
@@ -307,7 +315,8 @@ def _tile_allowed(layer: str, z: int, x: int, y: int) -> bool:
     hit = any(t["layer"] == layer and t["zoom"] == z and t["x_min"] <= x <= t["x_max"] and t["y_min"] <= y <= t["y_max"]
               for t in _tile_windows["windows"])
     if not hit and now - _tile_windows["at"] > 0.5:
-        # a building generated a moment ago is not in the cached list yet: look again once
+        # a building generated a moment ago is not in the cached list yet: look again once. The 0.5 s guard
+        # stops the retry from recursing again (the list was just rebuilt) and limits rebuilds on stray tiles.
         _tile_windows["at"] = 0.0
         return _tile_allowed(layer, z, x, y)
     return hit
@@ -323,7 +332,7 @@ def vexcel_tile(layer: str, z: int, x: int, y: int) -> Response:
         body = vexcel.fetch_tile(layer, z, x, y)
     except vexcel.VexcelError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
-    return Response(content=body, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
+    return Response(content=body, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})  # 1 day
 
 
 @app.get("/calls/demo/state", response_model=DemoState)

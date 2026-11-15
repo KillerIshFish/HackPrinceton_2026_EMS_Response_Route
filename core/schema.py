@@ -176,6 +176,8 @@ class SearchPlan(BaseModel):
 # shared by sim/, core/phone_likelihood.py and api/).
 # ---------------------------------------------------------------------------
 
+# FCC z-axis benchmark (as cited in eval/benchmark/common.py): +/-3 m for 80 % of calls. 1.28 is the
+# standard normal's two-sided 80 % quantile, so a Gaussian with this sigma puts 80 % of fixes within 3 m.
 Z_SIGMA_M = 3.0 / 1.28  # +/-3 m is the 80% z-axis bound -> sigma ~= 2.34 m
 
 

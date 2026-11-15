@@ -19,6 +19,8 @@ const tourChecks = new Map<string, Promise<TourAnswer>>();
 function checkTour(modelId: string): Promise<TourAnswer> {
   let check = tourChecks.get(modelId);
   if (!check) {
+    // 8 s timeout: a slow or blocked answer counts as "unknown" rather than holding the Scan tab at "checking".
+    // 401/403/404/410 mean private or removed (unavailable); any other failure is "unknown".
     check = fetch(`${TOUR_INFO}${encodeURIComponent(modelId)}`, { credentials: "omit", signal: AbortSignal.timeout(8000) }).then(
       (res): TourAnswer => (res.ok ? "viewable" : [401, 403, 404, 410].includes(res.status) ? "unavailable" : "unknown"),
       (): TourAnswer => "unknown",
@@ -118,7 +120,8 @@ interface Props {
   onPin: (roomId: string | null) => void;
 }
 
-/** Matterport's Embed SDK bootstrap, an ES module that exports `connect` (developers.matterport.com/embed-sdk). */
+/** Matterport's Embed SDK bootstrap, an ES module that exports `connect` (developers.matterport.com/embed-sdk).
+ * Pinned to one SDK build; MpSdk below types only the part of it this panel uses. */
 const SDK_MODULE = "https://api.matterport.com/sdk/bootstrap/3.1.0-0-g1cd7e0997a/sdk.es6.js";
 
 /** The slice of the Matterport Embed SDK this panel uses. */
@@ -268,7 +271,7 @@ export function ScanViewer({ building, meta, scan, posterior, sdkKey, pinnedRoom
         // The viewer accepts commands while it is still loading, but a move sent then leaves it
         // frozen on its start image. Only steer once it reports that it is playing.
         setSteer("loading");
-        const playing = sdk.App.Phase?.PLAYING ?? "appphase.playing";
+        const playing = sdk.App.Phase?.PLAYING ?? "appphase.playing"; // the enum's value, if the SDK omits the enum
         sdk.App.state.subscribe((state) => {
           if (!cancelled && state.phase === playing) setSteer("ready");
         });
@@ -305,11 +308,13 @@ export function ScanViewer({ building, meta, scan, posterior, sdkKey, pinnedRoom
     if (mode !== "inside") {
       if (!inMode) command = () => sdk.Mode.moveTo(mode === "dollhouse" ? sdk.Mode.Mode.DOLLHOUSE : sdk.Mode.Mode.FLOORPLAN);
     } else if (targetSweep && sweepCount > 0 && !inRoom) {
+      // fly to the sweep over 1.5 s (tuned), so the move reads as travel through the scan rather than a cut
       const fly = () => sdk.Sweep.moveTo(targetSweep, { transition: sdk.Sweep.Transition?.FLY, transitionTime: 1500 });
       // from the dollhouse or the floor plan, drop back inside first
       command = viewer.mode && viewer.mode !== "mode.inside" ? () => sdk.Mode.moveTo(sdk.Mode.Mode.INSIDE).then(fly) : fly;
     }
     if (!command) return;
+    // three tries per target (tuned), then stop and let the status line say the viewer did not get there (gaveUp)
     if (triesRef.current.n >= 3) {
       setGaveUp(true);
       return;
@@ -320,7 +325,7 @@ export function ScanViewer({ building, meta, scan, posterior, sdkKey, pinnedRoom
       .catch((err: unknown) => setSteerError(String((err as { message?: string })?.message ?? err)))
       .finally(() => {
         busyRef.current = false;
-        // give the viewer a moment to report where it ended up before judging the result
+        // give the viewer a moment (400 ms, tuned) to report where it ended up before judging the result
         window.setTimeout(() => setTick((t) => t + 1), 400);
       });
   }, [steer, mode, modelId, wantKey, targetSweep, sweepCount, inRoom, inMode, viewer.mode, tick]);
@@ -337,6 +342,8 @@ export function ScanViewer({ building, meta, scan, posterior, sdkKey, pinnedRoom
 
   if (scanned.length === 0) return null;
 
+  // Matterport showcase URL options: play=1 starts the tour without a click, qs=1 skips the opening fly-in, and
+  // brand, help, title and search are hidden to keep the panel to the scan itself
   const src = modelId
     ? `https://my.matterport.com/show/?m=${encodeURIComponent(modelId)}&play=1&qs=1&brand=0&help=0&title=0&search=0${
         sdkKey ? `&applicationKey=${encodeURIComponent(sdkKey)}` : ""

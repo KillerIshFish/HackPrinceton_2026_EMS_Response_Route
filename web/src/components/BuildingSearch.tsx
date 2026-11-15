@@ -21,7 +21,9 @@ export function BuildingSearch({ disabled, generating, onChoose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
 
-  // look up as the dispatcher types (the index answers in about a millisecond)
+  // Look up as the dispatcher types (the index answers in about a millisecond). Nothing under 3
+  // characters (too broad to be useful), and a 120 ms debounce so a burst of keystrokes sends one
+  // request; `cancelled` drops answers to a query that has since changed. Both values are tuned.
   useEffect(() => {
     const q = query.trim();
     if (q.length < 3) {
@@ -46,6 +48,7 @@ export function BuildingSearch({ disabled, generating, onChoose }: Props) {
     };
   }, [query]);
 
+  // close the result list on a click anywhere outside the search box
   useEffect(() => {
     const close = (e: MouseEvent) => {
       if (!boxRef.current?.contains(e.target as Node)) setOpen(false);
@@ -64,6 +67,7 @@ export function BuildingSearch({ disabled, generating, onChoose }: Props) {
     <div ref={boxRef} className="relative w-[250px] max-w-full">
       <form
         onSubmit={(e) => {
+          // Enter takes the first hit in the order /lookup returned them (8 results by default)
           e.preventDefault();
           if (hits[0]) choose(hits[0]);
         }}

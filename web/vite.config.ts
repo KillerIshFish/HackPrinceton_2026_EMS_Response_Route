@@ -7,6 +7,8 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
+    // Fixed port: api/server.py allows CORS only from localhost:5173 / 127.0.0.1:5173, so failing
+    // fast beats Vite silently moving to 5174 when the UI calls the backend directly (VITE_API_BASE).
     port: 5173,
     strictPort: true,
     proxy: {

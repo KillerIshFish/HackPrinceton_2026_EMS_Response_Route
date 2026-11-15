@@ -33,8 +33,10 @@ interface Props {
  */
 export function ViewTabs({ views, value, onValueChange, actions }: Props) {
   const usable = views.filter((v) => !v.disabled);
+  // a remembered view that is unavailable here (e.g. Scan with no tour) falls back to the first usable one
   const active: ViewId = usable.some((v) => v.id === value) ? value : (usable[0]?.id ?? value);
   const [visited, setVisited] = useState<Set<ViewId>>(() => new Set([active]));
+  // set during render (React's "adjust state while rendering" pattern) so a newly opened view mounts this pass
   if (!visited.has(active)) setVisited(new Set(visited).add(active));
 
   return (

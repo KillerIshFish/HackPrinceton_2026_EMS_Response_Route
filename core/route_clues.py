@@ -41,11 +41,15 @@ from typing import Optional
 
 from core.schema import Building, Room
 
+# Tuned heuristics (no measured basis). Legs under 1 m are door jogs, not walked legs; 35 deg ignores
+# the small kinks of traced corridors but still counts a diagonal turn as left / right.
 MIN_LEG_M = 1.0
 TURN_MIN_DEG = 35.0
-ARRIVAL_DISTANCE_SCALE_M = 15.0  # weight of an arrival point decays as exp(-walk / this)
+ARRIVAL_DISTANCE_SCALE_M = 15.0  # arrival weight decays as exp(-walk / this): 15 m farther weighs ~0.37x
 VERTICAL_KINDS = ("stairs", "elevator")
 
+# Report model of the module docstring (judgement, not measured): a caller usually means the first turn
+# after the anchor. Lower P_FIRST_TURN softens the clue; P_MAX normalises the best case to m = 1.
 P_FIRST_TURN = 0.8
 P_LATER_TURNS = 0.1
 P_STRAIGHT_DESPITE_TURN = 0.1
@@ -71,6 +75,7 @@ def _signed_angle_deg(a: XY, b: XY) -> float:
 
 
 def _outline_samples(polygon: list, step: float = 0.25) -> list[XY]:
+    """Points every ``step`` metres along the outline (0.25 m: finer than a door width, cheap enough)."""
     pts: list[XY] = []
     n = len(polygon)
     for i in range(n):
@@ -102,6 +107,7 @@ def opening_point(u: Room, v: Room, edge: dict) -> XY:
     if samples and len(v.polygon) >= 2:
         scored = [(_dist_to_outline(p, v.polygon), p) for p in samples]
         nearest = min(d for d, _ in scored)
+        # Samples within 0.35 m of the closest count as the shared wall (tolerance for traced outlines).
         shared = [p for d, p in scored if d <= nearest + 0.35]
         return sum(p[0] for p in shared) / len(shared), sum(p[1] for p in shared) / len(shared)
     return (u.centroid[0] + v.centroid[0]) / 2, (u.centroid[1] + v.centroid[1]) / 2
@@ -181,7 +187,7 @@ def _floor_routes(building: Building, source: str) -> dict[str, tuple[float, lis
             continue
         if rooms[u].floor != floor or rooms[v].floor != floor:
             continue
-        w = float(e.get("length_m", 1.0))
+        w = float(e.get("length_m", 1.0))  # edge with no length: one unit, so hop count decides
         adj.setdefault(u, []).append((v, w, i))
         adj.setdefault(v, []).append((u, w, i))
     best: dict[str, tuple[float, list[int]]] = {source: (0.0, [])}
@@ -277,7 +283,7 @@ def route_match(building: Building, anchor: str, turn: str) -> Optional[dict[str
         scores = weighted.get(room.id)
         if scores:
             total = sum(w for w, _ in scores)
-            out[room.id] = sum(w * m for w, m in scores) / total if total > 0 else 0.5
+            out[room.id] = sum(w * m for w, m in scores) / total if total > 0 else 0.5  # 0.5: no information
         else:
             # on an arrival floor but cut off from every arrival: no information; other floors: ruled out
             out[room.id] = 0.5 if room.floor in arrival_floors else 0.0

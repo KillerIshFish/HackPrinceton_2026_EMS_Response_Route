@@ -11,17 +11,22 @@ interface Props {
   onSelectFloor: (floor: number) => void;
 }
 
-/** Elevator-style vertical stack: top floor at the top, one cell per floor. */
-/** more floors than this: one-line rows; more than DENSE_SCROLL: the list scrolls */
+/**
+ * More floors than DENSE_FROM: one-line rows; more than DENSE_SCROLL: the list scrolls instead of
+ * stretching the floor plan beside it. Layout thresholds, tuned by eye; no external source.
+ */
 const DENSE_FROM = 8;
 const DENSE_SCROLL = 16;
 
+/** Elevator-style vertical stack: top floor at the top, one cell per floor. */
 export function FloorProbBar({ building, posterior, phoneFix, selectedFloor, onSelectFloor }: Props) {
   const labels = floorLabelMap(building);
   const floors = [...building.floors].sort((a, b) => b - a);
   const z = phoneFix?.z_m ?? null;
 
-  // Floors whose expected phone height lies inside the +/-3 m (80%) z band.
+  // Floors whose expected phone height lies inside the +/-3 m (80%) z band (Z_BAND_M, lib.ts), and
+  // the single nearest floor, which carries the phone marker. Display only: the posterior already
+  // weighs the fix.
   const inBand = new Set<number>();
   let nearest: number | null = null;
   if (z !== null) {
@@ -35,8 +40,6 @@ export function FloorProbBar({ building, posterior, phoneFix, selectedFloor, onS
 
   const maxFloorP = Math.max(0, ...floors.map((f) => posterior.p_floor[labels.get(f) ?? String(f)] ?? 0));
 
-  // A tall building gets one-line rows, and past DENSE_SCROLL floors the list scrolls
-  // instead of stretching whatever it sits next to.
   const dense = floors.length > DENSE_FROM;
   const scrolls = floors.length > DENSE_SCROLL;
 
@@ -50,6 +53,7 @@ export function FloorProbBar({ building, posterior, phoneFix, selectedFloor, onS
           const label = labels.get(f) ?? String(f);
           const p = posterior.p_floor[label] ?? 0;
           const selected = f === selectedFloor;
+          // ties all highlight; a floor with no mass is never "top"
           const isTop = p > 0 && p === maxFloorP;
           const band = inBand.has(f);
           return (

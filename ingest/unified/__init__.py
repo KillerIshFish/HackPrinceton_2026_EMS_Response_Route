@@ -20,5 +20,7 @@ Modules: ``index`` (address lookup), ``record`` (property facts), ``roster``
 (units and tenants on floors), ``layout`` (archetype geometry), ``stamp`` (scanned
 unit interiors), ``lift`` (Model3D / ScanModel / Building -> BuildingModel),
 ``project`` (BuildingModel -> Building, viewer payload), ``context`` (aerial and
-street-bearing sidecar), ``pipeline`` (the stages in order).
+street-bearing sidecar), ``pipeline`` (the stages in order), ``shape`` (layout drawn
+inside a real building outline), ``plan`` (buildings traced from floor plans),
+``surroundings`` (what each window faces), ``osm_local`` (OpenStreetMap read from disk).
 """

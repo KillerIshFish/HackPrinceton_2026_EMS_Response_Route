@@ -16,9 +16,12 @@ from typing import Sequence
 
 from core.schema import Building, PhoneFix
 
+# Assumed phone height above the floor slab (held or pocketed); same value as core.features.
 PHONE_HEIGHT_ABOVE_FLOOR_M = 1.2
+# Assumed, from the initial commit: tighter than the FCC horizontal benchmark (50 m for 80 % of calls,
+# cited in eval/benchmark/common.py), which uses 30 m. Real fixes carry their own horizontal_sigma_m.
 DEFAULT_HORIZONTAL_SIGMA_M = 15.0  # used when x/y are given without an uncertainty
-MIN_LIKELIHOOD = 1e-12  # keep likelihoods strictly positive
+MIN_LIKELIHOOD = 1e-12  # keep likelihoods strictly positive, so a far-off fix never zeroes a room
 
 
 def point_in_polygon(x: float, y: float, polygon: Sequence[tuple[float, float]]) -> bool:

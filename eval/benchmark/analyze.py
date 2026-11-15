@@ -1,6 +1,8 @@
 """Statistics, charts and summary for the benchmark.
 
-    uv run --with matplotlib python -m eval.benchmark.analyze
+    uv run --with matplotlib --with pandas python -m eval.benchmark.analyze
+
+(neither matplotlib nor pandas is a project dependency in pyproject.toml, hence the --with flags)
 
 Reads eval/results/benchmark_trials.csv (and speech_results.json, freeform_parser.json when
 present); writes eval/results/summary.json and eval/results/charts/*.png.
@@ -21,14 +23,14 @@ import numpy as np
 import pandas as pd
 
 from eval.benchmark.common import (
-    BUILDING_SHORT, BUILDINGS, CALL_TYPE_BY_KEY, CALL_TYPES, CURB_MEDIAN_S, CURB_SIGMA, ENTRY_S, VARIANTS,
+    BUILDINGS, CALL_TYPE_BY_KEY, CALL_TYPES, CURB_MEDIAN_S, CURB_SIGMA, ENTRY_S, VARIANTS,
 )
 
 RESULTS = Path(__file__).resolve().parents[1] / "results"
 CHARTS = RESULTS / "charts"
-CAP_S = 3600.0
-RNG = np.random.default_rng(2026)
-N_BOOT = 2000
+CAP_S = 3600.0  # 60 min cap on in-building time for outcomes and capped means (judgement; see module docstring)
+RNG = np.random.default_rng(2026)  # fixed seed so the bootstrap CIs in summary.json are reproducible
+N_BOOT = 2000  # bootstrap resamples per CI
 
 ARMS = ["C", "B", "A"]
 ARM_LABEL = {"C": "App", "B": "Informed dispatcher", "A": "Address only"}
@@ -57,6 +59,11 @@ def outcome(df: pd.DataFrame, ct_key: str, arm: str, rate_idx: int = 1) -> np.nd
     curve           survival % at contact time on the call clock
     linear_arrival  fire: 100 - rate * minutes after arrival at the entrance (floored at 0)
     linear_call     stroke / bleeding: - rate * minutes from the call (points lost)
+
+    ``rate_idx`` picks the low / mid / high rate from ``CallType.rate_pp_min``. The fire baseline
+    of 100 is not neutral: with the floor at 0, any search longer than 100 / rate minutes
+    (about 27 min at the mid rate) scores 0 in every arm, so arm differences on long searches vanish.
+    The shared call-to-curb and entry times cancel in linear_call differences, not in curves.
     """
     ct = CALL_TYPE_BY_KEY[ct_key]
     t_find = np.minimum(df[f"t_{arm}"].to_numpy(float), CAP_S)
@@ -73,6 +80,7 @@ def outcome(df: pd.DataFrame, ct_key: str, arm: str, rate_idx: int = 1) -> np.nd
 
 
 def boot_ci(x: np.ndarray, stat=np.mean) -> tuple[float, float]:
+    """95% percentile-bootstrap CI of ``stat`` over trials (N_BOOT resamples with replacement)."""
     x = np.asarray(x, float)
     if len(x) == 0:
         return (math.nan, math.nan)
@@ -96,6 +104,8 @@ def time_block(d: pd.DataFrame) -> dict:
     out["saved_vs_B_mean_capped_ci"] = boot_ci(saved_cap)
     out["saved_vs_A_median"] = float(np.median(d["t_A"] - d["t_C"]))
     out["pct_reduction_vs_B_median_time"] = float(1 - np.median(d["t_C"]) / np.median(d["t_B"]))
+    # 1e-6 s tolerance: arms that search the same rooms in the same order count as a tie, not a float win.
+    # 300 s = the "reached within 5 min of entering" share in REPORT.md.
     out["frac_faster_than_B"] = float((d["t_C"] < d["t_B"] - 1e-6).mean())
     out["frac_tie_B"] = float((abs(d["t_C"] - d["t_B"]) <= 1e-6).mean())
     out["frac_slower_than_B"] = float((d["t_C"] > d["t_B"] + 1e-6).mean())
@@ -420,6 +430,7 @@ def main() -> int:
                             for k in ("cardiac_cpr", "cardiac_nocpr", "cardiac_unwitnessed")])
     gains_a = np.concatenate([outcome(card[card.call_type == k], k, "C") - outcome(card[card.call_type == k], k, "A")
                               for k in ("cardiac_cpr", "cardiac_nocpr", "cardiac_unwitnessed")])
+    # 1 percentage point of survival per call = 10 survivors per 1,000 calls, hence the factor 10.
     S["cardiac_pooled"] = {"gain_vs_B_pp": float(gains.mean()), "gain_vs_B_ci": boot_ci(gains),
                            "lives_per_1000_vs_B": float(10 * gains.mean()),
                            "lives_per_1000_vs_B_ci": [10 * x for x in boot_ci(gains)],
@@ -432,12 +443,13 @@ def main() -> int:
     }
 
     # Sensitivity: replace each trial's call-to-curb time with a fixed value (search times kept).
+    # Approximation: the app's cardiac plan was optimised for the trial's own curb time, not the swept one.
     S["sensitivity"] = {}
     main = df[df.variant == "main"]
     for k in ("cardiac_cpr", "cardiac_nocpr", "cardiac_unwitnessed"):
         d = main[main.call_type == k].copy()
         rows = []
-        for m in np.arange(3, 15.5, 0.5):
+        for m in np.arange(3, 15.5, 0.5):  # 3 to 15 min in 30 s steps, around the 7 min urban median
             d["t_curb"] = m * 60
             g = outcome(d, k, "C") - outcome(d, k, "B")
             rows.append({"curb_min": float(m), "gain_vs_B": float(g.mean()), "ci": boot_ci(g)})

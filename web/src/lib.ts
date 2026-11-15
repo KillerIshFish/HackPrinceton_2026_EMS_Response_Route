@@ -8,12 +8,15 @@ import type { Building, ClueType, Posterior, Room, XY } from "./types";
 export function pct(p: number, digits?: number): string {
   if (!Number.isFinite(p)) return "-";
   const v = p * 100;
+  // Any non-zero mass shows as "<0.1%", never as "0.0%": a room the model has not ruled out
+  // must not read as ruled out. Exactly 0 still prints "0.0%".
   if (v > 0 && v < 0.1) return "<0.1%";
+  // Whole percent from 10% up, one decimal below, so small but distinct values stay distinguishable.
   const d = digits ?? (v >= 10 ? 0 : 1);
   return `${v.toFixed(d)}%`;
 }
 
-/** seconds -> "m:ss" */
+/** seconds -> "m:ss" (rounded to the second; negative values clamp to "0:00") */
 export function mmss(seconds: number): string {
   if (!Number.isFinite(seconds)) return "-";
   const s = Math.max(0, Math.round(seconds));
@@ -49,7 +52,10 @@ export function rampColor(t: number): string {
   return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
 }
 
-/** Ink colour that stays legible on top of rampColor(t). */
+/**
+ * Ink colour that stays legible on top of rampColor(t). Tuned value: dark ink from t = 0.55, just
+ * before the #3fb8ae stop (t = 0.6) where the ramp turns light.
+ */
 export function rampInk(t: number): string {
   return t > 0.55 ? "#0b1016" : "#e6edf3";
 }
@@ -105,6 +111,7 @@ export function boundsOf(points: XY[]): Bounds {
     if (x > maxX) maxX = x;
     if (y > maxY) maxY = y;
   }
+  // no points: a unit box, so callers never build a viewBox or scale from Infinity
   if (!Number.isFinite(minX)) return { minX: 0, minY: 0, maxX: 1, maxY: 1 };
   return { minX, minY, maxX, maxY };
 }
@@ -152,11 +159,18 @@ export function latLngToTile(lat: number, lng: number, zoom: number): [number, n
   return [x, y];
 }
 
-/** Expected phone height on a floor: finished floor + 1.2 m (held phone). */
+/**
+ * Expected phone height on a floor: finished floor + 1.2 m (held phone). Mirrors
+ * core/features.py PHONE_HEIGHT_ABOVE_FLOOR_M; keep the two in step.
+ */
 export const PHONE_HEIGHT_M = 1.2;
-/** +/-3 m is the 80% z-axis bound. */
+/**
+ * +/-3 m is the 80% z-axis bound the phone's height fix is quoted with (core/schema.py derives
+ * Z_SIGMA_M = 3.0 / 1.28 from it). Display only: the floor bar marks floors inside this band.
+ */
 export const Z_BAND_M = 3.0;
 
+/** Expected phone height (m above the z = 0 datum) on `floor`; a floor with no height on file counts as 0 m. */
 export function floorZ(building: Building, floor: number): number {
   return (building.floor_heights_m[String(floor)] ?? 0) + PHONE_HEIGHT_M;
 }

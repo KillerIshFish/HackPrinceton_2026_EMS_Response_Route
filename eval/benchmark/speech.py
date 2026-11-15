@@ -6,8 +6,10 @@ For each building x call type, simulated callers are drawn exactly as in the mai
 (true room, phone fix, the structured clues the caller would give). Claude Haiku then turns
 those clues into a short, messy 911 dialogue in the caller persona's style - it is told to
 convey ONLY those facts, so the information content equals the structured test. The app's
-interpreter (rules, and the grounded Claude Haiku reader the console uses) reads the dialogue
+interpreter (rules, and the grounded Claude reader the console uses) reads the dialogue
 turn by turn, the parsed evidence is fused, and the search plan is timed as in the benchmark.
+The reader's model is ``parser.agent``'s (``LLM_MODEL``, default Claude Sonnet 5.5 since 2026-11-15);
+the run in eval/results/REPORT.md (14 November) used Claude Haiku as the reader.
 
 This measures how much of the app's benefit survives real-sounding speech: same callers,
 three readings (structured clues / rules parser / Haiku parser).
@@ -35,7 +37,7 @@ from eval.benchmark.common import (
 RESULTS = Path(__file__).resolve().parents[1] / "results"
 GEN_PATH = RESULTS / "speech_calls.json"
 OUT_PATH = RESULTS / "speech_results.json"
-GEN_MODEL = "claude-haiku-5-5"
+GEN_MODEL = "claude-haiku-5-5"  # writes the dialogues; a different job from the interpreter under test
 _gen_lock = threading.Lock()
 _plan_lock = threading.Lock()  # the planner's graph cache holds one building at a time
 
@@ -87,6 +89,8 @@ def fact_lines(b, clues, vocab) -> list[str]:
     views = vocab.get("views") or {}
     lines = []
     for c in clues:
+        # A clue below its vocabulary default confidence was hedged by the persona (sample_caller.truthful_clues);
+        # 0.7 is the same fallback default that function uses, 1e-6 absorbs its rounding to 3 decimals.
         unsure = float(c.confidence) < float(conf.get(c.type, 0.7)) - 1e-6
         if c.type == "room_type":
             s = f"You are in a {_human(c.value)}" + (" (an office suite)" if c.value == "suite" else "") + "."
@@ -119,6 +123,8 @@ def build_calls(per_cell: int) -> list[dict]:
         b = engine()["buildings"][bid]["b"]
         for c_idx, ct in enumerate(CALL_TYPES):
             for i in range(per_cell):
+                # Leading 100 (arbitrary tag) gives speech callers their own streams, apart from the
+                # benchmark's [variant 0-5, ...] seeds, so these callers are not copies of benchmark rows.
                 rng = np.random.default_rng([100, b_idx, c_idx, i])
                 w = sample_world(bid, ct, "main", rng)
                 p = personas.get(w["persona"], {})
@@ -138,6 +144,7 @@ def generate(call: dict, client) -> list[dict]:
     facts = "\n".join(f"- {f}" for f in call["facts"]) or "- (none: the caller does not know where they are inside the building)"
     user = (f"Emergency: {ct.complaint}.\nCaller persona: {call['persona_text']}\n\nLOCATION FACTS:\n{facts}\n\n"
             "Write the transcript.")
+    # max_tokens is generous headroom for a 3-7 turn dialogue; the system prompt is cached across calls.
     resp = client.messages.create(
         model=GEN_MODEL, max_tokens=4000,
         system=[{"type": "text", "text": GEN_SYSTEM, "cache_control": {"type": "ephemeral"}}],
@@ -177,8 +184,9 @@ def interpret(call: dict, turns: list[dict], mode: str) -> tuple[list, list[str]
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
+    # Calls per building x call type. REPORT.md's 280-call run used --per-cell 10 (28 cells x 10).
     ap.add_argument("--per-cell", type=int, default=8)
-    ap.add_argument("--threads", type=int, default=8)
+    ap.add_argument("--threads", type=int, default=8)  # concurrent API requests / evaluations
     args = ap.parse_args(argv)
 
     from dotenv import load_dotenv
@@ -194,6 +202,7 @@ def main(argv=None) -> int:
         rae._BUILDINGS[bid] = E["b"]
     assert get_building("ptc-100") is engine()["buildings"]["ptc-100"]["b"]
 
+    # Retries and a 120 s timeout so one slow or rate-limited request does not sink a batch run.
     client = anthropic.Anthropic(api_key=os.getenv("LLM_API_KEY"), max_retries=4, timeout=120)
     calls = build_calls(args.per_cell)
     cache = json.loads(GEN_PATH.read_text(encoding="utf-8")) if GEN_PATH.exists() else {}
@@ -235,6 +244,7 @@ def main(argv=None) -> int:
                 r = run_arms(c["building"], ct, w["room"], w["fix"], w["clues"], c["t_curb"], evidence=evidence)
             row.update({f"{mode}_{k}": r[k] for k in ("t_C", "rank_true", "p_true")})
             row[f"{mode}_n_evidence"] = len(evidence)
+            # True when any turn in llm mode was read by the rules instead (model error or budget).
             row[f"{mode}_fallback"] = mode == "llm" and any(s != "llm" for s in sources)
         with lock:
             results.append(row)

@@ -23,17 +23,19 @@ interface Props {
 export const STAGING_COLOR = "#4ade80";
 const STAGING_INK = "#052e16";
 
-/** how far around the building the street map reaches: a little past what a window is taken to see */
+/** how far around the building the street map reaches: a little past what a window is taken to see
+ * (window views use the first thing rays meet within 60 m, docs/osm-site-map.md) */
 const MAP_REACH_M = 75;
 
 type Box = [number, number, number, number]; // x0, y0, x1, y1 in mosaic pixels
 
-/** with more entrances than this, only the recommended one is named on the image */
+/** with more entrances than this, only the recommended one is named on the image (UI choice: the full list,
+ * with walking times, is beside the map) */
 const MAX_NAMED_ENTRANCES = 6;
 
 const overlaps = (a: Box, b: Box) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
 
-/** A 1-2-5 length in metres whose bar is about a fifth of the view wide. */
+/** A 1-2-5 length in metres whose bar is about a fifth of the view wide (the smallest such length at least that). */
 function niceScale(viewMetres: number): number {
   const target = viewMetres / 5;
   const pow = 10 ** Math.floor(Math.log10(target));
@@ -55,6 +57,9 @@ export function AerialSite({ building, meta, tiles, approach, mode = "aerial", s
   const W = (tiles.x_max - tiles.x_min + 1) * tiles.tile_px;
   const H = (tiles.y_max - tiles.y_min + 1) * tiles.tile_px;
 
+  // lat/lng -> mosaic pixels: Web Mercator tile coordinates at the mosaic's zoom (latLngToTile), offset to the
+  // mosaic's first tile. Metre lengths use tiles.m_per_px = 2 pi R cos(lat) / (tile_px 2^zoom) at the site's
+  // centre (ingest/vexcel.py metres_per_pixel), which holds across a site a few hundred metres wide.
   const px = useMemo(
     () =>
       ([lat, lng]: LatLng): [number, number] => {
@@ -106,7 +111,8 @@ export function AerialSite({ building, meta, tiles, approach, mode = "aerial", s
       const side = extent + (2 * MAP_REACH_M) / tiles.m_per_px;
       return { x: cx - side / 2, y: cy - side / 2, w: side, h: side };
     }
-    // room around the building for the street and the neighbours, never more than the mosaic holds
+    // room around the building for the street and the neighbours, never more than the mosaic holds:
+    // 1.7 times the drawn extent, and at least 30 m more than it (tuned framing)
     const side = Math.min(Math.max(extent * 1.7, extent + 30 / tiles.m_per_px), W, H);
     const x = Math.min(Math.max(cx - side / 2, 0), W - side);
     const y = Math.min(Math.max(cy - side / 2, 0), H - side);
@@ -126,7 +132,9 @@ export function AerialSite({ building, meta, tiles, approach, mode = "aerial", s
     return out;
   }, [tiles, view]);
 
-  const u = view.w / 560; // one overlay unit: sizes below are in "pixels of a 560 px wide view"
+  // one overlay unit: sizes below are in "pixels of a 560 px wide view". On a 560 px wide panel one unit is one
+  // screen pixel; overlays stay in proportion to the view whatever ground area it covers.
+  const u = view.w / 560;
   const fontPx = 13 * u;
 
   // ---- markers and labels, placed so that none covers another ---------------------------
@@ -153,6 +161,7 @@ export function AerialSite({ building, meta, tiles, approach, mode = "aerial", s
         const dx = sx - rec.cx;
         const dy = sy - rec.cy;
         const d = Math.hypot(dx, dy);
+        // clear distance: the marker's radius plus the badge's half-diagonal plus 3 units of air
         const clear = rec.r + Math.hypot(w, h) / 2 + 3 * u;
         if (d < clear) {
           const ux = d > 1e-6 ? dx / d : 0;
@@ -172,6 +181,7 @@ export function AerialSite({ building, meta, tiles, approach, mode = "aerial", s
     for (const m of ordered) {
       if (!m.rec && !nameAll) continue; // many entrances: markers only, names are in the list beside the map
       const text = m.e.name;
+      // estimated box: 0.56 em per character, 1.25 em line height; the baseline sits 0.36 em under the centre
       const tw = text.length * fontPx * 0.56;
       const th = fontPx * 1.25;
       const gap = m.r + 4 * u;
@@ -226,6 +236,7 @@ export function AerialSite({ building, meta, tiles, approach, mode = "aerial", s
           {asMap && surroundings ? (
             <SiteMapLayer surroundings={surroundings} px={px} view={view} u={u} mPerPx={tiles.m_per_px} fontPx={fontPx} avoid={layout.taken} />
           ) : (
+            // each tile drawn half a pixel oversize so no hairline seam shows between neighbours
             tileList.map((t) => (
               <image key={t.key} href={t.src} x={t.x} y={t.y} width={tiles.tile_px + 0.5} height={tiles.tile_px + 0.5} preserveAspectRatio="none" />
             ))

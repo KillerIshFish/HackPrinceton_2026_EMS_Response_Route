@@ -85,7 +85,8 @@ const FIDELITY_LABEL: Record<string, string> = {
   roster: "floor known, position unknown",
 };
 
-/** stops per team that the drawn route runs through; each one gets a floating label with its room's name */
+/** stops per team that the drawn route runs through; each one gets a floating label with its room's name.
+ * UI choice: about as many name labels as stay readable over the model; the full order is in the Search plan list. */
 const ROUTE_STOPS = 8;
 /**
  * Where a stop's label may stand, nearest first: the label's centre relative to the room's point,
@@ -95,6 +96,8 @@ const ROUTE_STOPS = 8;
  */
 function labelSlots(lw: number, lh: number, coned: boolean): [number, number][] {
   const out: [number, number][] = [];
+  // Hand-tuned offsets in CSS px: lifts step by 24 px (about a label's height plus a gap), sideways shifts
+  // move a label 36% of its own width, and side gaps are 16 px (near) or 48 px (far).
   const above = (lift: number) => {
     for (const shift of [0, 0.36, -0.36]) out.push([shift * lw, -(lift + lh / 2)]);
   };
@@ -115,8 +118,10 @@ function labelSlots(lw: number, lh: number, coned: boolean): [number, number][] 
 }
 
 /** A room name short enough for a label. The start and the end are kept: the end often tells rooms apart ("... (Level 1 north)"). */
+// max = 32 characters: tuned to fit the name label's 220 px max width at 11 px text.
 function shortName(name: string, max = 32): string {
   if (name.length <= max) return name;
+  // Without a short "(...)" tail, the tail keeps about 45% of the characters left after the " … " joiner.
   // a closing "(...)" is kept whole when it is short: it is usually the part that differs
   const bracket = /\([^()]*\)?$/.exec(name)?.[0] ?? "";
   let tail = bracket.length >= 3 && bracket.length <= max - 12 ? bracket : name.slice(name.length - Math.floor((max - 3) * 0.45));
@@ -138,7 +143,8 @@ function shortName(name: string, max = 32): string {
  * badges away, for a place that is at least clear of every name.
  */
 const BADGE_NEAR = 81;
-/** side of the squares the placed numbers are filed under, so a crowded floor's numbers are not all compared with each other */
+/** side of the squares the placed numbers are filed under, so a crowded floor's numbers are not all compared
+ * with each other (CSS px; tuned to about two badge widths, so a badge touches at most four squares) */
 const BADGE_CELL = 40;
 const BADGE_NUDGES: [number, number][] = (() => {
   const out: [number, number][] = [];
@@ -147,12 +153,13 @@ const BADGE_NUDGES: [number, number][] = (() => {
   const far = ([nx, ny]: [number, number]) => Math.hypot(nx * 1.3, ny) + (ny > 0 ? 0.01 : 0);
   return out.sort((a, c) => far(a) - far(c));
 })();
-/** thickness of the floor slab drawn under each level's rooms */
+/** thickness of the floor slab drawn under each level's rooms (m). Display only: the model gives floor heights,
+ * not slab depths, so this is an assumed value that makes each storey read as a solid floor from the side. */
 const SLAB_M = 0.3;
 /** air added between storeys, as a share of the building's typical storey height: 1 = one floor's height
  * of clear space above each floor, so every level stands apart and can be seen into from the side */
 const FLOOR_GAP_STOREYS = 1.0;
-/** the gap used when the model has no storey heights */
+/** the gap used when the model has no storey heights (m). Assumed: a typical floor-to-floor height. */
 const FLOOR_GAP_FALLBACK_M = 3.0;
 
 /** the gap between storeys for this model: its median storey height times FLOOR_GAP_STOREYS */
@@ -163,16 +170,19 @@ function floorGap(payload: Model3DPayload): number {
 }
 /** how far past the building's outline (as a share of its longest side) the view can be panned */
 const PAN_MARGIN = 0.1;
-/** a double-click that comes this soon after a drag ended is the end of that drag, not a pick */
+/** a double-click that comes this soon after a drag ended is the end of that drag, not a pick.
+ * Tuned: a little longer than a usual double-click interval. */
 const DRAG_CLICK_MS = 600;
-/** pointer travel, in pixels, past which a press is a drag rather than a click */
+/** pointer travel, in pixels, past which a press is a drag rather than a click (tuned: above hand jitter on a click) */
 const DRAG_PX = 5;
-/** height of the route line above the floor it runs on */
+/** height of the route line above the floor it runs on (m). Display choice: clear of the room fills and slab
+ * edges, well under the walls' tops, so the line reads as running through the storey. */
 const ROUTE_LIFT_M = 1.0;
 /** route and stop colour per team (the stop numbers also carry the team letter) */
 const TEAM_COLOR = [0xf2a93b, 0x79a8d8];
 
-/** longest dimension of the model, for sizing things that must stay readable on any building */
+/** longest dimension of the model, for sizing things that must stay readable on any building.
+ * At least 8 m, so a very small model still gets a usable marker, camera range and ground plane. */
 function modelSpan(payload: Model3DPayload): number {
   const b = payload.bounds;
   return Math.max(b.x1 - b.x0, b.y1 - b.y0, b.z1, 8);
@@ -200,7 +210,8 @@ function separateFloors(payload: Model3DPayload, gap: number): Model3DPayload {
   };
 }
 
-/** height of the cone that points down at the next stop */
+/** height of the cone that points down at the next stop (m): 1/28 of the model's span, at least 1.4 m
+ * (tuned so the cone scales with the building and stays visible from the default framing) */
 const markerHeight = (span: number) => Math.max(1.4, span / 28);
 
 /** One level's meshes plus what is needed to recolour and pick its floor plates. */
@@ -336,12 +347,16 @@ function shellWalls(payload: Model3DPayload): { shell: Uint8Array; outward: Floa
     const dx = w.b[0] - w.a[0];
     const dy = w.b[1] - w.a[1];
     const len = Math.hypot(dx, dy) || 1;
+    // probe 0.3 m past each face (0.12 m assumed thickness when the wall has none): clear of the wall itself,
+    // close enough to land in the room that adjoins it
     const off = (w.th || 0.12) / 2 + 0.3;
     const nx = (-dy / len) * off;
     const ny = (dx / len) * off;
     let open = 0;
     let plus = 0;
     let minus = 0;
+    // three samples along the wall; shell needs a room-free side at two of them, so one doorway or a room corner
+    // that stops short of the wall does not decide it alone
     for (const t of [0.2, 0.5, 0.8]) {
       const x = w.a[0] + dx * t;
       const y = w.a[1] + dy * t;
@@ -360,10 +375,12 @@ function shellWalls(payload: Model3DPayload): { shell: Uint8Array; outward: Floa
   return { shell, outward };
 }
 
-/** Today's three-quarter view: about 32 degrees above the horizon, 30 degrees to one side of the front. */
+/** Today's three-quarter view: about 32 degrees above the horizon, 30 degrees to one side of the front.
+ * The elevation is that of the initial camera vector (-0.5, 0.62, 0.86) (see viewDirRef); both angles are a
+ * display choice that shows the front and one side with the floors in plan. */
 const VIEW_ELEVATION = Math.atan2(0.62, Math.hypot(0.5, 0.86));
 const VIEW_SIDE = Math.PI / 6;
-/** used instead when the front is the short end of a long building, so its long side still shows */
+/** used instead when the front is the short end of a long building, so its long side still shows (tuned) */
 const VIEW_SIDE_END_ON = (58 * Math.PI) / 180;
 
 /**
@@ -374,6 +391,7 @@ const VIEW_SIDE_END_ON = (58 * Math.PI) / 180;
  * to the outside. This is fixed building data: it does not depend on the call or the plan.
  */
 function viewDirection(payload: Model3DPayload, building: Building): THREE.Vector3 {
+  // a door's outward vector shorter than 0.5 gives no usable direction
   const doors = (payload.entrances ?? []).filter((e) => e.o && Math.hypot(e.o[0], e.o[1]) > 0.5);
   const street = building.entrances.find((e) => e.facing === "street");
   const door = (street && doors.find((e) => e.id === street.id)) ?? doors[0];
@@ -384,6 +402,7 @@ function viewDirection(payload: Model3DPayload, building: Building): THREE.Vecto
     fx = door.o[0] / n;
     fy = door.o[1] / n;
     // a door at the corner of its room gives a slanted vector: square it up when it is close to an axis
+    // (0.82 = cos of about 35 degrees)
     if (Math.abs(fx) > 0.82) [fx, fy] = [Math.sign(fx), 0];
     else if (Math.abs(fy) > 0.82) [fx, fy] = [0, Math.sign(fy)];
   }
@@ -392,9 +411,11 @@ function viewDirection(payload: Model3DPayload, building: Building): THREE.Vecto
   const dy = b.y1 - b.y0;
   const depth = Math.abs(fx) * dx + Math.abs(fy) * dy; // extent along the front direction
   const width = Math.abs(fy) * dx + Math.abs(fx) * dy; // extent across it
+  // 0 while the building is no deeper than wide, rising to 1 at 2.5 times deeper than wide (tuned ramp)
   const endOn = Math.min(1, Math.max(0, (depth / Math.max(width, 1e-6) - 1) / 1.5));
   const angle = VIEW_SIDE + (VIEW_SIDE_END_ON - VIEW_SIDE) * endOn;
   // stand on the side of the front where the door is; to the left (as before) when it is near the middle
+  // (within 10% of the front's width of its centre)
   let side = -1;
   if (door) {
     const along = (door.xy[0] - (b.x0 + b.x1) / 2) * -fy + (door.xy[1] - (b.y0 + b.y1) / 2) * fx;
@@ -420,12 +441,15 @@ function fitCamera(camera: THREE.PerspectiveCamera, controls: OrbitControls, poi
   const box = new THREE.Box3().setFromPoints(points);
   const target = box.getCenter(new THREE.Vector3());
   const reach = Math.max(box.getSize(new THREE.Vector3()).length(), 1);
+  // the outline must fit within +/-0.9 in normalised device coordinates: a 5% margin on each side of the canvas
   const margin = 0.9;
   const p = new THREE.Vector3();
   const right = new THREE.Vector3();
   const up = new THREE.Vector3();
   const place = (d: number) => {
     camera.position.copy(target).addScaledVector(dir, d);
+    // clip planes follow the distance: near at 1/500 of it (at least 5 cm) keeps depth precision; far reaches
+    // well past the model and the ground plane
     camera.near = Math.max(d / 500, 0.05);
     camera.far = d * 40 + reach * 4;
     camera.lookAt(target);
@@ -445,6 +469,8 @@ function fitCamera(camera: THREE.PerspectiveCamera, controls: OrbitControls, poi
     return { x0, x1, y0, y1, front };
   };
   let distance = reach;
+  // Up to 6 fit-then-recentre passes. Each bisects the distance over 0.05 to 40 times the model's diagonal;
+  // 28 halvings narrow that range to well under a millimetre on any building.
   for (let pass = 0; pass < 6; pass++) {
     let lo = reach * 0.05;
     let hi = reach * 40;
@@ -460,6 +486,7 @@ function fitCamera(camera: THREE.PerspectiveCamera, controls: OrbitControls, poi
     const e = extent();
     const cx = (e.x0 + e.x1) / 2;
     const cy = (e.y0 + e.y1) / 2;
+    // centred within 0.003 NDC (about 1 px on a 700 px canvas): stop
     if (pass === 5 || (Math.abs(cx) < 0.003 && Math.abs(cy) < 0.003)) break;
     const halfH = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * distance;
     right.setFromMatrixColumn(camera.matrixWorld, 0);
@@ -539,6 +566,8 @@ function buildLevels(payload: Model3DPayload): LevelMeshes[] {
       // -1: not a shell wall, or its outside is not known
       const dir = isShell && (ox || oy) ? (Math.round(Math.atan2(oy, ox) / (Math.PI / 4)) + 8) % 8 : -1;
       const source = w.f === "template" || w.f === "roster" ? "generated" : "measured";
+      // wall thickness (m): 0.12 assumed when the data has none, at least 0.06 so a thin wall still draws;
+      // window glass is a 0.04 m pane
       const th = Math.max(0.06, w.th || 0.12);
       const solid = bucket(isShell ? "shell" : "inner", `${source}:${isShell ? "shell" : "inner"}`, dir);
       for (const [t0, t1, z0, z1] of w.p) pushBox(solid, w.a, w.b, t0, t1, z0, z1, th);
@@ -653,8 +682,11 @@ function travelGraph(building: Building, travel: TravelProfile, closed: Set<stri
       shaftEdges.set([e.u, e.v].sort().join("|"), { ...e, length_m: length });
       continue;
     }
+    // walking speed floored at 0.1 m/s only to avoid dividing by zero on a malformed profile
     let t = length / Math.max(travel.walk_mps, 0.1);
     if (e.kind === "stairs") {
+      // each floor entered costs the stair rate; the high-rise rate applies to floors above high_floor_from,
+      // the same rule as stair_rate_s in core/building_graph.py
       const lower = Math.min(u.floor, v.floor);
       const floors = Math.abs(Math.trunc(e.floors || 0)) || Math.abs(u.floor - v.floor);
       for (let f = lower + 1; f <= lower + floors; f++) {
@@ -991,6 +1023,8 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
     const cx = (b.x0 + b.x1) / 2;
     const cy = (b.y0 + b.y1) / 2;
     const span = modelSpan(payload);
+    // 38 degree vertical field of view: a moderate lens, little perspective distortion of tall buildings. The
+    // aspect is set on resize and the clip planes by fitCamera; these are placeholders until then.
     const camera = new THREE.PerspectiveCamera(38, 1, span / 200, span * 20);
     scene.add(camera);
     scene.add(new THREE.AmbientLight(0xffffff, 1.5));
@@ -1001,6 +1035,7 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
     sun.target.position.set(0, 0, -1);
     camera.add(sun, sun.target);
     const controls = new OrbitControls(camera, canvas);
+    // the camera stays just above the horizon (about 1 degree), never under the ground plane
     controls.maxPolarAngle = Math.PI / 2 - 0.02;
     // left-drag orbits, right-drag (or shift / ctrl + left-drag) pans, scroll zooms; on touch one
     // finger orbits and two pinch and pan. Panning slides the camera and the point it orbits round
@@ -1040,6 +1075,7 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
     const panBox = new THREE.Box3();
     for (const lp of levelPoints.values()) for (const p of lp) panBox.expandByPoint(p);
     if (panBox.isEmpty()) panBox.setFromCenterAndSize(new THREE.Vector3(cx, 0, -cy), new THREE.Vector3(span, span, span));
+    // at least 4 m of margin, so a small building can still be slid a little
     panBox.expandByScalar(Math.max(4, span * PAN_MARGIN));
     panBox.min.y = Math.max(panBox.min.y, -SLAB_M);
     const clamped = new THREE.Vector3();
@@ -1069,10 +1105,12 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
       new THREE.MeshBasicMaterial({ color: 0x0b1118 }),
     );
     ground.rotation.x = -Math.PI / 2;
+    // a ground plane 4 spans wide, 5 cm under the lowest slab so the two never z-fight
     ground.position.set(cx, -SLAB_M - 0.05, -cy);
     scene.add(ground);
     const levels = buildLevels(payload);
     for (const lv of levels) scene.add(lv.group);
+    // cone radius 1/70 of the span, at least 0.5 m (tuned with markerHeight)
     const marker = new THREE.Mesh(
       new THREE.ConeGeometry(Math.max(0.5, span / 70), markerHeight(span), 16),
       new THREE.MeshBasicMaterial({ color: 0xffa62b }),
@@ -1090,6 +1128,8 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
         for (const part of lv.walls) {
           // > 0 when the outside of these walls faces the viewer
           const facing = part.fade && part.outward ? -part.outward.dot(look) : -1;
+          // tuned ramp: the fade starts as a wall turns side-on to the view and is full once its outside faces the
+          // viewer at all clearly (dot 0.3, about 73 degrees off its normal)
           const near = THREE.MathUtils.smoothstep(facing, -0.05, 0.3);
           part.material.opacity = part.opacity * (1 - (1 - NEAR_SHELL) * near);
           part.material.depthWrite = part.write && near < 0.5;
@@ -1113,6 +1153,7 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
       const w = mount.clientWidth;
       const h = mount.clientHeight;
       if (!w || !h) return; // the tab is hidden: the observer calls again when it is shown
+      // pixel ratio capped at 2: sharper than that costs GPU time without a visible gain
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
@@ -1210,7 +1251,8 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
       for (const part of lv.walls) {
         // The floor in focus as built, its near shell walls faded. Under a cutaway the shell of the
         // storeys below stays solid, so they read as the building's mass. In the whole-building
-        // view every other storey is see-through.
+        // view every other storey is see-through. The opacities below (0.12 glass, 0.3 shell and 0.14
+        // partitions in that view, partitions at 55% under a cutaway) are tuned by eye.
         const shell = part.kind === "shell";
         if (focus) part.opacity = part.base;
         else if (part.kind === "glass") part.opacity = mode === "all" ? 0.12 : part.base;
@@ -1299,6 +1341,7 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
   useEffect(() => {
     const t = three.current;
     if (!t || !payload) return;
+    // colour = square-root ramp of p relative to the most probable room (heatT); 1e-9 avoids dividing by zero
     const maxP = Math.max(...Object.values(posterior.room_probs), 1e-9);
     const color = new THREE.Color();
     for (const lv of t.levels) {
@@ -1308,7 +1351,7 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
         const p = posterior.room_probs[s.r];
         if (p === undefined) color.copy(NO_PROB);
         else color.set(rampColor(heatT(p, maxP)));
-        if (s.k === "walkway") color.multiplyScalar(0.6);
+        if (s.k === "walkway") color.multiplyScalar(0.6); // walkways darker, so rooms stand out at equal p
         for (let i = start; i < start + count; i++) attr.setXYZ(i, color.r, color.g, color.b);
       }
       attr.needsUpdate = true;
@@ -1317,6 +1360,7 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
     const level = at ? levelZ.get(at.level) : undefined;
     t.marker.visible = !!at && !!level && isVisible(at.level);
     if (at && level) {
+      // the cone's tip sits at mid-storey height over the room
       const h = (t.marker.geometry as THREE.ConeGeometry).parameters.height;
       t.marker.position.set(at.x, level.z0 + level.h * 0.5 + h / 2, -at.y);
     }
@@ -1388,7 +1432,7 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
       const words = `${multiTeam ? `Team ${team} stop` : "Stop"} ${st.index + 1}: ${name}, floor ${floorLabel}${st.again ? ", second look" : ""}${
         st.also.length ? ` (also stop ${st.also.join(", ")})` : ""
       }`;
-      // the next stop's number sits on top of the cone that points at its room
+      // the next stop's number sits on top of the cone that points at its room; others stand 1.4 m over the floor
       const coned = next && st.team === 0;
       const pos = new THREE.Vector3(...v3(at.x, at.y, level.z0 + (coned ? level.h * 0.5 + coneTop : 1.4)));
       const again = st.again ? <RotateCw size={9} strokeWidth={3} aria-hidden /> : null;
@@ -1499,6 +1543,7 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
       const p = new THREE.Vector3();
       const project = (v: THREE.Vector3) => {
         p.copy(v).project(t.camera);
+        // in view: in front of the camera and within 5% past the canvas edge, so a label does not blink off at it
         return { x: ((p.x + 1) / 2) * w, y: ((1 - p.y) / 2) * h, inView: p.z < 1 && Math.abs(p.x) <= 1.05 && Math.abs(p.y) <= 1.05 };
       };
       const size = (key: string): [number, number] => {
@@ -1526,6 +1571,7 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
       const squares = (b: Box, visit: (key: number) => boolean): boolean => {
         for (let cx = Math.floor(b.x0 / BADGE_CELL); cx <= Math.floor(b.x1 / BADGE_CELL); cx++) {
           for (let cy = Math.floor(b.y0 / BADGE_CELL); cy <= Math.floor(b.y1 / BADGE_CELL); cy++) {
+            // one key per square: the prime 100003 is more squares than any column holds, so keys do not collide
             if (visit(cx * 100003 + cy)) return true;
           }
         }
@@ -1569,6 +1615,7 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
         if (full && fullEl && s.at.inView) {
           foot = project(full.foot);
           const [lw, lh] = size(`${key}:full`);
+          // clearances below are CSS px: 2 px from the panel edge, 3 px from chips and names, 1 px from numbers
           if (lw > 0 && lw + 4 <= w) {
             for (const [dx, dy] of labelSlots(lw, lh, full.coned)) {
               // a label that would leave the panel sideways slides back in; one that would leave it at the top or bottom is not used
@@ -1819,7 +1866,8 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
                   data-label={c.kind}
                   data-room={c.roomId}
                   className="absolute left-0 top-0"
-                  // an earlier stop's number lies over a later one's where two rooms meet on screen
+                  // an earlier stop's number lies over a later one's where two rooms meet on screen; z stays in
+                  // 100..1000, under the name labels at 1001
                   style={{ visibility: "hidden", zIndex: c.rank !== undefined ? 1000 - Math.min(c.rank, 900) : undefined }}
                   title={c.title}
                 >
@@ -1944,6 +1992,7 @@ export function interiorPoint(points: [number, number][]): [number, number] {
   if (pointInPolygon(cx, cy, points)) return [cx, cy];
   let best: [number, number] | null = null;
   let bestScore = -Infinity;
+  // a coarse scan of 15 horizontal lines across the outline (tuned): fine enough to land inside an L, U or ring wedge
   for (let k = 1; k < 16; k++) {
     const y = y0 + ((y1 - y0) * k) / 16;
     const xs: number[] = [];
@@ -1954,7 +2003,7 @@ export function interiorPoint(points: [number, number][]): [number, number] {
     }
     xs.sort((p, q) => p - q);
     for (let j = 0; j + 1 < xs.length; j += 2) {
-      // the widest stretch wins; between equals, the one nearest the centroid
+      // the widest stretch wins; between equals, the one nearest the centroid (0.05 m of width per metre away)
       const score = xs[j + 1]! - xs[j]! - 0.05 * Math.hypot((xs[j]! + xs[j + 1]!) / 2 - cx, y - cy);
       if (score > bestScore) {
         bestScore = score;

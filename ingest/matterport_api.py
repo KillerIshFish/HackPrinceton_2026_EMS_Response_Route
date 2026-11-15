@@ -88,7 +88,11 @@ def _auth_header() -> str:
 
 
 def graphql(query: str, variables: dict[str, Any] | None = None, timeout: float = 60.0) -> dict:
-    """POST one GraphQL request; return ``data`` or raise ``MatterportError``."""
+    """POST one GraphQL request; return ``data`` or raise ``MatterportError``.
+
+    No retries: results are cached on disk, so a failed fetch is simply re-run. The 60 s timeout matches
+    ``ingest.mp3d.client`` and only trips on a hung connection.
+    """
     req = urllib.request.Request(
         GRAPH_URL,
         data=json.dumps({"query": query, "variables": variables or {}}).encode(),
@@ -169,6 +173,7 @@ def fetch_floorplans(model_id: str, refresh: bool = False) -> dict[str, dict]:
         floor_id = (p.get("floor") or {}).get("id")
         if not (floor_id and p.get("url") and p.get("width") and p.get("resolution") and p.get("origin")):
             continue
+        # Keep only the photogrammetric plan on a transparent background ("photogramy" is the API's own spelling).
         if set(p.get("flags") or []) != {"photogramy", "alpha"}:
             continue
         if floor_id not in best or p["width"] > best[floor_id]["width"]:
@@ -179,6 +184,7 @@ def fetch_floorplans(model_id: str, refresh: bool = False) -> dict[str, dict]:
         name = f"{model_id}_{floor_id}.png"
         req = urllib.request.Request(p["url"], headers={"User-Agent": "caller-location-predictor/0.1"})
         try:
+            # Assumed: 120 s is generous, since this downloads the largest plan PNG on offer.
             with urllib.request.urlopen(req, timeout=120) as resp:
                 (folder / name).write_bytes(resp.read())
         except urllib.error.URLError as exc:

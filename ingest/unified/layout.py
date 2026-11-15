@@ -38,20 +38,27 @@ from typing import Callable, Optional
 
 from ingest.unified.schema import Entrance, Level, Link, Opening, Space, Wall, make_space, r, rect, rp
 
+# All dimensions below are assumed template values (metres); none is measured or taken from a building code.
+# Tuned heuristic: at most 36 units (18 a side) on one bar's floor; busier floors split into parallel wings so a
+# single corridor does not grow implausibly long.
 MAX_UNITS_PER_BAR = 36
 INTERIOR_MAX_UNITS = 400      # above this, unit interiors are left out to keep the model small
-WING_GAP_M = 12.0
-BLOCK_GAP_M = 14.0
-WALKWAY_M = 3.0
-STAIR_W, STAIR_D = 2.8, 5.6
-ELEVATOR_W, LOBBY_W = 2.4, 3.2
-DOOR_W, DOOR_H = 0.95, 2.05
-WINDOW_SILL, WINDOW_HEAD = 0.9, 2.1
+WING_GAP_M = 12.0             # assumed courtyard between parallel wings of one building
+BLOCK_GAP_M = 14.0            # assumed spacing between buildings placed on the grid (real positions are unknown)
+WALKWAY_M = 3.0               # assumed depth of the ground walkway / frontage strip in front of each row
+STAIR_W, STAIR_D = 2.8, 5.6   # assumed stairwell footprint: room for two flights side by side and a landing
+ELEVATOR_W, LOBBY_W = 2.4, 3.2  # assumed elevator shaft width and the lobby width beside it
+DOOR_W, DOOR_H = 0.95, 2.05   # assumed typical door leaf width and height
+WINDOW_SILL, WINDOW_HEAD = 0.9, 2.1  # assumed window sill and head heights above the floor
+# Tuned heuristic: units may stretch to at most 1.6x their record-derived width to fill a segment; past that the
+# leftover length becomes an undivided "no unit data" plate rather than implausibly wide units.
 MAX_STRETCH = 1.6
+# Assumed walking length of one storey of stairs; plan.py and scan_building.py use the same 6 m.
 STAIR_RUN_M = 6.0
 
 PROFILE = {
-    # use type: unit depth, corridor width, default unit area, min unit width
+    # use type: unit depth, corridor width, default unit area, min unit width (m, m, m2, m). Assumed typical values;
+    # retail / industrial / flex have no corridor (0.0) because their bays open straight to the frontage.
     "apartment": (9.0, 1.8, 70.0, 3.2), "hotel": (8.0, 1.8, 30.0, 3.4), "office": (12.0, 2.0, 150.0, 4.0),
     "healthcare": (10.0, 2.4, 80.0, 3.6), "mixed_use": (10.0, 1.8, 90.0, 3.6), "other": (10.0, 2.0, 100.0, 4.0),
     "retail": (18.0, 0.0, 200.0, 5.0), "industrial": (30.0, 0.0, 800.0, 8.0), "flex": (24.0, 0.0, 400.0, 6.0),
@@ -59,6 +66,8 @@ PROFILE = {
 
 
 def choose_archetype(facts: dict, roster: dict) -> str:
+    # Thresholds are assumed rules of thumb: 8+ storeys reads as a high-rise with a central core; an apartment of
+    # 3 or fewer storeys with no recorded elevator reads as a garden walk-up.
     use, stories = facts.get("use_type") or "other", roster["stories"]
     if not roster["slots"]:
         return "floor_stack"
@@ -116,6 +125,7 @@ class _Walls:
 
 def _opening(kind: str, a, b, at, width: float, z0: float, z1: float) -> Optional[Opening]:
     """An opening of ``width`` centred on the point ``at`` of segment a-b."""
+    # Keep >= 0.1 m of wall at each end (0.4 m minimum opening); walls of 0.5 m or less get no opening at all.
     length = math.dist(a, b)
     if length < width + 0.2:
         width = max(0.4, length - 0.2)
@@ -133,6 +143,8 @@ def generic_interior(slot: dict, box: tuple, corridor_side: str, level: int, z0:
     beds = int(slot.get("beds") or 0)
     baths = max(1, int(math.ceil(float(slot.get("baths") or 1))))
     depth = y1 - y0
+    # Assumed proportions: the facade band takes 58% of the unit depth; the weights below share each band's width
+    # (living room 1.5x a bedroom; bath 0.8, hall 0.7, kitchen 1.2).
     split = y0 + depth * 0.58 if corridor_side == "N" else y1 - depth * 0.58
     facade = (y0, split) if corridor_side == "N" else (split, y1)
     inner = (split, y1) if corridor_side == "N" else (y0, split)
@@ -149,7 +161,7 @@ def generic_interior(slot: dict, box: tuple, corridor_side: str, level: int, z0:
                                   raw_class=cls, room_type=cls.lower().replace(" ", "_"), block=slot.get("_block", "")))
             if i:  # partition to the previous room of the band
                 walls.add(level, (x, ya), (x, yb), sid, "partition", thickness=0.1)
-            if is_facade:  # each facade room opens onto the inner band
+            if is_facade:  # each facade room opens onto the inner band (0.85 m interior door, assumed)
                 a, b = (x, split), (xe, split)
                 door = _opening("doorway", a, b, ((x + xe) / 2, split), 0.85, z0, z0 + DOOR_H)
                 walls.add(level, a, b, sid, "partition", [door] if door else [], thickness=0.1)
@@ -247,6 +259,7 @@ def _bar_layout(facts: dict, roster: dict, interior: Optional[InteriorFn] = None
             chunk = math.ceil(len(us) / n_wings)
             for i, s in enumerate(us):
                 wing_floor[min(i // chunk, n_wings - 1)][f].append(s)
+        # An elevator is assumed when the record says so, or when it is silent and the building has 4+ storeys.
         has_core = archetype == "central_core" or (archetype in ("double_loaded_corridor", "floor_stack") and (
             facts.get("has_elevator") is True or (facts.get("has_elevator") is None and stories >= 4)))
         core_s = (ELEVATOR_W + LOBBY_W) if has_core else 0.0
@@ -264,9 +277,10 @@ def _bar_layout(facts: dict, roster: dict, interior: Optional[InteriorFn] = None
                     south, north = us, []
                 longest = max(longest, sum(map(width, south)) + core_s, sum(map(width, north)) + core_n)
             if not longest:  # no units in this wing: size the plate from the typical floor area
-                area = facts.get("typical_floor_m2") or 600.0
+                area = facts.get("typical_floor_m2") or 600.0  # assumed 600 m2 plate when the record has no area
                 area /= max(1, len(block_keys))
                 longest = area / (2 * depth + corridor_w) if archetype != "bays" else area / depth
+            # Clamp: a bar is never shorter than 12 m (room for a few units) or longer than 400 m (bad record data).
             wing_len.append(max(12.0, min(longest, 400.0)))
         bar_depth = depth if archetype == "bays" else 2 * depth + corridor_w
         ends = 0.0 if archetype in ("central_core", "bays") else STAIR_W
@@ -316,11 +330,12 @@ def _bar_layout(facts: dict, roster: dict, interior: Optional[InteriorFn] = None
                         x = xa
                         for s, w in zip(units, widths):
                             xe = x + w * scale
+                            # Under 2 m of leftover is absorbed by the last unit; 2 m+ becomes a "no unit data" plate.
                             if s is units[-1] and xb - xe < 2.0:
                                 xe = xb
                             box = (x, ya, xe, yb)
                             s["_block"] = block
-                            unit = add(make_space(
+                            add(make_space(
                                 s["id"], f, s["kind"], s["label"], rect(*box), "template", block=block,
                                 raw_class=s.get("type") or "", room_type="unit" if s["kind"] == "unit" else "suite",
                                 source_ref=s["id"],
@@ -352,7 +367,7 @@ def _bar_layout(facts: dict, roster: dict, interior: Optional[InteriorFn] = None
                             if archetype == "bays":
                                 if walkway_id:
                                     link(s["id"], walkway_id, "door", xy=door_at)
-                                if f == 1 and len(entrances) < 12:
+                                if f == 1 and len(entrances) < 12:  # assumed cap: list at most 12 bay front doors
                                     entrances.append(Entrance(f"ent-{len(entrances) + 1}", f"{s['label']} front door",
                                                               s["id"], rp(door_at), (0.0, -1.0), "template"))
                             elif target:
@@ -395,6 +410,7 @@ def _bar_layout(facts: dict, roster: dict, interior: Optional[InteriorFn] = None
                                        rect(cx0 + ELEVATOR_W, oy, cx1, yc0), "template", block=block,
                                        room_type="lobby" if f == 1 else "corridor"))
                         lx = (cx0 + ELEVATOR_W + cx1) / 2
+                        # Assumed widths: 1.1 m elevator door, 2.0 m lobby opening, 1.6 m street entrance.
                         el_door = _opening("doorway", (cx0, yc0), (cx0 + ELEVATOR_W, yc0), (cx0 + ELEVATOR_W / 2, yc0),
                                            1.1, z0, z0 + DOOR_H)
                         lob_open = _opening("opening", (cx0 + ELEVATOR_W, yc0), (cx1, yc0), (lx, yc0), 2.0, z0, z0 + DOOR_H)
@@ -465,6 +481,8 @@ def _bar_layout(facts: dict, roster: dict, interior: Optional[InteriorFn] = None
                     half = (len(north) + 1) // 2 if len(north_segments) == 2 else len(north)
                     for seg, group in zip(north_segments, (north[:half], north[half:])):
                         place_units(group, seg[0], seg[1], yc1, yc1 + depth, "S", f"n{north_segments.index(seg)}")
+                    # Vertical links: a stair storey costs STAIR_RUN_M of walking; the elevator link's length is the
+                    # storey height it travels.
                     for name in ("stA", "stB", "elevator"):
                         if name in here and name in below:
                             link(below[name], here[name], "elevator" if name == "elevator" else "stairs",

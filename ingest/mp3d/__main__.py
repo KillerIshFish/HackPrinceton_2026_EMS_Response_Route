@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
 
 from ingest.mp3d.client import MatterportClient, MatterportError
 from ingest.mp3d.clusters import build_scan_model
@@ -67,7 +66,7 @@ def _summary(model) -> str:
 def _scan_summary(scan) -> str:
     lines = [
         f"{scan.name or '(unnamed)'}  [{scan.model_id}]  {scan.schema}",
-        f"  SCAN-CLUSTER build - positions and connectivity, no wall geometry",
+        "  SCAN-CLUSTER build - positions and connectivity, no wall geometry",
     ]
     for slab in scan.slabs:
         lines.append(

@@ -85,8 +85,13 @@ from situation.policy import active_threat_pending, policy_for
 from situation.survival import survival_from
 
 DEMO_HOUR = 14  # 2 pm on a weekday: business-hours prior for scripted demo calls
+# Request limits. Assumed UI caps from the first version, not operational limits: 3 teams (6 responders as pairs)
+# is the most the console offers; plan_search also caps teams at crew_size // 2 when a crew size is given.
 MAX_TEAMS = 3
+# Longest caller / dispatcher turn accepted (chars); matches the transcript box's maxLength in
+# web/src/components/TranscriptPanel.tsx. Assumed: a few spoken sentences, and it bounds the model prompt.
 MAX_UTTERANCE_CHARS = 600
+# Situation fields a patch may not clear with an explicit null (they always need a value).
 _NOT_NULLABLE = {"incident_confirmed", "smoke_reported", "load", "call_started_at"}
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -329,7 +334,7 @@ def _ticked_off(plan: SearchPlan, belief: dict[str, float], p0: float,
     table = search_modes()
     by_room = looks_by_room(looks)
     left = p0 + sum(p * miss_factor(by_room.get(rid, ()), table) for rid, p in belief.items())
-    k = 1.0 / left if left > 0.0 else 1.0
+    k = 1.0 / left if left > 0.0 else 1.0  # renormalises onto the post-look posterior the console displays
     teams, success = [], 0.0
     for team in plan.teams:
         cum, kept = 0.0, []
@@ -472,7 +477,7 @@ class CallSession:
         self.situation = self._initial_situation.model_copy(deep=True)
         if self.situation.call_started_at is None:
             self.situation.call_started_at = _now()
-        self.call_id = uuid.uuid4().hex[:12]
+        self.call_id = uuid.uuid4().hex[:12]  # 48 random bits: enough to tell calls apart in the call log
         self._history_cache.clear()
         self._match_cache.clear()
         self._append_turn(self.script[0], scripted=True)

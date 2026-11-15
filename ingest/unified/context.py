@@ -74,27 +74,33 @@ from ingest.unified.surroundings import SURROUNDINGS_RADIUS_M, mark_own, surroun
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTEXT_DIR = REPO_ROOT / "data" / "processed" / "context"
+# Tuned heuristic: how long a live call waits for the site sources before carrying on (s); later answers arrive via
+# on_late. Vexcel normally answers in a fraction of a second; Overpass can take a minute (module docstring).
 STREET_DEADLINE_S = 4.0
 NOT_A_FRONTAGE = ("motorway", "motorway_link", "trunk", "trunk_link")
-ROAD_RADIUS_M = 150.0
+ROAD_RADIUS_M = 150.0  # assumed: the fronting street lies within 150 m of the address point
 BUILDING_MAX_DISTANCE_M = 45.0  # an outline further than this from the address point is another building
-BUILDING_MIN_AREA_M2 = 40.0
+BUILDING_MIN_AREA_M2 = 40.0  # assumed: a traced outline under 40 m2 is a kiosk or shed, never the building
 # A structure smaller than this is an outbuilding (garage, carport, shed, pool house), not one of
 # the property's buildings: ignored when the parcel's outlines are matched to the record.
 OUTBUILDING_M2 = 150.0
 # The parcel's main outlines are trusted over the record's building count when their total area
-# is within this share of the record's floor area.
+# is within this share of the record's floor area. Tuned heuristic: +/-20% leaves room for tracing error and
+# record rounding; a much looser band would accept outlines that belong to a different building count.
 OUTLINE_AREA_TOL = 0.2
+# Overpass: 2 tries with a 45 s socket timeout each (the query itself asks the server for 25 s); after both fail,
+# every caller skips Overpass for 5 min (300 s) instead of queueing on a server that is down.
 OVERPASS_ATTEMPTS = 2
 OVERPASS_TIMEOUT_S = 45.0
 OVERPASS_COOLDOWN_S = 300.0
 _overpass_down = {"until": 0.0}
-VEXCEL_TIMEOUT_S = 8.0
-OSM_GRACE_S = 1.0
+VEXCEL_TIMEOUT_S = 8.0  # assumed socket timeout (s) for one property/extract request; answers are cached on disk
+OSM_GRACE_S = 1.0  # tuned: once Vexcel has placed the building, wait at most 1 s more for the street (facing only)
 CONTEXT_VERSION = 6  # bump when the sidecar's shape changes, so older files are rebuilt
-IMAGERY_MARGIN_M = 25.0
+IMAGERY_MARGIN_M = 25.0  # assumed margin (m) of aerial imagery kept around everything drawn
 _overpass_gate = threading.Semaphore(1)
 # aerial window radius -> tile zoom, chosen so the mosaic stays about six tiles across
+# (one zoom level down doubles the metres per tile, so each radius limit is about double the previous)
 ZOOM_BY_RADIUS = ((40.0, 21), (85.0, 20), (170.0, 19), (340.0, 18))
 MIN_ZOOM = 17
 
@@ -137,7 +143,7 @@ def fetch_site(lat: float, lon: float) -> dict:
                     return json.loads(resp.read().decode())
             except Exception as exc:  # noqa: BLE001 - the public endpoint 502s and times out under load
                 last = exc
-                time.sleep(1.0 + 2.0 * attempt)
+                time.sleep(1.0 + 2.0 * attempt)  # linear backoff: 1 s, then 3 s
         # it failed every time: requests already waiting at the gate give up at once instead of
         # each spending minutes on a server that is down or has stopped accepting this address
         _overpass_down["until"] = time.monotonic() + OVERPASS_COOLDOWN_S
@@ -228,7 +234,7 @@ def _choose(found: list[dict], single: bool) -> tuple[list[dict], str]:
     if nearest > BUILDING_MAX_DISTANCE_M:
         return [], ""
     # an address point at the kerb is often nearest a shed or a garage: take the largest of the close ones
-    close = [f for f in found if f["distance"] <= nearest + 8.0]
+    close = [f for f in found if f["distance"] <= nearest + 8.0]  # tuned: "close" = within 8 m of the nearest
     pick = max(close, key=lambda f: f["area"])
     return [pick], f"nearest outline, {pick['distance']:.0f} m from the address point"
 
@@ -256,7 +262,7 @@ def _outline(source: str, picks: list[dict], match: str, lat: float, lon: float,
 def _measure(poly: list, holes: Optional[list] = None) -> dict:
     """An outline ring in metres around the address point. ``holes``: courtyards inside it."""
     inside = _contains(poly, 0.0, 0.0)
-    holes = [h for h in holes or [] if len(h) >= 3 and _area(h) >= 4.0]
+    holes = [h for h in holes or [] if len(h) >= 3 and _area(h) >= 4.0]  # holes under 4 m2 are tracing noise
     return {"poly": poly, "holes": holes, "area": max(_area(poly) - sum(_area(h) for h in holes), 0.0), "inside": inside,
             "distance": 0.0 if inside else _distance_to_outline(poly, 0.0, 0.0)}
 
@@ -647,6 +653,7 @@ def _plates(bm: BuildingModel) -> list[tuple[str, list]]:
     blocks: dict[str, list] = {}
     for s in bm.spaces:
         if s.parent is None and s.kind != "walkway" and s.level == lowest and len(s.polygon) >= 3:
+            # grow by 1 cm so touching rooms fuse in the union, then shrink back by the same amount
             blocks.setdefault(s.block, []).append(Polygon(s.polygon).buffer(0.01, join_style="mitre"))
     out = []
     for key in sorted(blocks):
@@ -688,7 +695,7 @@ def _assemble(bm: BuildingModel, geo, state: dict, pending: bool) -> dict:
             front_hint, hint_name = street["bearing_deg"], "the street"
         else:
             east, north = latlng_to_local(geo[0], geo[1], outline["centre_latlng"])
-            if math.hypot(east, north) >= 5.0:
+            if math.hypot(east, north) >= 5.0:  # within 5 m of the centre the address point gives no direction
                 front_hint, hint_name = math.degrees(math.atan2(east, north)) % 360.0, "the address point"
         if front_hint is not None:
             options.sort(key=lambda a: _gap(_front_bearing(a), front_hint))
@@ -702,7 +709,7 @@ def _assemble(bm: BuildingModel, geo, state: dict, pending: bool) -> dict:
             w, d = max(x1 - x0, 1.0), max(y1 - y0, 1.0)
             along, across = (outline["length_m"], outline["width_m"])
             fit = (along / w, across / d) if (x1 - x0) >= (y1 - y0) else (across / w, along / d)
-            fit_scale = [round(min(max(v, 0.1), 10.0), 4) for v in fit]
+            fit_scale = [round(min(max(v, 0.1), 10.0), 4) for v in fit]  # clamp to 0.1-10x against bad outlines
         else:
             # several buildings but one known outline: it can set the direction the buildings
             # run in, not where each one stands
@@ -761,7 +768,7 @@ def _assemble(bm: BuildingModel, geo, state: dict, pending: bool) -> dict:
         lat_c = (min(p[0] for p in pts) + max(p[0] for p in pts)) / 2
         lng_c = (min(p[1] for p in pts) + max(p[1] for p in pts)) / 2
         reach = max(math.hypot(*latlng_to_local(p[0], p[1], (lat_c, lng_c))) for p in pts)
-        radius = max(35.0, reach + IMAGERY_MARGIN_M)
+        radius = max(35.0, reach + IMAGERY_MARGIN_M)  # 35 m floor: even a tiny building gets some surroundings
         zoom = next((z for limit, z in ZOOM_BY_RADIUS if radius <= limit), MIN_ZOOM)
         context["centre_latlng"] = [round(lat_c, 7), round(lng_c, 7)]
         context["imagery"] = {"layer": "urban", "zoom": zoom, "radius_m": round(radius)}

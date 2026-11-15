@@ -65,16 +65,22 @@ from core.uncertainty import entropy_bits
 from parser.extract import SECTION_FOR_TYPE, TYPE_FOR_SECTION, load_vocab
 from parser.layout import LAYOUT_EXCLUDES, LAYOUT_QUESTIONS, layout_features
 
+# Answer noise floor: must equal core.fusion.EPS (0.1), so the scored answer model is the update fusion
+# really applies (docs/BUILD_PLAN.md step C3). Duplicated here, not imported.
 EPS = 0.1
+# Numerical zero for a gain: a question at or below this cannot change the posterior, so it is not offered.
 MIN_GAIN_BITS = 1e-6
 
 # A yes / no question counts as already answered when a descriptive statement on the console
 # (the reasoning reader's clue from the caller's own words) picks out nearly the same rooms:
-# overlap / union of the two room sets at least this much.
+# overlap / union of the two room sets at least this much. Tuned heuristic: 3 rooms in 4 shared is
+# "the same question"; a lower bar would hide questions that still split the remaining rooms.
 ANSWERED_OVERLAP = 0.75
 
 # Open questions: probability the caller cannot answer, and the share of the in-building
 # probability the labelled rooms must hold before the question is offered.
+# Both from docs/BUILD_PLAN.md step C3: "don't know" has probability 0.2 (assumed, not measured), and an
+# open question needs data for "the rooms holding most of the probability" (read as at least half).
 DONT_KNOW = 0.2
 MIN_LABELLED_SHARE = 0.5
 
@@ -228,7 +234,7 @@ def expected_info_gain_bits(
     """Return (expected entropy reduction in bits, P(yes)) for one yes/no question."""
     in_model = sum(room_probs.values())
     if in_model <= 0.0:
-        return 0.0, 0.5
+        return 0.0, 0.5  # no room mass: no information, and no basis for P(yes) either way
 
     def p_yes_given(m: float) -> float:
         m = min(1.0, max(0.0, m))
@@ -236,6 +242,7 @@ def expected_info_gain_bits(
         l_no = eps + (1.0 - eps) * (1.0 - m)
         return l_yes / (l_yes + l_no)
 
+    # "not in model" answers like the posterior-weighted average room; an unscored room has match 1.0
     m_nim = sum(p * match.get(rid, 1.0) for rid, p in room_probs.items()) / in_model
     yes_room = {rid: p * p_yes_given(match.get(rid, 1.0)) for rid, p in room_probs.items()}
     yes_nim = p_nim * p_yes_given(m_nim)
@@ -266,7 +273,7 @@ def already_answered(match: Mapping[str, float], answered: Iterable[frozenset[st
     rest. If a described set of rooms is nearly either side, the caller has in effect answered
     it ("I can see the street out the window" answers "can you see the street?").
     """
-    yes = frozenset(rid for rid, m in match.items() if m >= 0.5)
+    yes = frozenset(rid for rid, m in match.items() if m >= 0.5)  # m >= 0.5: rooms where l_yes >= l_no
     no = all_ids - yes
     if not yes or not no:
         return False
@@ -536,7 +543,7 @@ def top_questions(
     p_nim: float,
     asked: set[str] | None = None,
     policy: Policy | None = None,
-    k: int = 3,
+    k: int = 3,  # docs/BUILD_PLAN.md step C3: "return the top three"
     *,
     meta: Mapping[str, Mapping[str, Any]] | None = None,
     vocab: dict | None = None,

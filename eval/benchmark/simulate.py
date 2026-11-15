@@ -21,7 +21,7 @@ OUT = Path(__file__).resolve().parents[1] / "results" / "benchmark_trials.csv"
 
 
 def _init() -> None:
-    engine()
+    engine()  # load the four buildings once per worker process, not once per trial
 
 
 def _job(args):
@@ -37,9 +37,14 @@ def _job(args):
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
+    # Defaults are the published run: 400 x 28 cells = 11,200 main calls, 150 x 28 = 4,200 per variant
+    # (32,200 in all, as in eval/results/REPORT.md).
     ap.add_argument("--main", type=int, default=400, help="trials per building x call type, main variant")
     ap.add_argument("--robust", type=int, default=150, help="trials per building x call type, each robustness variant")
+    # Leave 4 cores free for the rest of the machine (convenience, not a tuned value).
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 4))
+    # Trials per job (judgement, untuned): big enough to amortise process hand-off, small enough to
+    # balance the load across workers.
     ap.add_argument("--chunk", type=int, default=25)
     args = ap.parse_args(argv)
 
@@ -60,7 +65,7 @@ def main(argv=None) -> int:
             rows += out
             done += len(out)
             errors += sum(1 for r in out if "error" in r)
-            if len(rows) % 2000 < len(out):
+            if len(rows) % 2000 < len(out):  # progress line roughly every 2,000 rows
                 print(f"  {done}/{total}  {time.time() - t0:.0f}s  errors={errors}", flush=True)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
@@ -68,6 +73,7 @@ def main(argv=None) -> int:
     with open(OUT, "w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=keys)
         w.writeheader()
+        # Sorted so the CSV is identical whatever order the workers finished in.
         w.writerows(sorted(rows, key=lambda r: (r["variant"], r["building"], r["call_type"], r["trial"])))
     print(f"wrote {OUT} ({len(rows)} rows, {errors} errors) in {time.time() - t0:.0f}s")
     for r in [r for r in rows if "error" in r][:5]:

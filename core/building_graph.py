@@ -30,9 +30,14 @@ import networkx as nx
 
 from core.schema import Building, Room, TravelProfile
 
+# No-profile defaults. 1.2 m/s and 15 s per floor equal configs/situations.yaml travel (ODPM Technical
+# Report 2/2005: clear-air walking, light-load stairs); situation.travel supplies them per situation.
 WALK_SPEED_MPS = 1.2
 STAIR_PENALTY_S_PER_FLOOR = 15.0
+# Unsourced placeholder from the initial commit, not in situations.yaml (profiles use 75 s/ride + 2 s/floor).
 ELEVATOR_S_PER_FLOOR = 10.0  # only used when use_elevators=True and no profile is given
+# Assumed storey height when an inferred elevator's rise cannot be read from the data; matches the
+# synthetic building and the assumed 4 m levels in configs/plan_buildings.yaml.
 DEFAULT_FLOOR_HEIGHT_M = 4.0
 
 
@@ -191,7 +196,7 @@ def build_graph(
             cx, cy, _ = centroids[room_id]
             length_m = math.hypot(float(xy[0]) - cx, float(xy[1]) - cy)
         else:
-            length_m = 3.0
+            length_m = 3.0  # assumed door-to-room walk when the entrance has no position (2.5 s at 1.2 m/s)
         G.add_node(
             ent["id"],
             kind="entrance",
@@ -229,6 +234,8 @@ def shortest_path(G: nx.Graph, source: str, target: str) -> list[str]:
 _ELEVATOR_LOBBY = re.compile(
     r"\b(?:elevators?|lifts?)\s+(?:lobby|lobbies|hall|landing|vestibule|foyer)\b", re.IGNORECASE
 )
+# Tuned heuristics (commit c1686c0), not surveyed. Larger radii risk joining lobbies of separate cores
+# into one shaft; smaller ones miss stacked lobbies whose traced centroids shift between floors.
 LOBBY_STACK_RADIUS_M = 8.0  # two lobbies on adjacent floors this close in plan are one shaft's stops
 SERVED_RADIUS_M = 10.0  # a drawn elevator stop this close to a lobby already serves it
 

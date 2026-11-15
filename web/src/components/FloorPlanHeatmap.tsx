@@ -70,18 +70,21 @@ const SOURCE_LABEL: Record<RoomMeta["source"], string> = {
 
 // The viewBox is the measured size of the drawing area, so one svg unit is one CSS pixel and the
 // 10px labels stay 10px whatever the panel size. The plate is scaled to fit both width and height.
-const S_MAX = 40; // px per metre at most
+const S_MAX = 40; // px per metre at most: a small plate is not blown up past room-reading scale (tuned)
 const PAD_X = 10;
 const PAD_Y = 24; // room for the N / S side labels
 const CHAR_W = 5.3; // approx glyph advance at 10px
 
 /** Room name that fits in `w` px: whole, ellipsised, or null when too narrow. */
 function fitName(name: string, w: number): string | null {
+  // 4 px of padding each side; fewer than 6 characters left is no longer a readable name
   const maxChars = Math.floor((w - 8) / CHAR_W);
   if (name.length <= maxChars) return name;
   return maxChars >= 6 ? `${name.slice(0, maxChars - 1).trimEnd()}…` : null;
 }
-const MARKED_STOPS = 5; // stops per team that get a numbered marker
+// stops per team that get a numbered marker. Fewer than the 3D route's 8 (UI choice): one floor's plan has less room
+// for discs, and the full order is in the search plan list.
+const MARKED_STOPS = 5;
 
 const C_CLOSED = "#e8c547"; // --color-warn: an officer decision is a status
 const C_OUTLINE = "#79a8d8"; // --color-info: rooms another panel points at
@@ -114,6 +117,7 @@ function sideFacing(rooms: Room[], north: boolean, midY: number): string | null 
 
 /** floors beyond this are chosen from a menu instead of a row of tabs */
 const MAX_FLOOR_TABS = 8;
+/** stop badge radius in px; the next stop's badge is a little larger */
 const BADGE_R = 7.5;
 const BADGE_R_NEXT = 9;
 
@@ -138,12 +142,13 @@ export function FloorPlanHeatmap({
   planImage,
   rotationDeg = 0,
 }: Props) {
+  // under half a degree off north-up, the plan is treated as north-up (N / S labels, no compass arrow)
   const rotated = Math.abs(rotationDeg) > 0.5;
   const wrapRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<Hover | null>(null);
   const [popup, setPopup] = useState<Hover | null>(null);
 
-  // measured drawing area
+  // measured drawing area (px); 700 x 360 is only the first render's guess before the observer measures it
   const [size, setSize] = useState({ w: 700, h: 360 });
   useLayoutEffect(() => {
     const el = wrapRef.current;
@@ -174,15 +179,19 @@ export function FloorPlanHeatmap({
   const spanY = Math.max(1, bounds.maxY - bounds.minY);
   const W = size.w;
   const H = size.h;
+  // px per metre: the largest scale at which the whole plate fits, between 1 and S_MAX
   const S = Math.max(1, Math.min(S_MAX, (W - PAD_X * 2) / spanX, (H - PAD_Y * 2) / spanY));
   const offX = (W - spanX * S) / 2;
   const offY = (H - spanY * S) / 2;
   const X = (x: number) => (x - bounds.minX) * S + offX;
   const Y = (y: number) => (bounds.maxY - y) * S + offY; // flip: north is up
   // below xl the column has no fixed height: the drawing area keeps the plate's aspect ratio
+  // (14 px per metre is a nominal scale for the ratio only; the plate is redrawn at S once measured)
   const aspect = `${Math.round(spanX * 14 + PAD_X * 2)} / ${Math.round(spanY * 14 + PAD_Y * 2)}`;
 
   const probs = posterior.room_probs;
+  // Colour = heatT(p, maxP) = sqrt(p / maxP), relative to the most probable room. So the legend's mid tick
+  // (t = 0.5) is p = maxP / 4, and a room at a quarter of the top room's probability is already half-way up the ramp.
   const maxP = useMemo(() => Math.max(0, ...Object.values(probs)), [probs]);
   const credible = useMemo(() => new Set(posterior.credible_set_90), [posterior.credible_set_90]);
   const looks = useMemo(() => looksByRoom(searched), [searched]);
@@ -226,6 +235,7 @@ export function FloorPlanHeatmap({
       const w = (b.maxX - b.minX) * S;
       const h = (b.maxY - b.minY) * S;
       const r = mark.index === 0 ? BADGE_R_NEXT : BADGE_R;
+      // a corner badge needs a room two badge widths each way; 2 px in from the corner, 1.5 px between badges
       const roomy = w >= 4 * r && h >= 4 * r;
       const x = roomy ? (b.maxX - bounds.minX) * S + offX - r - 2 : ((b.minX + b.maxX) / 2 - bounds.minX) * S + offX;
       const y = roomy ? (bounds.maxY - b.maxY) * S + offY + r + 2 : (bounds.maxY - (b.minY + b.maxY) / 2) * S + offY;
@@ -397,6 +407,8 @@ export function FloorPlanHeatmap({
                   key={room.id}
                   points={pts}
                   fill={rampColor(t)}
+                  // over a plan image: 42% opaque at p = 0 rising to 82% at the maximum, so the drawing shows
+                  // through the unlikely rooms (tuned)
                   fillOpacity={planImage ? 0.42 + 0.4 * t : 1}
                   stroke={planImage ? "#e6edf3" : "#0b1016"}
                   strokeOpacity={planImage ? 0.55 : 1}
@@ -460,11 +472,15 @@ export function FloorPlanHeatmap({
               const isClosed = closed.has(room.id);
               const ink = rampInk(t);
               // a searched room always shows what remains, however small: "0.7% left", or "0.7%" when narrow
+              // (fit estimate: about 7 px per character of the bold 10.5-11.5 px figure, plus 6 px)
               const fitsText = (s: string) => w >= s.length * 7 + 6;
               const pctText = isSearched && fitsText(`${pct(p)} left`) ? `${pct(p)} left` : pct(p);
+              // an unsearched room below 0.1% (which pct prints as "<0.1%") shows no figure, so the plan is not
+              // covered in near-zero numbers; the rooms need 14 px of height for one line of text
               const pctFits = fitsText(pctText) && h >= 14 && (p >= 0.001 || isSearched);
               // text over the searched hatch gets a halo in the room's own colour
               const halo = isSearched ? { stroke: rampColor(t), strokeWidth: 3, paintOrder: "stroke" as const, strokeLinejoin: "round" as const } : {};
+              // the name takes a second line: 30 px of height with the figure, 14 px alone
               const shownName = h >= (pctFits ? 30 : 14) ? fitName(room.name, w) : null;
               const nameFits = shownName !== null;
               const badge = badges.get(room.id);
@@ -496,7 +512,7 @@ export function FloorPlanHeatmap({
                       {pctText}
                     </text>
                   ) : null}
-                  {isClosed && w >= 48 && h >= 18 ? (
+                  {isClosed && w >= 48 && h >= 18 ? ( // the 42 x 12 px CLOSED tag, 4 px in from the corner, if it fits
                     <g>
                       <rect x={X(b.minX) + 4} y={Y(b.maxY) + 4} width={42} height={12} rx={1.5} fill="#0b1016" />
                       <text

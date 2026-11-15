@@ -23,7 +23,7 @@ from ingest.costar import kit_dir
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 INDEX_PATH = REPO_ROOT / "data" / "processed" / "property_index.sqlite"
-INDEX_VERSION = "3"
+INDEX_VERSION = "3"  # part of the signature: bump when the table layout changes so old indexes are rebuilt
 SOURCES = ("commercial-property", "location-occupancy", "company-detail")
 
 _ABBREVIATIONS = {
@@ -198,7 +198,7 @@ def lookup(query: str, limit: int = 8) -> list[dict]:
     """Properties matching an address, a building name or a property id, best first."""
     db = connect()
     q = str(query).strip()
-    if re.fullmatch(r"\d{4,}", q):  # a bare property id
+    if re.fullmatch(r"\d{4,}", q):  # a bare property id (4+ digits; shorter numbers read as street numbers)
         row = db.execute("SELECT * FROM properties WHERE id = ?", (int(q),)).fetchone()
         if row:
             return [_row(row)]
@@ -226,6 +226,7 @@ def lookup(query: str, limit: int = 8) -> list[dict]:
         head = tokens[0]
         like = (head + " %") if head.isdigit() else ("name:%" + norm + "%")
         scored = []
+        # LIMIT 400 bounds the fuzzy scan; ranking is by shared words, then the shorter key
         for rw in db.execute("SELECT property_id, key FROM address_keys WHERE key LIKE ? LIMIT 400", (like,)):
             overlap = len(set(tokens) & set(rw[1].replace("name:", "").split()))
             scored.append((-overlap, len(rw[1]), rw[0]))

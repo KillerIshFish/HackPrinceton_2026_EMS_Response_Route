@@ -61,10 +61,13 @@ _NUMBER_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
 
 _HEDGES = ("i think", "maybe", "might be", "probably", "i guess", "could be",
            "not sure", "looks like", "kind of", "sort of")
+# Tuned heuristic (since the initial commit): a hedge in the sentence keeps 70% of the clue's confidence.
 HEDGE_FACTOR = 0.7
 # A bare room word ("...the office building...") is weaker evidence than a
-# locative statement ("I'm in an office").
+# locative statement ("I'm in an office"). Tuned heuristic, as above.
 NO_LOCATIVE_FACTOR = 0.8
+# "no windows" / "not by the elevator": a negation cue applies across at most this many words.
+# Assumed: a cue further back in the clause is usually about something else.
 NEGATION_MAX_GAP_WORDS = 3
 
 _LOCATIVE_BEFORE = re.compile(
@@ -82,7 +85,7 @@ _NEGATION_CARRY = re.compile(r"^\s*,?\s*(?:or|nor)\s+(?:(?:a|an|any|the)\s+)?$",
 _NOT_A_ROOM_AFTER = re.compile(r"^\s+(?:building|park|complex|tower|block)(?!\w)", re.IGNORECASE)
 
 
-@lru_cache(maxsize=4)
+@lru_cache(maxsize=4)  # keyed by path; only the default configs/clue_vocab.yaml is loaded today
 def _load_vocab_cached(path: str) -> dict:
     with open(path, "r", encoding="utf-8") as fh:
         return yaml.safe_load(fh)
@@ -238,7 +241,7 @@ def _negation_regex(vocab: dict) -> re.Pattern[str]:
 
 def _is_negated(norm: str, cand: _Candidate, neg_re: re.Pattern[str]) -> bool:
     """True if a negation cue precedes the phrase closely, within the same clause."""
-    window_start = max(0, cand.start - 60)
+    window_start = max(0, cand.start - 60)  # 60 chars: room for a cue plus the 3-word gap; word count decides
     for m in neg_re.finditer(norm, window_start, cand.start):
         gap = norm[m.end():cand.start]
         if not gap[:1].isspace() and gap != "":
@@ -260,9 +263,11 @@ def _sentence_of(norm: str, cand: _Candidate) -> str:
 
 def _confidence(norm: str, cand: _Candidate, negated: bool, vocab: dict) -> float:
     defaults = vocab.get("default_confidence") or {}
+    # per-type base confidence from configs/clue_vocab.yaml; 0.7 only for a type the file leaves out
     conf = float(defaults.get("negative" if negated else cand.type, 0.7))
     if cand.type == "room_type" and not negated:
         phrase = norm[cand.start:cand.end]
+        # 40 chars back covers "in" plus the up-to-3 words _LOCATIVE_BEFORE allows ("in the big open ...")
         located = bool(_LOCATIVE_PHRASE_START.match(phrase)) or bool(
             _LOCATIVE_BEFORE.search(norm[max(0, cand.start - 40):cand.start])
         )
@@ -323,7 +328,7 @@ def extract_clues_rules(text: str, vocab: dict | None = None) -> list[Clue]:
 
 
 def build_system_prompt(vocab: dict | None = None) -> str:
-    """System prompt for the future LLM extractor with the vocabulary injected."""
+    """System prompt for the single-utterance LLM extractor (``extract_clues_llm``) with the vocabulary injected."""
     vocab = vocab or load_vocab()
     template = PROMPT_PATH.read_text(encoding="utf-8")
     compact: dict[str, Any] = {}
@@ -347,9 +352,14 @@ def build_system_prompt(vocab: dict | None = None) -> str:
 #   * token usage is appended to data/processed/llm_usage.json so it can be audited.
 # ---------------------------------------------------------------------------
 
+# Haiku: mapping one utterance onto a fixed vocabulary needs no layout reasoning; this reader measured
+# 1.7 s per turn on the older 57-call eval (eval/results/model_comparison.md).
 LLM_MODEL = "claude-haiku-5-5"
+# Assumed: a JSON list of a few clues fits easily; thinking is off, so all of it is reply.
 LLM_MAX_OUTPUT_TOKENS = 600
+# Seconds per request; shorter than the agent's 45 s since the reply is small and thinking is off (assumed).
 LLM_TIMEOUT_S = 20.0
+# Same floor as parser.agent.AGENT_MIN_CONFIDENCE (docs/BUILD_PLAN.md step C2).
 LLM_MIN_CONFIDENCE = 0.4
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 LLM_CACHE_PATH = _REPO_ROOT / "data" / "processed" / "llm_clue_cache.json"

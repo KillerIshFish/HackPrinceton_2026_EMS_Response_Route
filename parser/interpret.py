@@ -123,6 +123,7 @@ def _rules_path(
        just asked (or the Yes / No / Not sure buttons), numbers and names printed on rooms,
        and where a correction cue starts.
     2. The single-utterance vocabulary extractor (rules, or Claude Haiku when ``use_llm``).
+       Hedges, a missing locative and negation set each clue's confidence (``parser.extract``).
     3. Merge: dialog statements first, then extractor clues; an extractor clue saying the
        same thing as a dialog clue (same type, value, polarity) is dropped, keeping the
        higher confidence. A room-type clue for a place that is not the caller's ("next to

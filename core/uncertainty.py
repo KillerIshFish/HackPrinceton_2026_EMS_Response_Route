@@ -49,7 +49,7 @@ def credible_set(room_probs: Mapping[str, float], mass: float = 0.90) -> list[st
     total = sum(p for p in room_probs.values() if p > 0.0)
     if total <= 0.0:
         return []
-    target = mass * total - 1e-12
+    target = mass * total - 1e-12  # float slack, so rounding cannot add one more room past the 90 %
     ranked = sorted(room_probs.items(), key=lambda kv: (-kv[1], kv[0]))
     chosen: list[str] = []
     cumulative = 0.0
@@ -64,7 +64,11 @@ def credible_set(room_probs: Mapping[str, float], mass: float = 0.90) -> list[st
 
 
 def peak_count(building: Building, room_probs: Mapping[str, float], rel_threshold: float = 0.5) -> int:
-    """Number of connected components among rooms with p >= rel_threshold * max p."""
+    """Number of connected components among rooms with p >= rel_threshold * max p.
+
+    ``rel_threshold`` 0.5 is a display heuristic (initial commit): a room at least half as likely
+    as the best one counts as a place the caller could be.
+    """
     p_max = max(room_probs.values(), default=0.0)
     if p_max <= 0.0:
         return 0
@@ -95,7 +99,7 @@ def summarize(building: Building, room_probs: Mapping[str, float], p_nim: float)
         room_probs=probs,
         p_not_in_model=float(p_nim),
         p_floor=floor_marginals(building, probs),
-        credible_set_90=credible_set(probs, 0.90),
+        credible_set_90=credible_set(probs, 0.90),  # 90 % is fixed by the frozen contract field name
         entropy_bits=entropy_bits(probs, p_nim),
         peak_count=peak_count(building, probs),
     )

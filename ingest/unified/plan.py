@@ -45,17 +45,19 @@ CONFIG_PATH = REPO_ROOT / "configs" / "plan_buildings.yaml"
 
 ARCHETYPE = "floor_plan"
 FIDELITY = "traced"
-TOUCH_M = 0.6            # two outlines this close share a wall
+# Tracing tolerances (tuned to hand tracing "to about a metre", see the module docstring):
+TOUCH_M = 0.6            # two outlines this close share a wall (bridges the gap a drawn wall leaves between rooms)
 MIN_SHARED_M = 0.9       # shortest shared wall that can hold a door
 MIN_OVERLAP_M2 = 0.3     # smaller overlaps are tracing noise, not a room inside a room
+# Assumed opening and wall sizes (m); none is read off the plan. DOOR_W/DOOR_H match layout.py.
 DOOR_W, DOOR_H = 0.95, 2.05
-ENTRANCE_W = 1.8
+ENTRANCE_W = 1.8         # assumed: a building entrance is drawn wider than a room door
 WINDOW_W, WINDOW_SILL, WINDOW_HEAD = 1.6, 0.9, 2.4
-WINDOW_SPACING_M = 3.5
-MIN_WINDOW_WALL_M = 2.0
+WINDOW_SPACING_M = 3.5   # one window per 3.5 m of a windowed wall
+MIN_WINDOW_WALL_M = 2.0  # shorter walls get no window
 WALL_T = 0.2
 STAIR_RUN_M = 6.0        # walking length of one storey of stairs (same as the generated layouts)
-MAX_AUTO_DOORS = 2
+MAX_AUTO_DOORS = 2       # a room gets doors on its two longest corridor walls (a tenant suite one more)
 SIDES = {"N": (0.0, 1.0), "S": (0.0, -1.0), "E": (1.0, 0.0), "W": (-1.0, 0.0)}
 KIND_OF_TYPE = {"corridor": "corridor", "stairwell": "stair", "elevator": "elevator", "lobby": "lobby", "suite": "tenant"}
 VERTICAL = {"stair": "stairs", "elevator": "elevator"}
@@ -102,6 +104,7 @@ def _without_holes(poly: Polygon) -> Polygon:
         a, b = nearest_points(hole, poly.exterior)
         dx, dy = b.x - a.x, b.y - a.y
         n = math.hypot(dx, dy) or 1.0
+        # the slit overshoots both rings by 5 cm and is 4 cm wide: thin enough not to change the room visibly
         slit = LineString([(a.x - dx / n * 0.05, a.y - dy / n * 0.05), (b.x + dx / n * 0.05, b.y + dy / n * 0.05)])
         cut = _largest(poly.difference(slit.buffer(0.02, cap_style=2)))
         if cut is None or len(cut.interiors) >= len(poly.interiors):
@@ -133,7 +136,7 @@ def build_plan_model(cfg: dict) -> BuildingModel:
     """Pure function of one ``plan_buildings.yaml`` entry."""
     scale = float(cfg["metres_per_px"])
     ox, oy = (float(v) for v in cfg.get("origin_px") or (0.0, 0.0))
-    default_h = float(cfg.get("storey_height_m") or 4.0)
+    default_h = float(cfg.get("storey_height_m") or 4.0)  # assumed 4 m storey (levels say "assumed" when used)
 
     def to_model(frame: dict, px) -> tuple[float, float]:
         s = float(frame.get("scale", 1.0))
@@ -160,7 +163,7 @@ def build_plan_model(cfg: dict) -> BuildingModel:
                 px = sp["poly"]
             poly = Polygon([to_model(frames[i], p) for p in px]).buffer(0)
             poly = _largest(poly)
-            if poly is None or poly.area < 0.5:
+            if poly is None or poly.area < 0.5:  # under 0.5 m2 is a tracing slip, not a room
                 raise ValueError(f"{cfg['id']}: space {sp.get('id')!r} has no area")
             stype = str(sp["type"])
             kind = KIND_OF_TYPE.get(stype, "room")
@@ -230,6 +233,7 @@ def build_plan_model(cfg: dict) -> BuildingModel:
         if not rec["circ"]:
             continue
         for other, (length, xy) in sorted(touch[rec["id"]].items()):
+            # opening width: the shared wall less 0.3 m each side, kept between 1.2 m and 6 m (assumed)
             if by_id[other]["circ"] and join(rec["id"], other, "corridor", xy, max(1.2, min(length - 0.6, 6.0)), "opening"):
                 counts["corridor"] += 1
     for rec in recs:
@@ -319,6 +323,7 @@ def build_plan_model(cfg: dict) -> BuildingModel:
             if min(line.distance(mid) for line in drawn) > 0.1:
                 continue  # an edge of the slit that joins a cut-out room to the outside: not a wall
             nx, ny = (b[1] - a[1]) / length, -(b[0] - a[0]) / length  # outward (the ring is counter-clockwise)
+            # an inner wall: at least 2 of 3 probes 0.3 m outside it land within 0.35 m of another room
             probes = [ShPoint(a[0] + (b[0] - a[0]) * t + nx * 0.3, a[1] + (b[1] - a[1]) * t + ny * 0.3)
                       for t in (0.25, 0.5, 0.75)]
             inner = sum(1 for p in probes if any(o.distance(p) < 0.35 for o in others)) >= 2
@@ -327,9 +332,11 @@ def build_plan_model(cfg: dict) -> BuildingModel:
                 t = ((xy[0] - a[0]) * (b[0] - a[0]) + (xy[1] - a[1]) * (b[1] - a[1])) / (length * length)
                 foot = (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
                 if -0.02 <= t <= 1.02 and math.dist(foot, xy) <= TOUCH_M:
+                    # an open corridor-to-corridor opening is drawn 0.4 m taller than a door
                     o = _opening(kind, a, b, xy, width, z0, z0 + DOOR_H + (0.4 if kind == "opening" else 0.0))
                     if o:
                         ops.append(o)
+            # windows on outer walls facing a side the plan marks (within ~45 degrees: cos > 0.7)
             if not inner and not ops and length >= MIN_WINDOW_WALL_M and any(nx * sx + ny * sy > 0.7 for sx, sy in sides):
                 n = max(1, int(length // WINDOW_SPACING_M))
                 for k in range(n):

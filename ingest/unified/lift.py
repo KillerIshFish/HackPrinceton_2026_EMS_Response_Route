@@ -73,6 +73,7 @@ def _connect(spaces, links: list[Link], evidence: str = "inferred") -> int:
             for a in members:
                 for b in main:
                     sa, sb = by_id[a], by_id[b]
+                    # each floor apart costs 6 m, the same stair run as layout.STAIR_RUN_M
                     d = math.dist(sa.centroid, sb.centroid) + 6.0 * abs(sa.level - sb.level)
                     if best is None or (d, a, b) < best:
                         best = (d, a, b)
@@ -140,7 +141,7 @@ def from_model3d(model: Model3D, scan: Optional[ScanModel] = None, model_id: Opt
                     nx, ny = -nx, -ny
                 entrances.append(Entrance(f"ent-{len(entrances) + 1}", f"{room.label} door", room.id, rp(xy),
                                           (r(nx), r(ny)), "opening"))
-    # an "Entrance" room's doors first, then the rest, capped
+    # an "Entrance" room's doors first, then the rest, capped at 6 (assumed: enough for any scanned building)
     entrances.sort(key=lambda e: (by_id[e.space_id].room_type != "lobby", e.id))
     entrances = [Entrance(f"ent-{i + 1}", e.name, e.space_id, e.xy, e.outward, e.evidence)
                  for i, e in enumerate(entrances[:6])]
@@ -148,6 +149,7 @@ def from_model3d(model: Model3D, scan: Optional[ScanModel] = None, model_id: Opt
     from_graph = 0
     if scan is not None:
         for ln in scan.links:
+            # scan-graph length: the measured gap (at least 1 m) plus a 6 m stair run when it crosses floors
             before = len(links)
             add_link(ln.a, ln.b, "stairs" if ln.floors else "opening", "scan-graph", floors=int(ln.floors),
                      length=max(float(ln.gap_m or 0.0), 1.0) + (6.0 if ln.floors else 0.0))
@@ -177,7 +179,7 @@ def from_scan_model(scan: ScanModel, address: str = "", use_type: str = "other")
     z = 0.0
     levels = []
     for f in floors:
-        h = float(scan.floor_heights.get(f) or 3.0)
+        h = float(scan.floor_heights.get(f) or 3.0)  # assumed 3 m storey when the scan has no height for a floor
         levels.append(Level(f + 1, str(f + 1), r(z), r(h), "scan"))
         z += h
     spaces = []
@@ -211,6 +213,7 @@ def from_building(building: Building, fidelity: str = "template") -> BuildingMod
 
     heights = {int(k): float(v) for k, v in building.floor_heights_m.items()}
     order = sorted(building.floors)
+    # gaps under 2 m are not real storeys; with none usable, assume a 3.5 m storey
     gaps = [heights[b] - heights[a] for a, b in zip(order, order[1:]) if heights[b] - heights[a] >= 2.0]
     typical = sum(gaps) / len(gaps) if gaps else 3.5
     levels = []
@@ -250,6 +253,7 @@ def from_building(building: Building, fidelity: str = "template") -> BuildingMod
                 # a door belongs to the wall segment it lies on
                 t = ((xy[0] - a[0]) * (b[0] - a[0]) + (xy[1] - a[1]) * (b[1] - a[1])) / (length * length or 1.0)
                 px, py = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
+                # 0.35 m snap tolerance; 0.95 x 2.05 m is layout.DOOR_W x DOOR_H written out
                 if 0.0 <= t <= 1.0 and math.dist((px, py), xy) < 0.35:
                     o = _opening("doorway", a, b, xy, 0.95, z0, z0 + 2.05)
                     if o:

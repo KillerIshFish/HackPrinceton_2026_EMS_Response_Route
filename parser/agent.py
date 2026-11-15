@@ -18,8 +18,9 @@ How it works
 * Tools (``parser.building_tools.TOOLS``): ``record_location`` for a place the caller named
   (number, name, tenant, sign; weighted as a specific statement), ``record_clue`` for any other
   clue (the rooms it fits plus how well the other rooms still fit; a soft, descriptive
-  statement), ``record_floor``, ``record_fact``, ``suggest_incident_type``, ``supersede``, and
-  the look-ups ``find_rooms``, ``room_details``, ``rooms_near``.
+  statement), ``record_floor``, ``record_conclusion`` (the model's overall judgment from the
+  whole call, applied last by ``core.fusion``), ``record_fact``, ``suggest_incident_type``,
+  ``supersede``, and the look-ups ``find_rooms``, ``room_details``, ``rooms_near``.
 * One request per caller turn in the usual case; a second only for a look-up or a record that
   cannot be kept as it stands. Never more than ``AGENT_MAX_REQUESTS_PER_TURN`` (4).
 * No word rules read the turn first. The one deterministic input kept is the dispatcher's
@@ -96,26 +97,41 @@ PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "reason_call.md"
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 AGENT_CACHE_PATH = _REPO_ROOT / "data" / "processed" / "llm_agent_cache.json"
 
+# Hard ceiling on paid requests per caller turn (docs/BUILD_PLAN.md step C2: "at most 4"). The usual
+# turn needs one; a look-up answer or one round of corrections needs a second.
 AGENT_MAX_REQUESTS_PER_TURN = 4
 # Seconds one request may take before the turn falls back (or keeps what earlier rounds recorded).
+# Generous next to the measured 3.2 s mean / 5.0 s p90 per turn (eval/results/model_comparison.md):
+# it only catches a hung request. It is per request, so a capped 4-request turn can take longer.
 AGENT_TIMEOUT_S = 45.0
+# Records the model itself rates below this are dropped (docs/BUILD_PLAN.md step C2).
 AGENT_MIN_CONFIDENCE = 0.4
-# Cap on a denial ("we're not in 304"). A location the caller named by a number or name the
+# Cap on a denial ("we're not in 304"); 0.85 is the grounded cap of docs/BUILD_PLAN.md step C2.
+# A location the caller named by a number or name the
 # building has (checked against the span) is no longer capped here: its confidence is the
 # stated share mapped from the model's rating of the caller's words (core.fusion.stated_share).
 GROUNDED_CONFIDENCE_CAP = 0.85
 # A location worked out from a description ("the conference room facing the parking lot").
+# Tuned heuristic: below the 0.85 cap for a named place, since a description fits rooms less surely.
 DESCRIBED_CONFIDENCE_CAP = 0.7
 # A record_clue is a descriptive factor; its confidence tempers it (1.0 = up to 10 to 1).
+# Tuned heuristic: just short of 1 so one clue never takes the full 10-to-1 swing on its own.
 CLUE_CONFIDENCE_CAP = 0.9
+# Clamp on the model's others_fit (the match given to rooms the clue does not list). With eps = 0.1
+# the listed-vs-unlisted factor is 1 / (0.1 + 0.9 * others_fit): about 7 to 1 at 0.05, 1.8 to 1 at 0.5.
 CLUE_OTHERS_FIT_MIN = 0.05  # > 0 keeps a clue descriptive (core.fusion.names_rooms)
-CLUE_OTHERS_FIT_MAX = 0.5
+CLUE_OTHERS_FIT_MAX = 0.5  # looser than this and the clue barely separates rooms; same 0.5 as the tool schema
 # record_conclusion: the model's overall judgment of where the caller is, from everything said.
 # Its probability is the share the rooms get (core.fusion: never lowers rooms that already hold
 # more, never zeroes another room). Only the floor and the ceiling are fixed here.
+# Same 0.2..0.9 range the record_conclusion tool schema asks for. The 0.9 ceiling sits below the
+# 0.95 of a plain caller statement (configs/statements.yaml), so the model's inference never outweighs one.
 CONCLUSION_MIN_SHARE = 0.2
 CONCLUSION_SHARE_CAP = 0.9
 # CONCLUSION_TAG / is_conclusion live in core.fusion, which applies a conclusion last.
+# Floor words accepted from record_floor without being a label of this building; they match the
+# ``floors.relative`` keys of configs/clue_vocab.yaml, resolved per building by core.clue_likelihood
+# (top / ground) and core.evidence (basement).
 RELATIVE_FLOORS = ("top", "ground", "basement")
 
 # Model settings (see the module docstring); the default model is the eval winner
@@ -133,13 +149,18 @@ _THINKING_ALWAYS_ON = ("claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-2
 _FALLBACK_MODELS = ("claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-2")
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 DEFAULT_THINKING = "adaptive"
+# Low and medium effort tied on the 78-call eval (93% top-1 each); low is faster (3.2 s vs 3.5 s
+# mean per turn), so it is the default (eval/results/model_comparison.md). LLM_EFFORT overrides it.
 DEFAULT_EFFORT = "low"
 _EFFORTS = ("low", "medium", "high", "xhigh", "max")
 # Strict tool schemas are off: every record is checked in code anyway, and strict grammars for
 # these tools compiled slowly and were refused with adaptive thinking on claude-haiku-5-5.
 # LLM_STRICT_TOOLS=1 turns them back on.
 DEFAULT_STRICT_TOOLS = "0"
-_MAX_OUTPUT_TOKENS = {"disabled": 2000, "adaptive": 16000}  # thinking counts toward max_tokens
+# Thinking counts toward max_tokens. Assumed budgets: 2000 covers a handful of tool calls with no
+# thinking; 16000 leaves room for adaptive thinking first. A reply that hits the cap is a failure
+# ("model reply was cut off"), so these err high; only tokens actually generated are billed.
+_MAX_OUTPUT_TOKENS = {"disabled": 2000, "adaptive": 16000}
 
 # Fact text that states something as checked, or calls a place safe / clear (ground rule 1).
 _ASSERTS_VERIFIED = re.compile(
@@ -199,6 +220,7 @@ def build_system_prompt(idx: BuildingIndex, vocab: Optional[dict] = None) -> str
 
 
 def _rooms_text(building: Building, room_ids: Sequence[str], limit: int = 4) -> str:
+    # limit: rooms named per evidence line in the user message; the rest are counted ("and 3 more")
     names = {r.id: r.name for r in building.rooms}
     shown = [f"{names.get(rid, '?')} ({rid})" for rid in room_ids[:limit]]
     more = len(room_ids) - len(shown)
@@ -405,6 +427,8 @@ def _request_kwargs(system: str, settings: dict) -> dict[str, Any]:
     return {
         "model": settings.get("model") or agent_model(),
         "thinking": {"type": "adaptive"} if settings["thinking"] == "adaptive" else {"type": "disabled"},
+        # Briefing + layout map are identical for every turn on a building: one prompt-cache entry
+        # (written by ``prewarm``) is then read by every turn instead of re-sending the layout at full price.
         "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
         "tools": request_tools(settings["strict"]),
         "output_config": {"effort": settings["effort"]},
@@ -680,8 +704,10 @@ class _NameCheck:
         words: dict[str, set[str]] = {}
         for r in idx.building.rooms:
             toks = set(_tokens(r.name)) | set(_tokens(idx.tenant(r.id) or ""))
+            # 4+ letters: shorter words ("lab", "ste") match too much by chance to prove a name was said
             words[r.id] = {t for t in toks if len(t) >= 4 and t not in _STOPWORDS and not t.isdigit()}
         count = Counter(w for ws in words.values() for w in ws)
+        # Same limit as parser.dialog.name_index: a name may repeat once per floor (or on up to 4 rooms).
         limit = max(4, len({r.floor for r in idx.building.rooms}))
         # a word on more rooms than that ("office", "corridor", "executive") names a kind of room
         self.words = {rid: {w for w in ws if count[w] <= limit} for rid, ws in words.items()}
@@ -981,6 +1007,7 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
                 continue
             ids = list(dict.fromkeys(ids))
             negate = _as_bool(args.get("negate"), False)
+            # 0.2 when others_fit is missing or garbled: between the tool's "clear" 0.05 and "loose" 0.3 (tuned)
             try:
                 others = float(args.get("others_fit", 0.2))
             except (TypeError, ValueError):
@@ -1000,6 +1027,7 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
             conf = min(conf, CLUE_CONFIDENCE_CAP)
             what = str(args.get("clue", "")).strip()
             why = str(args.get("reasoning", "")).strip()
+            # 400 chars (300 for a location's rationale below): display caps on model text shown on the console
             rationale = (f"{what}: {why}" if what and why else what or why)[:400]
             evidence.append(Evidence(
                 id=evidence_id(index, len(evidence)), kind="grounded", selector=RoomSelector(room_ids=ids),

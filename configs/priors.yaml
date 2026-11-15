@@ -2,21 +2,31 @@
 # w = room_weights[use_type][room_type] * time_multipliers[use_type][band][room_type]
 # Room probabilities sum to 100%: no prior mass is held back for "somewhere the building
 # model does not cover" (`p_not_in_model` stays 0; the plumbing for it is still there).
+#
+# Every number in this file is a judgement: nothing here is fitted to real incident locations.
+# eval/results/REPORT.md (limitation 2) notes the benchmark draws true rooms from this same prior,
+# so it should be validated against real incident data before claiming field benefit.
 version: 1
 
+# Sublinear area: a bigger room holds more people, but not in proportion to its area
+# (1.0 would let large open plan and garage levels swamp the offices).
 alpha: 0.7
 p_not_in_model: 0.0
 
-# Weight used when a room_type is missing from a table.
+# Weight used when a room_type is missing from a table. Between circulation (0.1-0.2) and
+# people rooms (0.5-1.0), so an unknown type is neither favoured nor ruled out.
 default_room_weight: 0.3
 
 # Hour bands, [start, end) in local 24h time. A band may wrap past midnight.
+# Assumed office day: business 07-18, evening 18-22, night 22-07.
 hour_bands:
   business: [7, 18]
   evening: [18, 22]
   night: [22, 7]
 
 # Base weight per room type, by building use. `default` is the fallback use type.
+# Relative, not probabilities: rooms where people sit or meet ~1.0, shared rooms 0.5-0.8,
+# pass-through and service spaces 0.03-0.2 (people pass through them briefly).
 room_weights:
   office:
     office: 1.0
@@ -58,7 +68,9 @@ room_weights:
     mechanical: 0.05
 
 # Time-of-day multipliers on top of the base weight (missing entry -> `default`,
-# missing `default` -> 1.0).
+# missing `default` -> 1.0). Off hours shift weight away from desks and meeting rooms towards
+# corridors, lobbies and service rooms (cleaning, security, maintenance). Only the ratios
+# between rooms matter: the prior is renormalised.
 time_multipliers:
   office:
     business:

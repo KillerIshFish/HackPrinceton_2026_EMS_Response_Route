@@ -96,7 +96,7 @@ def make_interior(models: dict[str, Model3D]):
         xs = [p[0] for rm in rooms for p in rm.polygon]
         ys = [p[1] for rm in rooms for p in rm.polygon]
         bx0, by0, bx1, by1 = min(xs), min(ys), max(xs), max(ys)
-        if bx1 - bx0 < 1.0 or by1 - by0 < 1.0:
+        if bx1 - bx0 < 1.0 or by1 - by0 < 1.0:  # a scan under 1 m across is broken: use the generic layout
             return None
         sx0, sy0, sx1, sy1 = box
         side = _entrance_side(model, floor, (bx0, by0, bx1, by1))
@@ -132,6 +132,7 @@ def make_interior(models: dict[str, Model3D]):
             for o in wl.openings:
                 oz0 = min(max(o.z0 - slab.z0 + z0, z0), top)
                 oz1 = min(max(o.z1 - slab.z0 + z0, z0), top)
+                # openings are re-based onto this storey and clipped to it; under 5 cm left is dropped
                 if oz1 - oz0 > 0.05:
                     ops.append(Opening(o.kind, o.t0, o.t1, r(oz0), r(oz1)))
             walls.add(level, place(wl.a), place(wl.b), owner, "facade" if wl.exterior else "partition", ops,

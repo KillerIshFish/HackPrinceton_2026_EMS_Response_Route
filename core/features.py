@@ -6,7 +6,9 @@ import math
 
 from core.schema import Building, Room
 
-PHONE_HEIGHT_ABOVE_FLOOR_M = 1.2  # a held / pocketed phone sits ~1.2 m above the slab
+# Assumed: a held / pocketed phone sits ~1.2 m above the slab. Same value as core.phone_likelihood;
+# keep the two in step. Small next to the 2.34 m height sigma, so a caller lying down still scores.
+PHONE_HEIGHT_ABOVE_FLOOR_M = 1.2
 CIRCULATION_TYPES = frozenset({"corridor", "stairwell", "elevator", "lobby"})
 
 
@@ -68,7 +70,8 @@ def room_features(building: Building) -> dict[str, dict]:
 def rooms_near_type(building: Building, room_type: str, radius_m: float = 8.0) -> set[str]:
     """Ids of rooms whose centroid is within ``radius_m`` (same floor) of a ``room_type`` room.
 
-    Utility for ingest code that needs to derive ``near_elevator`` / ``near_stairs``.
+    Utility for ingest code that needs to derive ``near_elevator`` / ``near_stairs``. The 8 m
+    default is assumed and equals ``near_radius_m`` in configs/demo_buildings.yaml.
     """
     anchors = [r for r in building.rooms if r.room_type == room_type]
     near: set[str] = set()

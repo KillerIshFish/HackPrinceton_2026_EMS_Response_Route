@@ -19,14 +19,16 @@ interface Props {
   policy: Policy;
 }
 
+// Schematic site plan (no aerial imagery), in metres of the building's own coordinates. Display values, not data:
+// the parking lot to the north and the street to the south are drawn as context, not taken from a map.
 const S = 6; // svg units per metre
-const SITE_MARGIN_M = 6; // context drawn around the outermost feature
-const BAND_M = 14; // minimum depth of the parking-lot / street bands
+const SITE_MARGIN_M = 6; // context drawn around the outermost feature (m)
+const BAND_M = 14; // minimum depth of the parking-lot / street bands (m)
 
-/** Site view (Vexcel aerial imagery when available, otherwise a schematic) + approach recommendation. */
 /** entrances listed by walking time; the rest are summarised */
 const MAX_LISTED_ENTRANCES = 8;
 
+/** Site view (Vexcel aerial imagery when available, otherwise a schematic) + approach recommendation. */
 export function AerialApproach({ building, plan, approach, meta, policy }: Props) {
   const tiles = meta?.site.tiles ?? null;
   /** false: nothing below may draw or name an entrance, staging spot, stairs or route */
@@ -55,12 +57,14 @@ export function AerialApproach({ building, plan, approach, meta, policy }: Props
   const recEntrance = routeOn ? building.entrances.find((e) => e.id === approach.entrance_id) : undefined;
   const recStaging = routeOn ? building.staging_spots.find((s) => s.id === approach.staging_id) : undefined;
 
-  // parking stall ticks across the north band
+  // parking stall ticks across the north band: a row 5 to 10 m north of the building, a tick every 3 m (schematic)
   const stallY0 = Y(fp.maxY + 5);
   const stallY1 = Y(fp.maxY + 10);
   const stalls: number[] = [];
   for (let x = Math.ceil(minX / 3) * 3 + 3; x < maxX - 2; x += 3) stalls.push(X(x));
 
+  // E[T] gain over the better of the two baselines, as a share of it. Within +/-0.5% the headline says "on par":
+  // that is where the rounded percentage would read 0%.
   const best = Math.min(plan.baseline_nearest_s, plan.baseline_highest_prob_s);
   const saved = best > 0 ? (best - plan.expected_time_to_find_s) / best : 0;
   const bars = [
@@ -112,7 +116,7 @@ export function AerialApproach({ building, plan, approach, meta, policy }: Props
         <svg viewBox={`0 0 ${W} ${H}`} className="mx-auto block h-auto max-h-[340px] w-full xl:max-h-[clamp(300px,calc(100vh_-_500px),340px)]" role="img" aria-label={routeOn ? "Schematic site plan: parking lot to the north, street to the south, entrances and staging spots" : "Schematic site plan: building outline only, route planning is off"}>
           {/* ground */}
           <rect width={W} height={H} fill="#0e151d" />
-          {/* parking lot (north) */}
+          {/* parking lot (north): from 2 m north of the building to the top edge */}
           <rect x={0} y={0} width={W} height={Y(fp.maxY + 2)} fill="#131c27" />
           {stalls.map((sx) => (
             <line key={sx} x1={sx} y1={stallY0} x2={sx} y2={stallY1} stroke="#2b3a4d" strokeWidth={1} />
@@ -121,7 +125,7 @@ export function AerialApproach({ building, plan, approach, meta, policy }: Props
           <text x={8} y={14} fontSize="9.5" fontWeight="600" letterSpacing="1" fill="#8394a6">
             N - PARKING LOT
           </text>
-          {/* street (south) */}
+          {/* street (south): from 5 m south of the building to the bottom edge, centre line dashed */}
           <rect x={0} y={Y(fp.minY - 5)} width={W} height={H - Y(fp.minY - 5)} fill="#161f2a" />
           <line
             x1={0}

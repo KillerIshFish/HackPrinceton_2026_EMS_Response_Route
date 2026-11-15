@@ -72,7 +72,7 @@ def _wall_box(buf: _MeshBuffer, wall: Wall, t0: float, t1: float, z0: float, z1:
     if length <= 0:
         return
     ux, uy = dx / length, dy / length
-    half = max(wall.thickness_m, 0.02) / 2.0
+    half = max(wall.thickness_m, 0.02) / 2.0  # floor at 2 cm so a zero-thickness edge still renders as a box
     nx, ny = -uy * half, ux * half
 
     sx, sy = ax + dx * t0, ay + dy * t0
@@ -118,6 +118,8 @@ def _pack(
     views: list[dict] = []
     accessors: list[dict] = []
     slots: list[tuple[int, int] | None] = []
+    # glTF enums used below: target 34962/34963 = ARRAY_BUFFER/ELEMENT_ARRAY_BUFFER, componentType 5126 = FLOAT,
+    # 5125 = UNSIGNED_INT. Each bufferView is padded to a 4-byte boundary, which glTF requires for these types.
     for buf in buffers:
         if not buf.indices:
             slots.append(None)
@@ -188,7 +190,7 @@ def to_gltf(model: Model3D) -> dict:
                 "attributes": {"POSITION": pos_acc},
                 "indices": idx_acc,
                 "material": material,
-                "mode": 4,
+                "mode": 4,  # glTF TRIANGLES
             }],
         })
         nodes.append({"name": name, "mesh": len(meshes) - 1})

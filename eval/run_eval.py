@@ -88,6 +88,8 @@ def _plan_fields(building, graph, rooms, room_probs, p_nim, true_room_id, n_team
     for team in plan.teams:
         for stop in team:
             if stop.room_id == true_room_id:
+                # Arrival + one look; a room visited more than once (or by several teams) keeps the last
+                # visit scanned, not the earliest.
                 out["realized_time_s"] = stop.eta_s + P["search_time_s"](rooms[true_room_id])
 
     # Re-walk the two baselines over the planner's candidate set from the same start.
@@ -107,7 +109,7 @@ def _plan_fields(building, graph, rooms, room_probs, p_nim, true_room_id, n_team
 def run(
     n: int = 200,
     seed: int = 0,
-    hour: int = 14,
+    hour: int = 14,  # 2 pm business hours, the same default as api.session.DEMO_HOUR and core.prior
     persona: Optional[str] = None,
     n_teams: int = 1,
     building_id: Optional[str] = None,
