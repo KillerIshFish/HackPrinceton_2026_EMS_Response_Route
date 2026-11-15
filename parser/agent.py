@@ -33,8 +33,9 @@ How it works
   alone: 0.40 (hesitant, vague) to 0.95 (plain, exact), settings in
   ``configs/statements.yaml``. That holds for a location whose rooms the caller named (the
   span carries the number or a distinctive name word of every selected room) and for a
-  stated floor. A location worked out from a description keeps the model's own confidence,
-  capped at 0.7; a denial keeps it capped at 0.85.
+  stated floor. A location worked out from a description, and a floor the model worked out
+  from a room rather than heard, keep the model's own confidence, capped at 0.7; a denial
+  keeps it capped at 0.85.
 * The deterministic dialog rules (``parser.dialog``) run first and are kept: yes / no
   answers to the question just asked, numbers and names printed on rooms, corrections. The
   model is shown what they read and adds to it; a record selecting the same rooms as a rule
@@ -129,6 +130,17 @@ DEFAULT_EFFORT = "low"
 # about a third slower. LLM_STRICT_TOOLS=1 turns them back on.
 DEFAULT_STRICT_TOOLS = "0"
 _MAX_OUTPUT_TOKENS = {"disabled": 2000, "adaptive": 6000}  # thinking counts toward max_tokens
+
+# Words that state a floor: "third floor", "on three", "up on 4", "top floor", "basement". A
+# floor clue whose span has none (the model worked the floor out from a room: "office 302",
+# "next door to Black Label Media") is not the caller's statement of a floor.
+_STATES_A_FLOOR = re.compile(
+    r"(?<!\w)(?:floors?|levels?|stor(?:y|ey|ies|eys)|basement|cellar|ground|top|roof|rooftop|upstairs|downstairs"
+    r"|first|second|third|fourth|forth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth"
+    r"|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d{1,2}(?:st|nd|rd|th)?)(?!\w)",
+    re.IGNORECASE,
+)
+_YES_SPAN = re.compile(r"^\W*(?:yes|yeah|yep|yup|uh[\s-]*huh|mm[\s-]*hmm|mhm|correct|right|that'?s\s+right)\W*$", re.IGNORECASE)
 
 # Fact text that states something as checked, or calls a place safe / clear (ground rule 1).
 _ASSERTS_VERIFIED = re.compile(
@@ -688,14 +700,21 @@ class _NameCheck:
         self.words = {rid: {w for w in ws if count[w] <= limit} for rid, ws in words.items()}
 
     def names(self, span: str, room_ids: Sequence[str]) -> bool:
-        said = set(_tokens(span))
+        toks = _tokens(span)
+        said = set(toks)
+        # speech recognition splits words ("ware house" for "Warehouse")
+        said |= {a + b for a, b in zip(toks, toks[1:])}
         units = {normalize_unit(w) for w in said}
         if not room_ids:
             return False
         for rid in room_ids:
             if self.labels.get(rid, frozenset()) & units:
                 continue
-            if self.words.get(rid, set()) & said:
+            words = self.words.get(rid, set())
+            if words & said:
+                continue
+            # a short form of the name word, or the other way round ("roof" for "Rooftop")
+            if any(len(s) >= 4 and (w.startswith(s) or s.startswith(w)) for w in words for s in said):
                 continue
             return False
         return True
@@ -882,7 +901,13 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
                 continue
             seen_vocab.add((ctype, value))
             rationale = ""
-            if stated_floor:
+            if stated_floor and not (_STATES_A_FLOOR.search(span) or _YES_SPAN.match(span)):
+                # The model worked the floor out (from a room number, a neighbour): like a location
+                # worked out from a description, it keeps the model's confidence, capped.
+                conf = min(conf, DESCRIBED_CONFIDENCE_CAP)
+                rationale = "floor worked out by Claude Haiku, not stated by the caller"
+                note(f"{rationale}: share capped at {DESCRIBED_CONFIDENCE_CAP}")
+            elif stated_floor:
                 # The caller's own statement of their floor: its weight is the stated share for
                 # how they said it. Said again in a later turn it is kept: agreement reinforces.
                 rating, fixes = clean_rating(args.get("certainty"), args.get("specificity"), rate_span(turn.text, span))

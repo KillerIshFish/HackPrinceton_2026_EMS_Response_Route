@@ -78,6 +78,7 @@ const VIEW_MODES: { key: ViewMode; label: string; title: string }[] = [
 
 const FIDELITY_LABEL: Record<string, string> = {
   surveyed: "measured by a scan",
+  traced: "traced from the published floor plan",
   stamped: "from a scan of the unit type",
   cluster: "scan positions only",
   template: "generated layout",
@@ -89,26 +90,63 @@ const ROUTE_STOPS = 8;
 /**
  * Where a stop's label may stand, nearest first: the label's centre relative to the room's point,
  * in pixels, for a label `lw` by `lh`. Above the point at four heights (centred, or shifted to
- * either side), beside it, and under it as a last resort (never under the cone that marks the
- * next stop). The first place that covers no other label or stop wins.
+ * either side), beside it at two distances, and under it as a last resort (never under the cone
+ * that marks the next stop). The first place that covers no other label or stop wins.
  */
 function labelSlots(lw: number, lh: number, coned: boolean): [number, number][] {
   const out: [number, number][] = [];
   const above = (lift: number) => {
     for (const shift of [0, 0.36, -0.36]) out.push([shift * lw, -(lift + lh / 2)]);
   };
-  const beside = (rise: number) => {
-    for (const side of [1, -1]) out.push([side * (lw / 2 + 16), -rise]);
+  const beside = (rise: number, gap: number) => {
+    for (const side of [1, -1]) out.push([side * (lw / 2 + gap), -rise]);
   };
   above(26);
-  beside(5);
+  beside(5, 16);
   above(50);
-  beside(30);
+  beside(30, 16);
+  beside(5, 48);
   above(74);
+  beside(-14, 16);
   if (!coned) for (const shift of [0, 0.36, -0.36]) out.push([shift * lw, 20 + lh / 2]);
   above(98);
+  beside(30, 48);
   return out;
 }
+
+/** A room name short enough for a label. The start and the end are kept: the end often tells rooms apart ("... (Level 1 north)"). */
+function shortName(name: string, max = 32): string {
+  if (name.length <= max) return name;
+  // a closing "(...)" is kept whole when it is short: it is usually the part that differs
+  const bracket = /\([^()]*\)?$/.exec(name)?.[0] ?? "";
+  let tail = bracket.length >= 3 && bracket.length <= max - 12 ? bracket : name.slice(name.length - Math.floor((max - 3) * 0.45));
+  if (tail !== bracket) {
+    const firstSpace = tail.indexOf(" ");
+    if (firstSpace >= 0 && firstSpace < 8 && firstSpace < tail.length - 4) tail = tail.slice(firstSpace + 1);
+  }
+  let head = name.slice(0, Math.max(6, max - 3 - tail.length));
+  // cut between words when a word boundary is close
+  const lastSpace = head.lastIndexOf(" ");
+  if (lastSpace >= head.length - 8 && lastSpace > 4) head = head.slice(0, lastSpace);
+  return `${head.trimEnd()} … ${tail.trimStart()}`;
+}
+/**
+ * Where a stop's number may stand when an earlier stop's number or name is already on its point
+ * (rooms one above the other, or a view from far away): on the point, else the nearest place a
+ * whole number of badges away. In badge widths and heights, nearest first. The first BADGE_NEAR
+ * (within about four badges) are tried for a place clear of everything; all of them, up to six
+ * badges away, for a place that is at least clear of every name.
+ */
+const BADGE_NEAR = 81;
+/** side of the squares the placed numbers are filed under, so a crowded floor's numbers are not all compared with each other */
+const BADGE_CELL = 40;
+const BADGE_NUDGES: [number, number][] = (() => {
+  const out: [number, number][] = [];
+  for (let nx = -6; nx <= 6; nx++) for (let ny = -6; ny <= 6; ny++) out.push([nx, ny]);
+  // a badge is wider than it is tall, and up is preferred to down between equals
+  const far = ([nx, ny]: [number, number]) => Math.hypot(nx * 1.3, ny) + (ny > 0 ? 0.01 : 0);
+  return out.sort((a, c) => far(a) - far(c));
+})();
 /** thickness of the floor slab drawn under each level's rooms */
 const SLAB_M = 0.3;
 /** height of the route line above the floor it runs on */
@@ -512,8 +550,6 @@ interface RouteStop {
   /** position in its team's list, from 0 */
   index: number;
   roomId: string;
-  /** one of its team's next ROUTE_STOPS stops: the route runs through it and it gets a name label */
-  onRoute: boolean;
   /** a second (or later) look at a room that was already searched */
   again: boolean;
   /** later stops at the same room, as they are numbered ("6", "B2") */
@@ -523,7 +559,7 @@ interface RouteStop {
 interface RouteData {
   /** straight pieces of the way in and between the stops on the route */
   segments: { team: number; a: RoutePoint; b: RoutePoint }[];
-  /** every stop of the plan, in the order labels claim space: the route's stops first, each group by number */
+  /** the rooms the route runs through (each team's next ROUTE_STOPS stops), in the order labels claim space: by number */
   stops: RouteStop[];
   entrance: { name: string; at: RoutePoint } | null;
   staging: { name: string; at: RoutePoint } | null;
@@ -655,7 +691,7 @@ function planRoute(
   }
   const multiTeam = plan.teams.length > 1;
   const every = plan.teams.flatMap((stops, team) => stops.map((stop, index) => ({ team, index, stop })));
-  every.sort((a, b) => Number(a.index >= ROUTE_STOPS) - Number(b.index >= ROUTE_STOPS) || a.index - b.index || a.team - b.team);
+  every.sort((a, b) => a.index - b.index || a.team - b.team);
   const byRoom = new Map<string, RouteStop>();
   for (const { team, index, stop } of every) {
     const first = byRoom.get(stop.room_id);
@@ -663,7 +699,9 @@ function planRoute(
       first.also.push(`${multiTeam ? String.fromCharCode(65 + team) : ""}${index + 1}`);
       continue;
     }
-    const entry: RouteStop = { team, index, roomId: stop.room_id, onRoute: index < ROUTE_STOPS, again: stop.kind === "re_search", also: [] };
+    // a room the route never reaches is not marked at all (a later visit to a room on the route is noted on its label)
+    if (index >= ROUTE_STOPS) continue;
+    const entry: RouteStop = { team, index, roomId: stop.room_id, again: stop.kind === "re_search", also: [] };
     byRoom.set(stop.room_id, entry);
     out.stops.push(entry);
   }
@@ -1184,8 +1222,8 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
    * Labels drawn over the model. Hazard chips: rooms on the shown floor (circulation only when it
    * is the fire room or behind a closed door). The entrance, the staging spot and the stops: only
    * while route planning is on. A stop on the route (each team's next ROUTE_STOPS) has a floating
-   * label with its number and room name on the levels in view; every other stop has its number on
-   * the floor in view.
+   * label with its number and room name on the levels in view. A room the route does not reach has
+   * no label at all.
    */
   const labels = useMemo(() => {
     const out: Label[] = [];
@@ -1222,8 +1260,6 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
       const at = anchors.get(st.roomId);
       const level = at ? levelZ.get(at.level) : undefined;
       if (!at || !level || !isVisible(at.level)) return;
-      // a stop past the route: its number only, and only on the floor in view
-      if (!st.onRoute && at.level !== shown) return;
       const room = rooms.get(st.roomId);
       const next = st.index === 0;
       const team = multiTeam ? String.fromCharCode(65 + st.team) : "";
@@ -1248,7 +1284,7 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
         hover: words,
         rank,
         anchor: "above",
-        node: st.onRoute ? (
+        node: (
           <span
             className={`num flex h-[18px] min-w-[18px] items-center justify-center gap-0.5 rounded-full border px-1 text-[11px] font-bold leading-none shadow shadow-black/50 ${
               next
@@ -1264,54 +1300,43 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
             {again}
             {offFloor}
           </span>
-        ) : (
-          <span
-            className={`num flex h-[15px] min-w-[15px] items-center justify-center gap-0.5 rounded-full border bg-bg/80 px-[3px] text-[10px] font-semibold leading-none ${
-              other ? "border-info/50 text-info/90" : "border-accent/50 text-accent/90"
-            }`}
-          >
-            {number}
-            {again}
-          </span>
         ),
-        full: st.onRoute
-          ? {
-              // the leader ends on the room's floor; over the next stop it ends on the cone that points at the room
-              foot: coned ? pos : new THREE.Vector3(...v3(at.x, at.y, level.z0 + 0.06)),
-              other,
-              coned,
-              node: (
-                <span
-                  className={`flex items-center gap-1 whitespace-nowrap rounded border bg-bg/95 px-1.5 py-[3px] text-[11px] leading-none shadow shadow-black/60 ${
-                    other ? "border-info/80" : "border-accent/80"
-                  }`}
-                >
-                  <span
-                    className={`num font-bold ${
-                      next
-                        ? other
-                          ? "-my-px rounded-sm bg-info px-1 py-px text-bg"
-                          : "-my-px rounded-sm bg-accent px-1 py-px text-accent-ink"
-                        : other
-                          ? "text-info"
-                          : "text-accent"
-                    }`}
-                  >
-                    {number}
-                  </span>
-                  <span className="font-bold text-ink-dim">·</span>
-                  <span className="max-w-[170px] truncate font-medium leading-[1.25] text-ink">{name}</span>
-                  {multiFloor ? <span className="num text-ink-dim">{floorTag(floorLabel)}</span> : null}
-                  {st.again ? (
-                    <span className="-my-px flex items-center gap-0.5 rounded-sm border border-warn/70 px-1 text-[10px] font-semibold leading-[13px] text-warn">
-                      <RotateCw size={9} strokeWidth={3} aria-hidden />
-                      second look
-                    </span>
-                  ) : null}
+        full: {
+          // the leader ends on the room's floor; over the next stop it ends on the cone that points at the room
+          foot: coned ? pos : new THREE.Vector3(...v3(at.x, at.y, level.z0 + 0.06)),
+          other,
+          coned,
+          node: (
+            <span
+              className={`flex items-center gap-1 whitespace-nowrap rounded border bg-bg/95 px-1.5 py-[3px] text-[11px] leading-none shadow shadow-black/60 ${
+                other ? "border-info/80" : "border-accent/80"
+              }`}
+            >
+              <span
+                className={`num font-bold ${
+                  next
+                    ? other
+                      ? "-my-px rounded-sm bg-info px-1 py-px text-bg"
+                      : "-my-px rounded-sm bg-accent px-1 py-px text-accent-ink"
+                    : other
+                      ? "text-info"
+                      : "text-accent"
+                }`}
+              >
+                {number}
+              </span>
+              <span className="font-bold text-ink-dim">·</span>
+              <span className="max-w-[220px] truncate font-medium leading-[1.25] text-ink">{shortName(name)}</span>
+              {multiFloor ? <span className="num text-ink-dim">{floorTag(floorLabel)}</span> : null}
+              {st.again ? (
+                <span className="-my-px flex items-center gap-0.5 rounded-sm border border-warn/70 px-1 text-[10px] font-semibold leading-[13px] text-warn">
+                  <RotateCw size={9} strokeWidth={3} aria-hidden />
+                  second look
                 </span>
-              ),
-            }
-          : undefined,
+              ) : null}
+            </span>
+          ),
+        },
       });
     });
     const tag = (icon: ReactNode, text: string) => (
@@ -1340,11 +1365,12 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
     labelSizes.current.clear();
     /**
      * Lay the labels out over the frame just drawn. Chips, the entrance and the staging tag stand on
-     * their points. Stops then claim space in order. A stop on the route takes the nearest slot
-     * by its room where its name label covers no label placed before it, no chip or tag, no other
-     * stop's number and no earlier leader, and where its own leader crosses no earlier label and
-     * no other stop's number. With no such slot it shows its number only. So no two labels
-     * overlap, and it is always the later stop that gives way.
+     * their points. Stops then claim space in order, by number. A stop takes the nearest slot by
+     * its room where its name label covers no label placed before it, no chip or tag, no earlier
+     * leader and no number already placed, and where its own leader crosses none of those.
+     * With no slot it shows its number only, over its room. A number that would lie on an earlier
+     * stop's number, on a name, or on a chip or tag steps aside by whole badges. So no two labels
+     * overlap, no label covers a number, and it is always the later stop that gives way.
      */
     afterRender.current = () => {
       const t = three.current;
@@ -1361,7 +1387,9 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
         const known = labelSizes.current.get(key);
         if (known) return known;
         const el = labelEls.current.get(key);
-        const measured: [number, number] = [el?.offsetWidth ?? 0, el?.offsetHeight ?? 0];
+        // the fractional size, rounded up: text rarely ends on a whole pixel, and a box cut short would let two labels touch
+        const r = el?.getBoundingClientRect();
+        const measured: [number, number] = [Math.ceil(r?.width ?? 0), Math.ceil(r?.height ?? 0)];
         // a hidden tab lays nothing out: keep asking until the element has a size
         if (measured[0] > 0) labelSizes.current.set(key, measured);
         return measured;
@@ -1374,6 +1402,27 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
       /** the name labels placed so far, and their leaders */
       const named: Box[] = [];
       const leaders: Leader[] = [];
+      /** the numbers placed so far (stops that show no name), also filed by the screen squares they touch */
+      const badges: Box[] = [];
+      const badgeGrid = new Map<number, Box[]>();
+      const squares = (b: Box, visit: (key: number) => boolean): boolean => {
+        for (let cx = Math.floor(b.x0 / BADGE_CELL); cx <= Math.floor(b.x1 / BADGE_CELL); cx++) {
+          for (let cy = Math.floor(b.y0 / BADGE_CELL); cy <= Math.floor(b.y1 / BADGE_CELL); cy++) {
+            if (visit(cx * 100003 + cy)) return true;
+          }
+        }
+        return false;
+      };
+      const addBadge = (b: Box) => {
+        badges.push(b);
+        squares(b, (key) => {
+          const list = badgeGrid.get(key);
+          if (list) list.push(b);
+          else badgeGrid.set(key, [b]);
+          return false;
+        });
+      };
+      const onBadge = (b: Box) => squares(b, (key) => badgeGrid.get(key)?.some((o) => overlaps(b, o, 0)) ?? false);
       const stops: { label: Label; el: HTMLDivElement; at: ReturnType<typeof project>; spot: Box }[] = [];
       for (const label of labels) {
         const el = labelEls.current.get(label.key);
@@ -1391,7 +1440,7 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
         if (at.inView && label.keepFree) taken.push(box);
       }
       const marks: StopMark[] = [];
-      stops.forEach((s, i) => {
+      stops.forEach((s) => {
         const key = s.label.key;
         const full = s.label.full;
         const fullEl = labelEls.current.get(`${key}:full`);
@@ -1412,7 +1461,8 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
               // not on top of its own room's point
               if (foot.x > x0 - 4 && foot.x < x0 + lw + 4 && foot.y > y0 - 4 && foot.y < y0 + lh + 4) continue;
               if (taken.some((o) => overlaps(candidate, o, 3))) continue;
-              if (stops.some((o, j) => j !== i && o.at.inView && overlaps(candidate, o.spot, 1))) continue;
+              // not on a number already placed, nor on an earlier leader
+              if (badges.some((o) => overlaps(candidate, o, 1))) continue;
               if (leaders.some((o) => crosses(o, candidate, 2))) continue;
               // the leader runs from the room's point to the nearest point of the label's edge
               const own: Leader = {
@@ -1422,7 +1472,7 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
                 y1: Math.min(Math.max(foot.y, y0), y0 + lh),
               };
               if (named.some((o) => crosses(own, o, 1))) continue;
-              if (stops.some((o, j) => j !== i && o.at.inView && crosses(own, o.spot, 0))) continue;
+              if (badges.some((o) => crosses(own, o, 0))) continue;
               box = candidate;
               line = own;
               break;
@@ -1431,6 +1481,8 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
         }
         if (box && line && foot && fullEl) {
           taken.push(box);
+          // the point where its leader ends stays in view too
+          taken.push({ x0: foot.x - 3, y0: foot.y - 3, x1: foot.x + 3, y1: foot.y + 3 });
           named.push(box);
           leaders.push(line);
           fullEl.style.transform = `translate(${box.x0}px, ${box.y0}px)`;
@@ -1445,6 +1497,31 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
             dot.setAttribute("cy", String(foot.y));
           }
         } else {
+          if (s.at.inView) {
+            const home = s.spot;
+            const bw = home.x1 - home.x0 + 1;
+            const bh = home.y1 - home.y0 + 1;
+            const place = (k: number): Box => {
+              const [nx, ny] = BADGE_NUDGES[k]!;
+              return { x0: home.x0 + nx * bw, y0: home.y0 + ny * bh, x1: home.x1 + nx * bw, y1: home.y1 + ny * bh };
+            };
+            // off every name, chip and tag (and the points the leaders end on)
+            const offLabels = (b: Box) => !taken.some((o) => overlaps(b, o, 1));
+            const inPanel = (b: Box) => b.x0 >= 0 && b.y0 >= 0 && b.x1 <= w && b.y1 <= h;
+            let spot: Box | null = null;
+            // near its point, in the panel and clear of every name, chip, tag, number and leader
+            for (let k = 0; k < BADGE_NEAR && !spot; k++) {
+              const b = place(k);
+              if (inPanel(b) && offLabels(b) && !onBadge(b) && !leaders.some((o) => crosses(o, b, 0))) spot = b;
+            }
+            // failing that (a crowd of numbers seen from far away, or a room at the panel's edge): clear of every name, chip and tag
+            for (let k = 0; k < BADGE_NUDGES.length && !spot; k++) {
+              const b = place(k);
+              if (offLabels(b)) spot = b;
+            }
+            s.spot = spot ?? home;
+            addBadge(s.spot);
+          }
           s.el.style.transform = `translate(${s.spot.x0}px, ${s.spot.y0}px)`;
         }
         show(fullEl, !!box);
@@ -1505,10 +1582,8 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
   const fidelity = payload?.counts.fidelity ?? {};
   /** how many stops per team the route runs through (each has a name label) */
   const markedStops = route ? Math.max(0, ...plan.teams.map((team) => Math.min(team.length, ROUTE_STOPS))) : 0;
-  /** stops past the route that show a number on the floor in view */
-  const numberedOnly = labels.filter((l) => l.kind === "stop" && !l.full).length;
   /** stops on the route that stand on a floor the view has cut away */
-  const routeStopsOffView = route ? route.stops.filter((s) => s.onRoute).length - labels.filter((l) => l.full).length : 0;
+  const routeStopsOffView = route ? route.stops.length - labels.filter((l) => l.full).length : 0;
   return (
     <Panel
       title="3D model"
@@ -1682,9 +1757,7 @@ export function Building3D({ building, posterior, plan, floor, onSelectFloor, on
             those stops is named over its room; where two names would overlap, the later stop shows its number only.
             {routeStopsOffView > 0
               ? ` ${routeStopsOffView} of them ${routeStopsOffView === 1 ? "is" : "are"} on a floor this view does not show (Whole building shows every floor).`
-              : ""}
-            {numberedOnly > 0 ? " Later stops on this floor show a number: point at it for the room." : ""}
-          </span>
+              : ""}          </span>
         </div>
       ) : null}
       {payload ? (

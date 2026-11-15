@@ -410,8 +410,9 @@ def test_true_rooms_are_scenario_constants() -> None:
 
 
 def test_grounded_agent_evidence_is_capped_in_the_session(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The session fuses with core.fusion.evidence_confidence: grounded agent items count at most 0.85."""
-    from core.fusion import posterior_probs
+    """The session fuses like core.fusion.posterior_probs: one specific statement counts at most RHO_MAX
+    (0.95), whoever read it (the separate 0.85 cap on the model's records is gone)."""
+    from core.fusion import RHO_MAX, posterior_probs
     from core.schema import Evidence, Interpretation, RoomSelector
 
     building = load_building("ptc-100")
@@ -424,5 +425,6 @@ def test_grounded_agent_evidence_is_capped_in_the_session(monkeypatch: pytest.Mo
     got = s.state().posterior
     capped, p0 = posterior_probs(building, hour=14, clues=[item])
     assert got.room_probs[CARDIAC_TRUE_ROOM_ID] == pytest.approx(capped[CARDIAC_TRUE_ROOM_ID], abs=1e-12)
-    uncapped, _ = posterior_probs(building, hour=14, clues=[item.model_copy(update={"source": "rules"})])
-    assert got.room_probs[CARDIAC_TRUE_ROOM_ID] < uncapped[CARDIAC_TRUE_ROOM_ID]
+    assert got.room_probs[CARDIAC_TRUE_ROOM_ID] == pytest.approx(RHO_MAX)
+    by_rules, _ = posterior_probs(building, hour=14, clues=[item.model_copy(update={"source": "rules"})])
+    assert got.room_probs[CARDIAC_TRUE_ROOM_ID] == pytest.approx(by_rules[CARDIAC_TRUE_ROOM_ID])

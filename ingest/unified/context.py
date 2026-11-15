@@ -19,10 +19,14 @@ What it records
                     where the model's centre goes and how it is turned:
 
                     * a scan keeps its own position and yaw;
-                    * a generated building is centred on the real outline and turned so
-                      its long side lies along the outline's long side. Of the two ways
-                      round, the front goes toward the street, or failing that toward
-                      the address point (which usually sits on the street side);
+                    * a generated building drawn inside the real outline (``shape`` is
+                      "outline"; see ``ingest.unified.shape``) carries the outline's own
+                      frame, so it sits on the outline exactly and nothing is fitted;
+                    * a generated bar (no usable outline for the layout) is centred on the
+                      real outline when there is one and turned so its long side lies
+                      along the outline's long side. Of the two ways round, the front
+                      goes toward the street, or failing that toward the address point
+                      (which usually sits on the street side);
                     * with no outline it is centred on the address point with its front
                       toward the street; with no street either, it is left unrotated.
 ``surroundings``    what stands around the building, from the same OpenStreetMap answer:
@@ -31,12 +35,19 @@ What it records
                     ``project.to_building`` casts rays from the windows at these to decide
                     what each room looks at (see ``ingest.unified.surroundings``)
 ``outlines``        what to draw on the aerial image: the real outline (``kind: building``)
-                    and the model's own extent, one rectangle per block (``kind: model``)
+                    and the model's own extent (``kind: model``): the outer edge of its
+                    lowest floor when it was drawn to the outline, else one rectangle per block
+``shape``           whether the model's plates follow the real outline or an assumed bar, and why
+``parcel_outlines`` every structure on the parcel, kept when the record describes several buildings
 ``imagery``         centre, radius and zoom of the aerial window that covers all of it
 ``pending``         true while the OpenStreetMap request is still running
 
-Two lookups, made side by side: Vexcel ``property/extract`` and OpenStreetMap, each carrying
-only the coordinates. OpenStreetMap is read from a local index of the Los Angeles and Houston
+The outline is needed before the layout is generated, so the pipeline asks the sources first
+(``site_sources``), hands the outline to the layout (``layout_site``) and then builds the
+sidecar from the same answers (``build_context(..., sources=...)``).
+
+Two lookups, made side by side: Vexcel ``property/extract`` (kept on disk, so a building is
+asked about once) and OpenStreetMap, each carrying only the coordinates. OpenStreetMap is read from a local index of the Los Angeles and Houston
 extracts when one has been built (``ingest.unified.osm_local``); elsewhere it is one request
 to the public Overpass server. Overpass can take a minute, and a call in
 progress cannot wait on it: ``build_context`` waits ``deadline_s`` seconds, then carries
@@ -57,7 +68,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from ingest.georegister import latlng_to_local, local_to_latlng
-from ingest.unified.schema import BuildingModel
+from ingest.unified.schema import SELF_PLACED, BuildingModel
 from ingest.unified.surroundings import SURROUNDINGS_RADIUS_M, mark_own, surroundings_from_payload
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -73,7 +84,7 @@ OVERPASS_COOLDOWN_S = 300.0
 _overpass_down = {"until": 0.0}
 VEXCEL_TIMEOUT_S = 8.0
 OSM_GRACE_S = 1.0
-CONTEXT_VERSION = 5  # bump when the sidecar's shape changes, so older files are rebuilt
+CONTEXT_VERSION = 6  # bump when the sidecar's shape changes, so older files are rebuilt
 IMAGERY_MARGIN_M = 25.0
 _overpass_gate = threading.Semaphore(1)
 # aerial window radius -> tile zoom, chosen so the mosaic stays about six tiles across
@@ -392,24 +403,37 @@ def load_context(building_id: str) -> Optional[dict]:
         return None
 
 
-def build_context(bm: BuildingModel, geolocation=None, network: bool = True, refresh: bool = False,
-                  deadline_s: float = STREET_DEADLINE_S, on_late: Optional[Callable[[dict], None]] = None) -> dict:
-    """Build (or reuse) the sidecar for a model and write it to disk.
+def site_sources(building_id: str, geolocation, single: bool = True, buildings: int = 1, network: bool = True,
+                 refresh: bool = False, deadline_s: float = STREET_DEADLINE_S,
+                 on_late: Optional[Callable[[dict], None]] = None) -> dict:
+    """What Vexcel and OpenStreetMap say about a point: the ``state`` that ``layout_site`` and
+    ``build_context`` read.
 
-    ``on_late(context)`` is called from a background thread whenever a source answers
-    after ``deadline_s``; by then the improved sidecar is already on disk.
+    Keys: ``vexcel`` / ``osm`` (the outline of the building at the point), ``vexcel_all`` (every
+    structure on the parcel, asked for when the record describes ``buildings`` > 1), ``street``,
+    ``surroundings``, the errors, and ``vexcel_done`` / ``osm_done``.
+
+    Asked before the layout stage, because the layout is drawn to the outline. Nothing is
+    fetched when a finished sidecar of this version is on disk, the Vexcel answer is kept on
+    disk (``vexcel_property``) and OpenStreetMap is read from the local index where it covers
+    the point, so generating a building again costs no request. A source that has not answered
+    after ``deadline_s`` is not waited for: ``on_late(state)`` is called from its thread when
+    it does, so the caller can lay the building out again with what arrived.
     """
-    cached = None if refresh else load_context(bm.id)
-    # a sidecar is reused when it has this version's shape and, if the network may be used,
-    # when its sources had all answered (a lookup that was still running is asked again)
+    geo = list(geolocation or []) or None
+    cached = None if refresh else load_context(building_id)
     if cached is not None and cached.get("version") == CONTEXT_VERSION and (
             not network or (cached.get("sources_done") and not cached.get("pending"))):
-        return cached
-    geo = list(geolocation or bm.geolocation or []) or None
+        outline = cached.get("building_outline") or {}
+        return {"vexcel": outline if outline.get("source") == "Vexcel" else None,
+                "osm": outline if outline and outline.get("source") != "Vexcel" else None,
+                "vexcel_all": cached.get("parcel_outlines"), "street": cached.get("street"),
+                "street_error": cached.get("street_error"), "vexcel_error": cached.get("vexcel_error"),
+                "surroundings": cached.get("surroundings"), "vexcel_done": bool(cached.get("sources_done")),
+                "osm_done": bool(cached.get("sources_done")), "reused": cached}
     if not (network and geo):
-        return _assemble(bm, geo, {}, pending=False)
+        return {}
     lat, lon = float(geo[0]), float(geo[1])
-    single = int(bm.stats.get("blocks") or 1) == 1
     state: dict = {"late": False}
     lock = threading.Lock()
 
@@ -417,18 +441,19 @@ def build_context(bm: BuildingModel, geolocation=None, network: bool = True, ref
         with lock:
             if not state["late"]:
                 return
-            late = _assemble(bm, geo, state, pending=not state.get("osm_done"))
+            snapshot = dict(state)
         if on_late is not None:
             try:
-                on_late(late)
+                on_late(snapshot)
             except Exception:  # noqa: BLE001 - a failed re-projection must not kill the thread loudly
                 pass
 
     def vexcel_worker() -> None:
         try:
             outline = fetch_vexcel_outline(lat, lon, single)
+            every = fetch_vexcel_outline(lat, lon, False) if buildings > 1 else None
             with lock:
-                state["vexcel"] = outline
+                state["vexcel"], state["vexcel_all"] = outline, every
         except Exception as exc:  # noqa: BLE001 - no key, no coverage, timeout: the sidecar is optional
             with lock:
                 state["vexcel_error"] = str(exc)[:120]
@@ -464,8 +489,61 @@ def build_context(bm: BuildingModel, geolocation=None, network: bool = True, ref
     remaining = max(0.0, deadline_s - (time.monotonic() - started))
     workers[1].join(min(remaining, OSM_GRACE_S) if placed else remaining)
     with lock:
-        state["late"] = True  # anything finishing from here on re-assembles and reports
-        return _assemble(bm, geo, state, pending=not state.get("osm_done"))
+        state["late"] = True  # anything finishing from here on is reported through on_late
+        return dict(state)
+
+
+def layout_site(state: dict, geolocation, buildings: int = 1) -> dict:
+    """What the layout stage needs of the site: the outline(s) to draw the plates to.
+
+    One building: the outline at the address point (Vexcel first, OpenStreetMap second). Several
+    buildings: every structure on the parcel, used only when there are exactly as many as the
+    record has buildings. ``polygons_latlng`` is empty, with a ``reason``, when there is
+    nothing the layout may use.
+    """
+    street = (state.get("street") or {}).get("bearing_deg")
+    base = {"street_bearing_deg": street, "address_latlng": list(geolocation) if geolocation else None,
+            "polygons_latlng": []}
+    if buildings <= 1:
+        outline = state.get("vexcel") or state.get("osm")
+        if not outline:
+            return {**base, "reason": "no building outline was found for this address"}
+    else:
+        outline = state.get("vexcel_all")
+        found = len((outline or {}).get("polygons_latlng") or [])
+        if found != buildings:
+            return {**base, "reason": f"the record describes {buildings} buildings and {found} outline"
+                                      f"{'' if found == 1 else 's'} {'was' if found == 1 else 'were'} found on the "
+                                      "property, so the buildings cannot be matched to outlines"}
+    return {**base, "source": outline["source"], "detail": outline.get("detail") or "",
+            "polygons_latlng": outline["polygons_latlng"], "holes_latlng": outline.get("holes_latlng") or []}
+
+
+def build_context(bm: BuildingModel, geolocation=None, network: bool = True, refresh: bool = False,
+                  deadline_s: float = STREET_DEADLINE_S, on_late: Optional[Callable[[dict], None]] = None,
+                  sources: Optional[dict] = None) -> dict:
+    """Build (or reuse) the sidecar for a model and write it to disk.
+
+    ``sources`` is a ``site_sources`` result gathered earlier (the pipeline asks before the
+    layout stage); without it the sources are asked here. ``on_late(context)`` is called from a
+    background thread whenever a source answers after ``deadline_s``; by then the improved
+    sidecar is already on disk.
+    """
+    geo = list(geolocation or bm.geolocation or []) or None
+    if sources is None:
+        def late(state: dict) -> None:
+            context = _assemble(bm, geo, state, pending=not state.get("osm_done"))
+            if on_late is not None:
+                on_late(context)
+
+        blocks = int(bm.stats.get("blocks") or 1)
+        sources = site_sources(bm.id, geo, blocks == 1, blocks, network, refresh, deadline_s, late)
+        # a finished sidecar of this version is reused as it is
+        if sources.get("reused") is not None:
+            return sources["reused"]
+    if not sources:
+        return _assemble(bm, geo, {}, pending=False)
+    return _assemble(bm, geo, sources, pending=not sources.get("osm_done"))
 
 
 def _front_bearing(yaw_deg: float) -> float:
@@ -477,18 +555,47 @@ def _gap(a: float, b: float) -> float:
     return abs((a - b + 180.0) % 360.0 - 180.0)
 
 
+def _plates(bm: BuildingModel) -> list[tuple[str, list]]:
+    """``(block, ring)`` for the outer edge of each building's lowest floor, in model metres."""
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+
+    lowest = min((s.level for s in bm.spaces), default=1)
+    blocks: dict[str, list] = {}
+    for s in bm.spaces:
+        if s.parent is None and s.kind != "walkway" and s.level == lowest and len(s.polygon) >= 3:
+            blocks.setdefault(s.block, []).append(Polygon(s.polygon).buffer(0.01, join_style="mitre"))
+    out = []
+    for key in sorted(blocks):
+        merged = unary_union(blocks[key]).buffer(-0.01, join_style="mitre")
+        for part in getattr(merged, "geoms", [merged]):
+            if part.geom_type == "Polygon" and part.area > 1.0:
+                out.append((key, [(round(x, 3), round(y, 3)) for x, y in list(part.exterior.simplify(0.02).coords)[:-1]]))
+    return out
+
+
 def _assemble(bm: BuildingModel, geo, state: dict, pending: bool) -> dict:
     from ingest.unified.project import _bounds, placement, to_latlng
 
     street = state.get("street")
     outline = state.get("vexcel") or state.get("osm")
     x0, y0, x1, y1 = _bounds(bm)
-    scan = bm.archetype in ("whole_scan", "scan_clusters")
+    scan = bm.archetype in SELF_PLACED
+    traced = bm.archetype == "floor_plan"
+    shape = bm.stats.get("shape") or {}
+    drawn = shape.get("kind") == "outline"  # the layout was generated inside the real outline(s)
+    if drawn and int(bm.stats.get("blocks") or 1) > 1 and state.get("vexcel_all"):
+        outline = state["vexcel_all"]
     anchor = None
     front_hint = None
     fit_scale = None
     if scan:
-        yaw, source = bm.yaw_deg, "the scan's own position and yaw"
+        yaw, source = bm.yaw_deg, ("building corners matched between the floor plan and the map" if traced
+                                   else "the scan's own position and yaw")
+    elif drawn:
+        # nothing to fit: the model's frame was taken from the outline, so it sits on it exactly
+        yaw, anchor = bm.yaw_deg, shape["origin_latlng"]
+        source = f"the {shape.get('source')} building outline" + (", front toward the street" if street else "")
     elif outline:
         # long side of the model along the long side of the real outline; of the two ways round,
         # the front goes toward the street, or toward the address point when no street is known
@@ -527,11 +634,15 @@ def _assemble(bm: BuildingModel, geo, state: dict, pending: bool) -> dict:
         "building_outline": outline, "vexcel_error": state.get("vexcel_error"),
         "sources_done": bool(state.get("vexcel_done") or state.get("osm_done")), "pending": pending,
         "yaw_deg": yaw, "anchor_latlng": anchor, "placement_source": source, "fit_scale": fit_scale,
+        # every structure on the parcel, kept when the record describes several buildings
+        "parcel_outlines": state.get("vexcel_all"),
+        # "outline": the plates follow the real outline; "assumed": a bar sized from the unit list
+        "shape": {k: shape.get(k) for k in ("kind", "source", "detail", "reason") if shape.get(k)} or None,
     }
 
     # A property with several buildings is laid out on a grid whose positions are invented, so
     # nothing of that grid is put on the map: only the address point and the real outline there.
-    placed = scan or int(bm.stats.get("blocks") or 1) == 1
+    placed = scan or drawn or int(bm.stats.get("blocks") or 1) == 1
     context["layout_placed"] = placed
     place = placement(bm, context)
     outlines: list[dict] = []
@@ -542,13 +653,17 @@ def _assemble(bm: BuildingModel, geo, state: dict, pending: bool) -> dict:
         for s in bm.spaces:
             if s.parent is None and s.kind != "walkway":
                 blocks.setdefault(s.block, []).extend(s.polygon)
+        if drawn:  # the model's own plates, which should lie on the real outline
+            for key, ring in _plates(bm):
+                outlines.append({"kind": "model", "source": "generated", "block": key,
+                                 "latlng": [to_latlng(place, x, y) for x, y in ring]})
         for key in sorted(blocks):
-            if fit_scale or not placed:  # fitted to the real outline (it already shows the place), or not placeable
+            if drawn or fit_scale or not placed:  # drawn above, fitted to the real outline, or not placeable
                 break
             pts = blocks[key]
             bx0, by0 = min(p[0] for p in pts), min(p[1] for p in pts)
             bx1, by1 = max(p[0] for p in pts), max(p[1] for p in pts)
-            outlines.append({"kind": "model", "source": "scan" if scan else "generated", "block": key,
+            outlines.append({"kind": "model", "source": "floor plan" if traced else "scan" if scan else "generated", "block": key,
                              "latlng": [to_latlng(place, x, y) for x, y in ((bx0, by0), (bx0, by1), (bx1, by1), (bx1, by0))]})
     context["outlines"] = outlines
     context["footprint_latlng"] = [to_latlng(place, x, y) for x, y in ((x0, y0), (x0, y1), (x1, y1), (x1, y0))] if geo else []
