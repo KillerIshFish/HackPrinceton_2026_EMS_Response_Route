@@ -143,7 +143,8 @@ def test_patel_office_grounds_to_tenant_room(building, meta, patel_room):
         reply(tool_use("search_rooms", query="Patel")),
         reply(
             tool_use("record_location", selector={"tenant_contains": "Patel"}, negate=False,
-                     confidence=0.95, span="Dr. Patel's office", rationale="tenant named by caller"),
+                     confidence=0.95, certainty=1.0, specificity=1.0, span="Dr. Patel's office",
+                     rationale="tenant named by caller"),
             tool_use("record_fact", category="patient", text="Caller reports coworker collapsed, not breathing",
                      span="he's not breathing"),
             tool_use("suggest_incident_type", type="cardiac_arrest", span="he's not breathing"),
@@ -158,7 +159,8 @@ def test_patel_office_grounds_to_tenant_room(building, meta, patel_room):
     [ev] = out.evidence
     assert ev.kind == "grounded" and ev.source == "agent" and ev.id == "t1-e0"
     assert ev.matched_room_ids == [patel_room.id]
-    assert ev.confidence == 0.85  # the caller named the tenant ("Patel" is in the span): named-room cap
+    # the caller named the tenant ("Patel" is in the span) plainly and exactly: the top stated share
+    assert ev.confidence == 0.95
     assert ev.default_match == 0.0 and names_rooms(ev)  # fused as a statement that names rooms
     [fact] = out.facts
     assert fact.verified is False and fact.id == "t1-f0" and fact.category == "patient"

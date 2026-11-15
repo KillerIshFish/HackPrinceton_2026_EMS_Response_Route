@@ -52,10 +52,10 @@ stated_share:
 # reinforce each other, up to this share. Below 1 so that later evidence can still move it.
 # ---------------------------------------------------------------------------
 reinforced_share_max:
-  value: 0.99
-  range: [0.97, 0.995]
+  value: 0.999
+  range: [0.99, 0.999]
   label: judgement
-  source: "Cap on the share agreeing statements can reach together."
+  source: "Cap on the share agreeing statements can reach together (two plain statements of the same place reach 0.9975)."
 
 # ---------------------------------------------------------------------------
 # Caller against phone. When the caller's stated floor or room lies outside the floors the

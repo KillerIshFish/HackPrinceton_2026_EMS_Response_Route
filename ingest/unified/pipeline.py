@@ -1,7 +1,8 @@
-"""The stages in order, timed: lookup -> record -> roster -> scans -> layout -> context -> project -> write.
+"""The stages in order, timed: lookup -> record -> scans -> outline -> roster + layout -> context -> project -> write.
 
 ``generate(query)`` runs at call time. ``query`` is an address, a building name, a
-property id, or ``mp:<model id>`` for one whole-building Matterport scan.
+property id, ``mp:<model id>`` for one whole-building Matterport scan, or ``plan:<id>`` for a
+building traced from its published floor plans (``configs/plan_buildings.yaml``).
 
 Outputs (all under ``data/processed/``, which is gitignored):
 
@@ -16,13 +17,14 @@ The run report (timings, scan fetch statuses) is returned, never written into th
 from __future__ import annotations
 
 import json
+import threading
 import time
 from collections import Counter
 from pathlib import Path
 from typing import Optional
 
 from ingest.unified import index
-from ingest.unified.context import build_context
+from ingest.unified.context import _assemble, build_context, layout_site, load_context, site_sources
 from ingest.unified.layout import build_layout
 from ingest.unified.lift import from_model3d, from_scan_model
 from ingest.unified.project import to_building
@@ -35,6 +37,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED = REPO_ROOT / "data" / "processed"
 MODELS_DIR = PROCESSED / "models"
 MAX_SCANS = 6
+PLAN_MAP_WAIT_S = 60.0  # how long a traced plan waits for OpenStreetMap (roads, neighbours) to answer
 
 
 class _Stages:
@@ -128,7 +131,8 @@ def _meta(bm: BuildingModel, building, context: Optional[dict], facts: Optional[
     for rm in building.rooms:
         s = by_id.get(rm.id)
         attrs = dict(s.attrs) if s else {}
-        entry = {"source": "costar" if s and s.kind in ("unit", "tenant") else
+        entry = {"source": "floor_plan" if s and s.fidelity == "traced" else
+                 "costar" if s and s.kind in ("unit", "tenant") else
                  "matterport" if s and s.fidelity in ("surveyed", "cluster") else "inferred"}
         if attrs.get("tenant"):
             entry["tenant"] = attrs["tenant"]
@@ -140,8 +144,22 @@ def _meta(bm: BuildingModel, building, context: Optional[dict], facts: Optional[
         if s and s.fidelity == "surveyed" and ":" in s.source_ref:
             entry["model_id"], entry["scan_room_id"] = s.source_ref.split(":", 1)
             entry["sweep_id"] = None
+        if s and s.fidelity == "traced":
+            said = [f"capacity {attrs['capacity']}" if attrs.get("capacity") else "",
+                    f"scheduled by {attrs['owner']}" if attrs.get("owner") else ""]
+            if any(said):
+                entry["note"] = ", ".join(t for t in said if t)
         rooms[rm.id] = entry
-    if bm.archetype in ("whole_scan", "scan_clusters"):
+    tour = bm.stats.get("tour") if bm.archetype == "floor_plan" else None
+    if tour:
+        # a public tour of part of the building: shown for the rooms it covers, not measured
+        for rid in tour.get("covers") or []:
+            if rid in rooms:
+                rooms[rid].update({"model_id": tour["model_id"], "sweep_id": None})
+        models = [{"model_id": tour["model_id"], "suite": None, "name": tour.get("name") or bm.name, "floor": None}]
+    elif bm.archetype == "floor_plan":
+        models = []
+    elif bm.archetype in ("whole_scan", "scan_clusters"):
         models = [{"model_id": bm.id[3:], "suite": None, "name": bm.name, "floor": None}]
     else:
         models = [{"model_id": mid, "suite": None, "name": name, "floor": None}
@@ -149,10 +167,12 @@ def _meta(bm: BuildingModel, building, context: Optional[dict], facts: Optional[
     sources = Counter(r["source"] for r in rooms.values())
     return {
         "building_id": bm.id, "name": bm.name, "address": bm.address or None, "real": True,
-        "kind": "generated" if bm.archetype not in ("whole_scan", "scan_clusters") else "scan_model",
+        "kind": "floor_plan" if bm.archetype == "floor_plan" else
+                "generated" if bm.archetype not in ("whole_scan", "scan_clusters") else "scan_model",
         "center_latlng": (context or {}).get("centre_latlng") or (list(bm.geolocation) if bm.geolocation else None),
         "georeference": {"rotation_deg": (context or {}).get("yaw_deg", bm.yaw_deg)},
-        "site": {"source": "scan" if bm.archetype in ("whole_scan", "scan_clusters") else "generated",
+        "site": {"source": "floor_plan" if bm.archetype == "floor_plan" else
+                           "scan" if bm.archetype in ("whole_scan", "scan_clusters") else "generated",
                  "imagery": (context or {}).get("imagery") or {},
                  "footprint_latlng": (context or {}).get("footprint_latlng") or [],
                  "outlines": (context or {}).get("outlines") or [],
@@ -161,6 +181,9 @@ def _meta(bm: BuildingModel, building, context: Optional[dict], facts: Optional[
                  "address_latlng": (context or {}).get("geolocation"),
                  "buildings": int(bm.stats.get("blocks") or 1),
                  "pending": bool((context or {}).get("pending")),
+                 # "outline": every plate follows the real outline; "assumed": a bar sized from the unit list
+                 "shape": (context or {}).get("shape") or ({k: v for k, v in (bm.stats.get("shape") or {}).items()
+                                                            if k in ("kind", "source", "detail", "reason")} or None),
                  # what is drawn on the site map: roads, car parks, neighbouring buildings, named places
                  "surroundings": (context or {}).get("surroundings")},
         "matterport_models": models, "room_sources": dict(sources), "rooms": rooms,
@@ -235,12 +258,44 @@ def generate_scan(model_id: str, context: bool = True, offline: bool = False, re
     return _report(bm, stages, {model_id: status}, ctx)
 
 
+def generate_plan(building_id: str, context: bool = True, offline: bool = False, refresh_context: bool = False) -> dict:
+    """A building traced from its published floor plans (``configs/plan_buildings.yaml``) -> BuildingModel."""
+    from ingest.unified.plan import build_plan_model, plan_config
+
+    stages = _Stages()
+    cfg = plan_config(building_id)
+    stages.mark("floor plan", f"{sum(len(lv.get('spaces') or []) for lv in cfg.get('levels') or [])} traced spaces "
+                              f"on {len(cfg.get('levels') or [])} levels")
+    bm = build_plan_model(cfg)
+    stages.mark("model", f"{bm.tier}: {len(bm.spaces)} rooms, {len(bm.walls)} walls, {len(bm.links)} links")
+    arrived = threading.Event()
+
+    def late(found: dict) -> None:
+        _write(bm, found, None, {})
+        if not found.get("pending"):
+            arrived.set()
+
+    ctx = build_context(bm, network=context and not offline, refresh=refresh_context, on_late=late)
+    if ctx.get("pending"):
+        # A traced plan is prepared ahead of a call, so there is time to wait for the map: what
+        # the windows look at comes from OpenStreetMap, which can take most of a minute.
+        arrived.wait(PLAN_MAP_WAIT_S)
+        ctx = load_context(bm.id) or ctx
+    stages.mark("site context", f"placed by {ctx.get('placement_source')}"
+                                + ("; street lookup still running" if ctx.get("pending") else ""))
+    counts = _write(bm, ctx, None, {})
+    stages.mark("project + write", f"{counts['rooms']} rooms, {counts['edges']} links")
+    return _report(bm, stages, {}, ctx)
+
+
 def generate(query: str, stamp: bool = True, context: bool = True, offline: bool = False,
              max_scans: int = MAX_SCANS, refresh_context: bool = False) -> dict:
-    """Run the whole pipeline for an address / property id / ``mp:<model id>`` and return the run report."""
+    """Run the whole pipeline for an address / property id / ``mp:<model id>`` / ``plan:<id>`` and return the run report."""
     query = str(query).strip()
     if query.lower().startswith("mp:"):
         return generate_scan(query[3:].strip(), context=context, offline=offline, refresh_context=refresh_context)
+    if query.lower().startswith("plan:"):
+        return generate_plan(query[5:].strip(), context=context, offline=offline, refresh_context=refresh_context)
     stages = _Stages()
     hits = index.lookup(query, limit=5)
     if not hits:
@@ -258,20 +313,49 @@ def generate(query: str, stamp: bool = True, context: bool = True, offline: bool
             if model is not None:
                 models[sid] = model
         stages.mark("unit-type scans", f"{len(models)} buildable of {len(statuses)} checked" if statuses else "none listed")
-    bm = build_property_model(facts, models)
+    # The outline comes first: the layout is drawn to it. Vexcel answers are kept on disk and
+    # OpenStreetMap is local for the kit's properties, so this is milliseconds on a second run.
+    geo = facts.get("latlng")
+    roster = build_roster(facts)
+    buildings = building_count(facts, roster)
+    current: dict = {}
+    ready = threading.Event()
+
+    def late(state: dict) -> None:
+        # a source answered after the deadline: lay the building out again if what it brought
+        # (an outline, or the street that says which side is the front) changes the layout
+        ready.wait(60.0)
+        site = layout_site(state, geo, buildings)
+        model = current["bm"] if _same_site(site, current["site"]) else build_property_model(facts, models, site=site)
+        current.update(bm=model, site=site)
+        _write(model, _assemble(model, geo, state, pending=not state.get("osm_done")), facts, statuses)
+
+    sources = site_sources(f"prop-{facts['property_id']}", geo, single=(len({s["block"] for s in roster["slots"]}) or 1) == 1,
+                           buildings=buildings, network=context and not offline, refresh=refresh_context, on_late=late)
+    site = layout_site(sources, geo, buildings)
+    stages.mark("building outline", (f"{site['source']}: {len(site['polygons_latlng'])} outline"
+                                     f"{'' if len(site['polygons_latlng']) == 1 else 's'}") if site["polygons_latlng"]
+                else site.get("reason", "none"))
+    bm = build_property_model(facts, models, site=site)
+    current.update(bm=bm, site=site)
     stages.mark("roster + layout", f"{bm.archetype}: {len(bm.spaces)} spaces, {len(bm.walls)} walls, "
-                                   f"{bm.stats['units_with_stamped_interior']} units stamped")
-    # if OpenStreetMap answers after the deadline, the building is re-projected with the better placement
-    ctx = build_context(bm, facts.get("latlng"), network=context and not offline, refresh=refresh_context,
-                        on_late=lambda late: _write(bm, late, facts, statuses))
+                                   f"{bm.stats['units_with_stamped_interior']} units stamped; shape "
+                                   f"{(bm.stats.get('shape') or {}).get('kind')}")
+    ctx = build_context(bm, geo, sources=sources)
     stages.mark("site context", f"placed by {ctx.get('placement_source')}"
                                 + (f"; street: {ctx['street']['name']}" if ctx.get("street") and ctx["street"].get("name") else "")
                                 + ("; street lookup still running" if ctx.get("pending") else ""))
     counts = _write(bm, ctx, facts, statuses)
+    ready.set()
     stages.mark("project + write", f"{counts['rooms']} rooms, {counts['edges']} links")
     report = _report(bm, stages, statuses, ctx)
     report["alternatives"] = hits[1:]
     return report
+
+
+def _same_site(a: dict, b: dict) -> bool:
+    keys = ("polygons_latlng", "holes_latlng", "street_bearing_deg", "source")
+    return all((a or {}).get(k) == (b or {}).get(k) for k in keys)
 
 
 def _report(bm: BuildingModel, stages: _Stages, scans: dict, ctx: Optional[dict]) -> dict:

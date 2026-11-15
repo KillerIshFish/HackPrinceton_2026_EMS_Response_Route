@@ -1,0 +1,334 @@
+# Buildings traced by hand from a published floor plan.
+# Built by `uv run python -m ingest.unified plan:<id>` (see ingest/unified/plan.py).
+#
+# Every `box` / `poly` is in the pixels of that level's plan image (x right, y down), read
+# off a 10 px grid laid over the image. `frame` maps a level's image onto the reference
+# image (the level whose frame is the identity): ref = scale * px + (dx, dy). The plan
+# images of one building are separate crops at slightly different scales; the frames were
+# fitted by correlating the wall linework of each level with the reference level.
+#
+# Space fields
+#   id        unique in the building
+#   name      what a caller or a sign would call it
+#   type      a room type of configs/clue_vocab.yaml, or corridor | stairwell | elevator |
+#             lobby | suite (a department's offices, interior not traced room by room)
+#   box       [x0, y0, x1, y1]          poly  [[x, y], ...]
+#   windows   plan sides with glass, letters of N S E W (N = top of the plan image)
+#   tenant    the department that occupies it
+#   shaft     stairs / elevators: the same value on every level the shaft serves
+#   in        a small room inside a larger space: the space it opens into
+#   doors     ids it has a door to (default: the corridors and lobbies it touches)
+#   circulation: true   a room people walk through (links like a corridor)
+#   capacity, owner     from the guide's room matrix
+#
+# Names: a number in a name is read as the label on that room's door ("Room A17"), so only
+# the room itself carries it. A corridor beside A17 is not called "corridor by A17".
+version: 1
+
+buildings:
+  - id: jrr-princeton
+    name: Julis Romo Rabinowitz Building and Louis A. Simpson International Building
+    address: 20 Washington Road, Princeton, NJ 08544
+    use_type: office
+    source: >-
+      Floor plans on pages 24 to 28 of the Princeton University user guide for the two
+      buildings (version 1.1, December 2016); room data from its room matrix (pages 22, 23)
+    # 0.149 m per reference pixel: fitted, with the rotation, to the building outline in
+    # OpenStreetMap (ways 1086964029 and 1086964030) at the nine corners below. Residual 0.4 m.
+    metres_per_px: 0.14923
+    origin_px: [430, 270]        # reference-image pixel that becomes model (0, 0)
+    storey_height_m: 4.0         # assumed; the guide gives no heights
+    georeference:
+      control_points:            # reference-image pixel <-> OpenStreetMap outline corner
+        - {px: [101, 20], latlng: [40.3492811, -74.6559643]}    # north tower, north-west corner
+        - {px: [281, 20], latlng: [40.3494095, -74.6556932]}    # north tower, north-east corner
+        - {px: [101, 518], latlng: [40.3487053, -74.6555082]}   # south tower, south-west corner
+        - {px: [281, 518], latlng: [40.3488328, -74.6552335]}   # south tower, south-east corner
+        - {px: [495, 43], latlng: [40.3495299, -74.6553514]}    # east wing, north-east corner
+        - {px: [495, 497], latlng: [40.3490044, -74.6549353]}   # east wing, south-east corner
+        - {px: [750, 165], latlng: [40.3495640, -74.6548622]}   # Simpson, north-east corner
+        - {px: [750, 515], latlng: [40.3491616, -74.6545440]}   # Simpson, south-east corner
+        - {px: [622, 165], latlng: [40.3494769, -74.6550520]}   # Simpson, north stair tower
+    # A public Matterport tour of part of the building. Its geometry is not available to the
+    # Model API token (the scan belongs to another account), so it is only shown, not measured.
+    matterport:
+      model_id: 6sd6A5r5EVp
+      name: Economics Forum (Matterport tour, November 2026)
+      covers: ["1-forum", "117", "1-forum-stair", "1-cor-n", "1-cor-s", "217", "2-forum-bridge"]
+    entrances:
+      - {id: ent-washington, name: Entrance on Washington Road (Level 1), space: "1-entry", level: "1", px: [167, 270], outward: W}
+      - {id: ent-scudder, name: Atrium entrance on Scudder Plaza (Level 1), space: "171", level: "1", px: [557, 485], outward: S}
+      - {id: ent-north, name: North entrance facing Hoyt Laboratory (A level), space: a-vest-n, level: A, px: [640, 165], outward: N}
+    notes:
+      - "Traced from the floor plans in the university's 2016 user guide: room outlines are good to about a metre, and anything changed in the building since 2016 is not shown."
+      - "Department areas are single spaces; the individual offices inside them are not in the guide."
+      - "Storey heights are assumed (4 m per level). Doors are placed where a room meets a corridor on the plan, not surveyed."
+      - "Entrances are approximate. The guide also shows doors on the A level under the International Atrium and a tunnel to Hoyt Laboratory on the B level; neither is modelled as an entrance."
+      - "Under the Julis Romo Rabinowitz Building the B level is foundations and plant space with no rooms in the guide; it is left out."
+      - "A caller who says 'ground floor' may mean Level 1 (Washington Road) or the A level (campus level); floor names here are the building's own: B, A, 1, 2, 3."
+
+    levels:
+      # ------------------------------------------------------------------ B level
+      - label: B
+        frame: {scale: 0.932, dx: 54, dy: -2}
+        spaces:
+          - {id: b-stair-sn, name: North stair (Simpson), type: stairwell, shaft: stair-sn, box: [612, 182, 637, 228]}
+          - {id: b-cor-n, name: B level north corridor, type: corridor, box: [637, 198, 744, 212]}
+          - {id: b-showers, name: Bike program showers, type: restroom, box: [682, 180, 744, 198]}
+          - {id: b-cor, name: B level corridor, type: corridor, box: [669, 212, 682, 550]}
+          - {id: b-pantry-b50, name: Pantry B50 (Davis International Center), type: break_room, tenant: Davis International Center, box: [682, 212, 742, 250]}
+          - {id: b60a, name: Room B60A meeting room, type: conference, capacity: "16 at tables, 28 in rows", owner: Campus Venue Services, box: [682, 252, 742, 298]}
+          - {id: b60b, name: Room B60B meeting room, type: conference, capacity: "32 at tables, 50 in rows", owner: Campus Venue Services, box: [682, 298, 742, 380]}
+          - {id: b60c, name: Room B60C meeting room, type: conference, capacity: "16 at tables, 28 in rows", owner: Campus Venue Services, box: [682, 381, 742, 427]}
+          - {id: b-mech-n, name: Service rooms (B level north), type: mechanical, box: [629, 212, 669, 337]}
+          - {id: b-cor-w, name: B level cross corridor, type: corridor, box: [612, 337, 669, 365]}
+          - {id: b-mech-c, name: Plant room (B level), type: mechanical, box: [612, 365, 669, 482]}
+          - {id: b-stair-ss, name: South stair (Simpson), type: stairwell, shaft: stair-ss, box: [622, 483, 669, 500]}
+          - {id: b-storage-s, name: Storage rooms (B level south), type: storage, box: [682, 428, 744, 550]}
+          - {id: b-storage-sw, name: Service rooms (B level south-west), type: storage, box: [612, 500, 669, 550]}
+          - {id: b-lobby, name: B level elevator lobby, type: corridor, box: [475, 353, 612, 423]}
+          - {id: b-elev-2, name: Elevator Two (Simpson side), type: elevator, shaft: elev-2, box: [492, 367, 520, 398]}
+          - {id: b-stair-atrium, name: Atrium stair (Simpson), type: stairwell, shaft: stair-atrium, box: [550, 365, 587, 400]}
+          - {id: b-stacks, name: Storage (B level, under the International Atrium), type: storage, box: [475, 425, 610, 547]}
+
+      # ------------------------------------------------- Campus Level / A level
+      - label: A
+        frame: {scale: 1.008, dx: 14, dy: -2}
+        spaces:
+          # west wing (Washington Road side)
+          - {id: a-bcf, name: Bendheim Center for Finance (A level), type: suite, tenant: Bendheim Center for Finance, windows: NSEW, box: [88, 24, 263, 78]}
+          - {id: a-stair-nw, name: North-west stair, type: stairwell, shaft: stair-nw, box: [160, 82, 207, 115]}
+          - {id: a-cor-w, name: A level west corridor, type: corridor, box: [207, 80, 231, 450]}
+          - {id: a02, name: Room A02 collaborative classroom, type: classroom, capacity: "35", owner: Registrar, windows: W, box: [152, 117, 207, 181]}
+          - {id: a01, name: Room A01 classroom, type: classroom, capacity: "35", owner: Registrar, windows: W, box: [152, 183, 207, 252]}
+          - {id: a98, name: Room A98 classroom, type: classroom, capacity: "40", owner: Registrar, windows: W, box: [152, 283, 207, 352]}
+          - {id: a97, name: Room A97 classroom, type: classroom, capacity: "35", owner: Registrar, windows: W, box: [152, 355, 207, 425]}
+          - {id: a-econ-lounge, name: Economics lounge (A level south-west), type: common_area, tenant: Department of Economics, windows: W, box: [155, 428, 207, 448]}
+          # centre block
+          - {id: a12, name: Room A12 classroom, type: classroom, capacity: "35", owner: Registrar, windows: N, box: [252, 150, 316, 197]}
+          - {id: a-econ-gs-n, name: Economics workspace (A level, centre north), type: open_office, tenant: Department of Economics, windows: N, box: [318, 150, 353, 197]}
+          - {id: a-stair-cn, name: North centre stair, type: stairwell, shaft: stair-cn, box: [355, 150, 382, 197]}
+          - {id: a-cor-n, name: A level north corridor, type: corridor, box: [231, 197, 382, 226]}
+          - {id: a-cor-cw, name: A level corridor west of the centre lecture hall, type: corridor, box: [231, 226, 250, 310]}
+          - {id: a17, name: Room A17 lecture hall, type: classroom, capacity: "60 (74 with extra chairs)", owner: Registrar, box: [250, 226, 348, 310]}
+          - {id: a-cor-ce, name: A level corridor east of the centre lecture hall, type: corridor, box: [348, 226, 382, 310]}
+          - {id: a-cor-s, name: A level south corridor, type: corridor, box: [231, 310, 382, 345]}
+          - {id: a-elev-1, name: Elevator One (Julis Romo Rabinowitz side), type: elevator, shaft: elev-1, box: [233, 345, 250, 363]}
+          - {id: a87, name: Room A87 classroom, type: classroom, capacity: "35", owner: Registrar, windows: S, box: [252, 345, 318, 393]}
+          - {id: a-econ-gs-s, name: Economics workspace (A level, centre south), type: open_office, tenant: Department of Economics, windows: S, box: [320, 345, 355, 393]}
+          - {id: a-stair-cs, name: South centre stair, type: stairwell, shaft: stair-cs, box: [357, 345, 382, 393]}
+          # east wing
+          - {id: a-cor-ne, name: A level north corridor (east wing), type: corridor, box: [382, 197, 476, 217]}
+          - {id: a-cor-e-n, name: A level east wing corridor (north), type: corridor, box: [420, 52, 437, 197]}
+          - {id: a-econ-ne-w, name: Department of Economics (A level, east wing north-west), type: suite, tenant: Department of Economics, windows: NW, box: [384, 52, 420, 128]}
+          - {id: a-wc-n, name: Restrooms (A level, east wing north), type: restroom, box: [384, 130, 420, 197]}
+          - {id: a-econ-ne-e, name: Department of Economics (A level, east wing north-east), type: suite, tenant: Department of Economics, windows: NE, box: [437, 52, 474, 110]}
+          - {id: a-wws, name: Woodrow Wilson School (A level), type: suite, tenant: Woodrow Wilson School, windows: E, box: [437, 110, 474, 197]}
+          - {id: a-econ-mid, name: Department of Economics workspace (A level, east wing centre), type: open_office, tenant: Department of Economics, box: [384, 217, 429, 322]}
+          - {id: a-copy-a34, name: Copy room A34 (Woodrow Wilson School), type: copy_room, tenant: Woodrow Wilson School, box: [429, 285, 459, 302]}
+          - {id: a-pantry-a34b, name: Pantry A34B (Economics), type: break_room, tenant: Department of Economics, box: [441, 258, 459, 283]}
+          - {id: a-cor-e-c, name: A level east wing passage, type: corridor, box: [459, 217, 476, 322]}
+          - {id: a-cor-se, name: A level south corridor (east wing), type: corridor, box: [382, 322, 476, 345]}
+          - {id: a-wc-s, name: Restrooms (A level, east wing south), type: restroom, box: [384, 352, 420, 410]}
+          - {id: a-cbsp-w, name: Center for Behavioral Science and Policy (A level, west side), type: suite, tenant: Center for Behavioral Science and Policy, windows: SW, box: [384, 412, 420, 493]}
+          - {id: a-cor-e-s, name: A level east wing corridor (south), type: corridor, box: [420, 345, 437, 493]}
+          - {id: a-econ-se, name: Department of Economics (A level, east wing south-east), type: suite, tenant: Department of Economics, windows: E, box: [437, 345, 474, 450]}
+          - {id: a-cbsp-e, name: Center for Behavioral Science and Policy (A level, east side), type: suite, tenant: Center for Behavioral Science and Policy, windows: SE, box: [437, 450, 474, 493]}
+          # link to the Simpson building
+          - {id: a-econ-link-n, name: Department of Economics offices (A level link, north), type: suite, tenant: Department of Economics, windows: N, box: [476, 217, 517, 255]}
+          - {id: a-cor-link, name: A level link corridor, type: corridor, box: [476, 255, 517, 285]}
+          - {id: a-econ-link-s, name: Department of Economics offices (A level link, south), type: suite, tenant: Department of Economics, box: [476, 285, 517, 322]}
+          # Simpson building
+          - {id: a-pia, name: Princeton in Asia / Princeton in Africa / Princeton in Latin America, type: suite, tenant: Princeton in Asia; Princeton in Africa; Princeton in Latin America, windows: N, box: [517, 213, 620, 322]}
+          - {id: a-copy-a44a, name: Copy room A44A, type: copy_room, in: a-pia, box: [600, 213, 620, 245]}
+          - {id: a-pantry-a44b, name: Pantry A44B (Davis International Center), type: break_room, tenant: Davis International Center, in: a-pia, box: [590, 293, 620, 322]}
+          - {id: a-stair-sn, name: North stair (Simpson), type: stairwell, shaft: stair-sn, box: [603, 165, 629, 212]}
+          - {id: a-vest-n, name: North entrance vestibule (A level), type: lobby, box: [629, 165, 652, 212]}
+          - id: a-cor-sim
+            name: A level Simpson corridor
+            type: corridor
+            poly: [[620, 212], [640, 212], [640, 352], [620, 352], [620, 337], [603, 337], [603, 322], [620, 322]]
+          - {id: a-citr, name: Council for International Teaching and Research, type: suite, tenant: Council for International Teaching and Research, windows: NE, box: [652, 167, 730, 208]}
+          - {id: a-davis, name: Davis International Center (A level), type: suite, tenant: Davis International Center, windows: E, box: [640, 208, 730, 322]}
+          - {id: a-copy-a54, name: Copy area A54 (Davis International Center), type: copy_room, tenant: Davis International Center, in: a-davis, box: [668, 305, 700, 322]}
+          - {id: a-lounge-sim, name: Simpson A level lounge, type: common_area, circulation: true, box: [640, 322, 702, 352]}
+          - {id: a-bridge, name: Bridge Year Program, type: suite, tenant: Bridge Year Program, windows: E, box: [702, 322, 730, 352]}
+          - {id: a-oip, name: Office of International Programs, type: suite, tenant: Office of International Programs, windows: ES, box: [603, 352, 730, 480]}
+          - {id: a66, name: Room A66 meeting room, type: conference, capacity: "20 to 24", owner: Shared International, box: [640, 352, 675, 400]}
+          - {id: a-copy-a61, name: Copy room A61 (Office of International Programs), type: copy_room, tenant: Office of International Programs, in: a-oip, box: [650, 445, 665, 480]}
+          - {id: a-stair-ss, name: South stair (Simpson), type: stairwell, shaft: stair-ss, box: [603, 447, 650, 473]}
+          - {id: a-lobby-sim, name: Simpson lower lobby (A level), type: lobby, box: [476, 328, 603, 383]}
+          - {id: a-elev-2, name: Elevator Two (Simpson side), type: elevator, shaft: elev-2, box: [494, 340, 520, 373]}
+          - {id: a-stair-atrium, name: Atrium stair (Simpson), type: stairwell, shaft: stair-atrium, box: [540, 340, 587, 373]}
+          - {id: a-cor-a71-w, name: A level passage west of the Simpson lecture hall, type: corridor, box: [476, 383, 494, 473]}
+          - {id: a71, name: Room A71 lecture hall, type: classroom, capacity: "60 (74 with extra chairs, 26 overflow)", owner: Registrar, box: [494, 383, 587, 473]}
+          - {id: a-cor-a71-e, name: A level passage east of the Simpson lecture hall, type: corridor, box: [587, 383, 603, 473]}
+          - {id: a-prefunction, name: Lobby south of the Simpson lecture hall (A level), type: common_area, circulation: true, windows: S, box: [476, 473, 603, 500]}
+
+      # ----------------------------------------------------------------- Level 1
+      - label: "1"
+        frame: {scale: 1.0, dx: 0, dy: 0}
+        spaces:
+          # west wing
+          - {id: 1-bcf, name: Bendheim Center for Finance (Level 1), type: suite, tenant: Bendheim Center for Finance, windows: NSEW, box: [103, 22, 279, 78]}
+          - {id: 1-copy-104, name: Copy room 104 (Bendheim Center for Finance), type: copy_room, tenant: Bendheim Center for Finance, in: 1-bcf, box: [124, 62, 142, 78]}
+          - {id: 1-pantry-103, name: Pantry 103 (Bendheim Center for Finance), type: break_room, tenant: Bendheim Center for Finance, in: 1-bcf, box: [173, 62, 191, 78]}
+          - {id: 1-stair-nw, name: North-west stair, type: stairwell, shaft: stair-nw, box: [172, 82, 222, 110]}
+          - {id: 1-cor-w, name: Level 1 west corridor, type: corridor, box: [222, 80, 247, 455]}
+          - {id: "102", name: Room 102 meeting room (Bendheim Center for Finance), type: conference, capacity: "18 to 25", owner: Bendheim Center for Finance, windows: W, box: [172, 112, 222, 152]}
+          - {id: "101", name: Room 101 classroom, type: classroom, capacity: "48", owner: Registrar, windows: W, box: [167, 155, 222, 234]}
+          - {id: 1-entry, name: Washington Road entrance hall, type: lobby, windows: W, box: [167, 237, 222, 304]}
+          - {id: "198", name: Room 198 classroom, type: classroom, capacity: "40", owner: Registrar, windows: W, box: [167, 308, 222, 386]}
+          - {id: 1-econ-sw, name: Department of Economics offices (Level 1 south-west), type: suite, tenant: Department of Economics, windows: W, box: [172, 388, 222, 426]}
+          - {id: 1-stair-sw, name: South-west stair, type: stairwell, shaft: stair-sw, box: [172, 428, 222, 453]}
+          - {id: 1-ies, name: International Economics Section (Level 1), type: suite, tenant: International Economics Section, windows: NSEW, box: [103, 457, 279, 518]}
+          # centre block
+          - {id: 1-econ-admin, name: Department of Economics administration (Level 1), type: suite, tenant: Department of Economics, windows: N, box: [268, 150, 378, 197]}
+          - {id: 1-copy-116, name: Copy room 116 (Economics), type: copy_room, tenant: Department of Economics, in: 1-econ-admin, box: [268, 178, 284, 197]}
+          - {id: 1-stair-cn, name: North centre stair, type: stairwell, shaft: stair-cn, box: [380, 150, 397, 197]}
+          - {id: 1-cor-n, name: Level 1 north corridor, type: corridor, box: [247, 197, 397, 215]}
+          - id: 1-forum
+            name: Economics Forum (atrium)
+            type: lobby
+            poly: [[247, 215], [397, 215], [397, 322], [363, 322], [363, 228], [290, 228], [290, 322], [247, 322]]
+          - {id: "117", name: Room 117 Forum multipurpose room, type: common_area, capacity: "40 to 50", owner: Department of Economics, box: [290, 228, 363, 308]}
+          - {id: 1-forum-stair, name: Forum stair, type: stairwell, shaft: stair-forum, box: [290, 308, 363, 322]}
+          - {id: 1-cor-s, name: Level 1 south corridor, type: corridor, box: [247, 322, 397, 343]}
+          - {id: 1-elev-1, name: Elevator One (Julis Romo Rabinowitz side), type: elevator, shaft: elev-1, box: [248, 343, 266, 363]}
+          - {id: 1-chw-c, name: Center for Health and Wellbeing (Level 1 centre), type: suite, tenant: Center for Health and Wellbeing, windows: S, box: [268, 343, 378, 393]}
+          - {id: 1-stair-cs, name: South centre stair, type: stairwell, shaft: stair-cs, box: [380, 343, 397, 393]}
+          # east wing
+          - {id: 1-cor-ne, name: Level 1 north corridor (east wing), type: corridor, box: [397, 197, 495, 217]}
+          - {id: 1-chw-ne, name: Center for Health and Wellbeing (Level 1, east wing north), type: suite, tenant: Center for Health and Wellbeing, windows: NW, box: [400, 50, 437, 128]}
+          - {id: 1-wc-n, name: Restrooms (Level 1, east wing north), type: restroom, box: [400, 130, 437, 197]}
+          - {id: 1-cor-e-n, name: Level 1 east wing corridor (north), type: corridor, box: [437, 50, 455, 197]}
+          - {id: 1-rpds, name: Research Program in Development Studies, type: suite, tenant: Research Program in Development Studies, windows: NE, box: [455, 50, 494, 197]}
+          - {id: 1-chw-mid, name: Center for Health and Wellbeing (Level 1, east wing centre), type: suite, tenant: Center for Health and Wellbeing, box: [400, 217, 455, 322]}
+          - {id: 1-pantry-134b, name: Pantry 134B (Center for Health and Wellbeing), type: break_room, tenant: Center for Health and Wellbeing, box: [462, 258, 480, 282]}
+          - {id: 1-copy-134, name: Copy room 134 (Center for Health and Wellbeing), type: copy_room, tenant: Center for Health and Wellbeing, box: [455, 290, 480, 304]}
+          - {id: 1-cor-e-c, name: Level 1 east wing passage, type: corridor, box: [480, 217, 495, 322]}
+          - {id: 1-cor-se, name: Level 1 south corridor (east wing), type: corridor, box: [397, 322, 495, 343]}
+          - {id: 1-wc-s, name: Restrooms (Level 1, east wing south), type: restroom, box: [400, 345, 437, 410]}
+          - {id: 1-chw-sw, name: Center for Health and Wellbeing (Level 1, east wing south-west), type: suite, tenant: Center for Health and Wellbeing, windows: SW, box: [400, 412, 437, 495]}
+          - {id: 1-cor-e-s, name: Level 1 east wing corridor (south), type: corridor, box: [437, 343, 455, 495]}
+          - {id: 1-chw-se, name: Center for Health and Wellbeing (Level 1, east wing south-east), type: suite, tenant: Center for Health and Wellbeing, windows: SE, box: [455, 343, 494, 495]}
+          # Simpson building
+          - {id: 1-piirs-w, name: Princeton Institute for International and Regional Studies (Level 1 west), type: suite, tenant: Princeton Institute for International and Regional Studies, windows: N, box: [495, 217, 639, 322]}
+          - {id: "144", name: Room 144 PIIRS meeting room, type: conference, capacity: "28 to 40", owner: PIIRS, box: [500, 283, 570, 322]}
+          - {id: 1-copy-142, name: Copy room 142 (PIIRS), type: copy_room, tenant: Princeton Institute for International and Regional Studies, in: 1-piirs-w, box: [594, 267, 639, 322]}
+          - {id: 1-stair-sn, name: North stair (Simpson), type: stairwell, shaft: stair-sn, box: [622, 165, 649, 212]}
+          - {id: 1-cor-sim, name: Level 1 Simpson corridor, type: corridor, box: [639, 212, 659, 343]}
+          - {id: 1-piirs, name: Princeton Institute for International and Regional Studies (Level 1 east), type: suite, tenant: Princeton Institute for International and Regional Studies, windows: NE, box: [659, 165, 750, 482]}
+          - {id: 1-copy-150a, name: Copy room 150A (PIIRS), type: copy_room, tenant: Princeton Institute for International and Regional Studies, in: 1-piirs, box: [730, 190, 750, 212]}
+          - {id: 1-copy-145b, name: Copy room 145B (PIIRS), type: copy_room, tenant: Princeton Institute for International and Regional Studies, in: 1-piirs, box: [659, 300, 677, 318]}
+          - {id: 1-pantry-145a, name: Pantry 145A (PIIRS), type: break_room, tenant: Princeton Institute for International and Regional Studies, in: 1-piirs, box: [659, 345, 677, 363]}
+          - {id: 1-copy-160, name: Copy area 160 (PIIRS), type: copy_room, tenant: Princeton Institute for International and Regional Studies, in: 1-piirs, box: [659, 466, 681, 482]}
+          - {id: 1-piirs-s, name: Princeton Institute for International and Regional Studies (Level 1 south offices), type: suite, tenant: Princeton Institute for International and Regional Studies, windows: S, doors: ["1-piirs"], box: [622, 482, 712, 515]}
+          - {id: "161", name: Room 161 PIIRS meeting room, type: conference, capacity: "20 to 26", owner: PIIRS, windows: SE, doors: ["1-piirs"], box: [712, 482, 750, 515]}
+          - id: 1-lobby-sim
+            name: Simpson Level 1 landing
+            type: lobby
+            poly: [[495, 322], [639, 322], [639, 343], [622, 343], [622, 375], [495, 375]]
+          - {id: 1-elev-2, name: Elevator Two (Simpson side), type: elevator, shaft: elev-2, box: [512, 343, 539, 372]}
+          - {id: 1-stair-atrium, name: Atrium stair (Simpson), type: stairwell, shaft: stair-atrium, box: [557, 347, 600, 372]}
+          - id: "171"
+            name: Room 171 International Atrium
+            type: lobby
+            capacity: "88 banquet, 200 in rows"
+            owner: Campus Venue Services
+            windows: S
+            poly: [[511, 375], [622, 375], [622, 420], [604, 420], [604, 485], [511, 485]]
+          - {id: 1-cafe, name: Atrium Cafe, type: break_room, box: [622, 375, 649, 423]}
+          - {id: 1-stair-ss, name: South stair (Simpson), type: stairwell, shaft: stair-ss, box: [625, 447, 659, 473]}
+
+      # ----------------------------------------------------------------- Level 2
+      - label: "2"
+        frame: {scale: 0.96, dx: -5, dy: 2}
+        spaces:
+          # west wing
+          - {id: 2-bcf, name: Bendheim Center for Finance (Level 2), type: suite, tenant: Bendheim Center for Finance, windows: NSEW, box: [114, 24, 294, 80]}
+          - {id: 2-stair-nw, name: North-west stair, type: stairwell, shaft: stair-nw, box: [185, 85, 243, 113]}
+          - {id: 2-cor-w, name: Level 2 west corridor, type: corridor, box: [243, 80, 262, 474]}
+          - {id: 2-econ-nw, name: Department of Economics offices (Level 2 north-west), type: suite, tenant: Department of Economics, windows: W, box: [180, 116, 243, 158]}
+          - {id: "201", name: Room 201 meeting room (Economics), type: conference, capacity: "20 to 24", owner: Department of Economics, windows: W, box: [175, 162, 243, 203]}
+          - {id: "200", name: Room 200 Common Room, type: common_area, capacity: "80", owner: Department of Economics, windows: W, box: [180, 205, 243, 349]}
+          - {id: 2-pantry-200a, name: Pantry 200A (Economics, in the Common Room), type: break_room, tenant: Department of Economics, in: "200", box: [195, 335, 243, 349]}
+          - {id: "298", name: Room 298 meeting room (Economics), type: conference, capacity: "20 to 24", owner: Department of Economics, windows: W, box: [175, 355, 243, 398]}
+          - {id: 2-econ-sw, name: Department of Economics offices (Level 2 south-west), type: suite, tenant: Department of Economics, windows: W, box: [180, 402, 243, 443]}
+          - {id: 2-stair-sw, name: South-west stair, type: stairwell, shaft: stair-sw, box: [185, 446, 243, 472]}
+          - {id: 2-ies, name: International Economics Section (Level 2), type: suite, tenant: International Economics Section, windows: NSEW, box: [114, 474, 294, 538]}
+          - {id: 2-pantry-296, name: Pantry 296 (International Economics Section), type: break_room, tenant: International Economics Section, in: 2-ies, box: [190, 474, 245, 500]}
+          # centre block
+          - {id: 2-jrc, name: Julis-Rabinowitz Center for Public Policy and Finance, type: suite, tenant: Julis-Rabinowitz Center for Public Policy and Finance, windows: N, box: [282, 152, 398, 203]}
+          - {id: 2-stair-cn, name: North centre stair, type: stairwell, shaft: stair-cn, box: [400, 152, 420, 203]}
+          - {id: 2-cor-n, name: Level 2 north corridor, type: corridor, box: [262, 203, 420, 222]}
+          - {id: "217", name: Room 217 Forum meeting room, type: conference, capacity: "24 to 32", owner: Department of Economics, box: [342, 238, 408, 303]}
+          - {id: 2-forum-bridge, name: Level 2 gallery over the Economics Forum, type: corridor, box: [408, 222, 432, 335]}
+          - {id: 2-forum-stair, name: Forum stair, type: stairwell, shaft: stair-forum, box: [305, 305, 372, 335]}
+          - {id: 2-cor-s, name: Level 2 south corridor, type: corridor, box: [262, 335, 420, 355]}
+          - {id: 2-elev-1, name: Elevator One (Julis Romo Rabinowitz side), type: elevator, shaft: elev-1, box: [262, 355, 281, 375]}
+          - {id: 2-econ-c, name: Department of Economics offices (Level 2 centre south), type: suite, tenant: Department of Economics, windows: S, box: [283, 355, 398, 405]}
+          - {id: 2-stair-cs, name: South centre stair, type: stairwell, shaft: stair-cs, box: [400, 355, 420, 405]}
+          # east wing
+          - {id: 2-cor-ne, name: Level 2 north corridor (east wing), type: corridor, box: [420, 203, 520, 222]}
+          - {id: 2-econ-ne-w, name: Department of Economics (Level 2, east wing north-west), type: suite, tenant: Department of Economics, windows: NW, box: [422, 48, 460, 130]}
+          - {id: 2-wc-n, name: Restrooms (Level 2, east wing north), type: restroom, box: [422, 132, 460, 203]}
+          - {id: 2-cor-e-n, name: Level 2 east wing corridor (north), type: corridor, box: [460, 48, 478, 203]}
+          - {id: 2-econ-ne-e, name: Department of Economics (Level 2, east wing north-east), type: suite, tenant: Department of Economics, windows: NE, box: [478, 48, 518, 203]}
+          - {id: 2-chw, name: Center for Health and Wellbeing (Level 2), type: suite, tenant: Center for Health and Wellbeing, box: [432, 222, 467, 298]}
+          - {id: 2-econ-mid, name: Department of Economics offices (Level 2, east wing centre), type: suite, tenant: Department of Economics, box: [432, 300, 467, 335]}
+          - {id: 2-pantry-234b, name: Pantry 234B (Economics), type: break_room, tenant: Department of Economics, box: [482, 260, 500, 284]}
+          - {id: 2-copy-234, name: Copy room 234 (Economics), type: copy_room, tenant: Department of Economics, box: [467, 300, 500, 316]}
+          - {id: 2-cor-e-c, name: Level 2 east wing passage, type: corridor, box: [500, 222, 520, 335]}
+          - {id: 2-cor-se, name: Level 2 south corridor (east wing), type: corridor, box: [420, 335, 520, 352]}
+          - {id: 2-wc-s, name: Restrooms (Level 2, east wing south), type: restroom, box: [422, 355, 460, 425]}
+          - {id: 2-econ-se-w, name: Department of Economics (Level 2, east wing south-west), type: suite, tenant: Department of Economics, windows: SW, box: [422, 427, 460, 510]}
+          - {id: 2-cor-e-s, name: Level 2 east wing corridor (south), type: corridor, box: [460, 352, 478, 510]}
+          - {id: 2-econ-se-e, name: Department of Economics (Level 2, east wing south-east), type: suite, tenant: Department of Economics, windows: SE, box: [478, 352, 518, 510]}
+          # link to the Simpson building
+          - {id: 2-econ-link-n, name: Department of Economics offices (Level 2 link), type: suite, tenant: Department of Economics, windows: N, box: [520, 222, 600, 262]}
+          - {id: 2-cor-link, name: Level 2 link corridor, type: corridor, box: [520, 262, 600, 297]}
+          - {id: 2-gceps, name: Griswold Center for Economic Policy Studies, type: suite, tenant: Griswold Center for Economic Policy Studies, box: [520, 297, 600, 335]}
+          # Simpson building
+          - {id: 2-ir-w, name: Industrial Relations Section (Level 2 west), type: suite, tenant: Industrial Relations Section; Educational Research Section, windows: N, box: [600, 222, 668, 335]}
+          - {id: 2-stair-sn, name: North stair (Simpson), type: stairwell, shaft: stair-sn, box: [652, 170, 680, 217]}
+          - {id: 2-cor-sim, name: Level 2 Simpson corridor, type: corridor, box: [668, 217, 680, 458]}
+          - {id: 2-ir, name: Industrial Relations Section and Educational Research Section (Level 2 east), type: suite, tenant: Industrial Relations Section; Educational Research Section, windows: NE, box: [680, 170, 785, 495]}
+          - {id: "254", name: Room 254 meeting room (Industrial Relations), type: conference, capacity: "12", owner: Industrial Relations Section, windows: E, box: [745, 312, 785, 345]}
+          - {id: 2-copy-246, name: Copy room 246 (Industrial Relations), type: copy_room, tenant: Industrial Relations Section, in: 2-ir, box: [680, 240, 698, 258]}
+          - {id: 2-pantry-265d, name: Pantry 265D (Industrial Relations), type: break_room, tenant: Industrial Relations Section, in: 2-ir, box: [680, 378, 698, 396]}
+          - {id: 2-ir-s, name: Industrial Relations Section (Level 2 south offices), type: suite, tenant: Industrial Relations Section; Educational Research Section, windows: SE, box: [672, 495, 800, 530]}
+          - {id: 2-pantry-270a, name: Pantry 270A (Economics and Industrial Relations), type: break_room, tenant: Department of Economics, box: [652, 495, 672, 530]}
+          - {id: 2-stair-ss, name: South stair (Simpson), type: stairwell, shaft: stair-ss, box: [652, 458, 680, 488]}
+          - {id: 2-landing-sim, name: Simpson Level 2 landing (overlooks the International Atrium), type: lobby, box: [520, 335, 668, 388]}
+          - {id: 2-elev-2, name: Elevator Two (Simpson side), type: elevator, shaft: elev-2, box: [538, 352, 568, 385]}
+          - {id: 2-stair-atrium, name: Atrium stair (Simpson), type: stairwell, shaft: stair-atrium, box: [575, 352, 635, 385]}
+          - id: 2-gallery
+            name: Level 2 gallery beside the International Atrium
+            type: corridor
+            poly: [[520, 388], [545, 388], [545, 492], [567, 492], [567, 520], [520, 520]]
+          - {id: "271", name: Room 271 Atrium meeting room, type: conference, capacity: "18 to 27", owner: Economics / Industrial Relations, windows: S, box: [567, 492, 630, 545]}
+
+      # ----------------------------------------------------------------- Level 3
+      - label: "3"
+        frame: {scale: 1.016, dx: 0, dy: 5}
+        spaces:
+          - {id: 3-bcf, name: Bendheim Center for Finance (Level 3), type: suite, tenant: Bendheim Center for Finance, windows: NSEW, box: [102, 17, 275, 78]}
+          - {id: 3-stair-nw, name: North-west stair, type: stairwell, shaft: stair-nw, box: [177, 80, 228, 100]}
+          - {id: 3-cor-w, name: Level 3 corridor, type: corridor, box: [228, 78, 245, 445]}
+          - {id: "301", name: Room 301 Rooftop Pavilion meeting room, type: conference, capacity: "18 to 26", owner: Campus Venue Services, windows: W, box: [177, 108, 228, 180]}
+          - {id: 3-lounge-n, name: Rooftop Pavilion lounge (north), type: common_area, circulation: true, windows: W, box: [177, 180, 228, 207]}
+          - {id: "399", name: Room 399 Rooftop Pavilion meeting room, type: conference, capacity: "32 to 100", owner: Campus Venue Services, windows: W, box: [177, 207, 228, 313]}
+          - {id: 3-lounge-s, name: Rooftop Pavilion lounge (south), type: common_area, circulation: true, windows: W, box: [177, 313, 228, 343]}
+          - {id: "397", name: Room 397 Rooftop Pavilion meeting room, type: conference, capacity: "18 to 26", owner: Campus Venue Services, windows: W, box: [177, 343, 213, 415]}
+          - {id: 3-pantry-398, name: Pantry 398 (University Services), type: break_room, box: [213, 380, 228, 415]}
+          - {id: 3-stair-sw, name: South-west stair, type: stairwell, shaft: stair-sw, box: [177, 418, 228, 440]}
+          - {id: 3-econ, name: Department of Economics (Level 3), type: suite, tenant: Department of Economics, windows: NSEW, box: [102, 445, 275, 505]}
+          - {id: 3-copy-396, name: Copy room and pantry 396 (Economics), type: copy_room, tenant: Department of Economics, in: 3-econ, box: [197, 445, 230, 468]}
+          - {id: 3-wc-n, name: Restrooms (Level 3 north), type: restroom, box: [245, 152, 335, 190]}
+          - {id: 3-elev-1, name: Elevator One (Julis Romo Rabinowitz side), type: elevator, shaft: elev-1, box: [245, 332, 262, 352]}
+          - {id: 3-wc-s, name: Restrooms (Level 3 south), type: restroom, box: [262, 332, 335, 368]}
+          - {id: 3-cor-cs, name: Level 3 south passage, type: corridor, box: [245, 368, 375, 388]}
+          - {id: 3-stair-cs, name: South centre stair, type: stairwell, shaft: stair-cs, box: [375, 335, 395, 388]}
+          - {id: 3-stair-sn, name: North stair (Simpson), type: stairwell, shaft: stair-sn, box: [612, 160, 636, 206]}
+          - {id: 3-mech, name: Mechanical penthouse (Simpson roof), type: mechanical, box: [436, 206, 636, 314]}

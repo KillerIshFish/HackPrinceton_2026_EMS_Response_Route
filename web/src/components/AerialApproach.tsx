@@ -243,6 +243,14 @@ export function AerialApproach({ building, plan, approach, meta, policy }: Props
           )}
         </div>
         </>)}
+        {/* a generated building: where its outline comes from and what about it is generated or assumed */}
+        {meta?.kind === "generated" && (meta.caveats ?? []).length > 0 ? (
+          <ul className="mt-1.5 list-disc space-y-0.5 pl-5 pr-1 text-[11px] leading-snug text-ink-dim" aria-label="What this model is based on">
+            {meta.caveats.map((c) => (
+              <li key={c}>{c}</li>
+            ))}
+          </ul>
+        ) : null}
       </div>
 
       {/* recommendation + E[T] comparison; while route planning is off, only why there is none */}

@@ -219,7 +219,7 @@ export interface SiteTiles {
 }
 
 export interface RoomMeta {
-  source: "matterport" | "costar" | "inferred";
+  source: "matterport" | "costar" | "inferred" | "floor_plan";
   suite?: string;
   status?: string;
   tenant?: string | null;
@@ -324,7 +324,7 @@ export interface BuildingMeta {
     tiles?: SiteTiles;
   };
   matterport_models: MatterportModel[];
-  /** "full_scan" when one Matterport scan covers the whole building */
+  /** "full_scan" when one Matterport scan covers the whole building; "floor_plan" when it was traced from published plans */
   kind?: string;
   /** rotation_deg: counter-clockwise angle of the floor plan's +x axis from east */
   georeference?: { rotation_deg: number };

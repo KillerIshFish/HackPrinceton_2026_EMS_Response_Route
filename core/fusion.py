@@ -20,13 +20,16 @@ Two kinds of statement:
   is split over the other rooms by the prior times the soft factor of the statement's match
   (so the floors next to a stated floor keep more than the far ones).
 
-How specific statements combine (``S(r)``, ``_statement_factors``), oldest first:
+How specific statements combine (``S(r)``, ``_statement_factors``). They are applied one
+after another, the one naming the fewest rooms first (a room before its suite before its
+floor), so the result does not depend on the order they were said in:
 
 * **Agreement reinforces.** A statement whose rooms already hold share c (prior share q)
   moves them to ``1 - (1 - rho) * (1 - e)`` with ``e = (c - q) / (1 - q)``, the part of the
-  way from the prior to 1 that earlier statements already carried them. Alone, e = 0 and the
-  share is exactly rho. The same place said twice ends above either statement, and a room
-  named on a floor the caller also stated lifts both; never above ``REINFORCED_MAX`` (0.99).
+  way from the prior to 1 that the statements before it already carried them; the rooms
+  inside keep their proportions. Alone, e = 0 and the share is exactly rho. The same place
+  said twice ends above either statement (0.95 twice: 0.9975), and a room named on a floor
+  the caller also stated lifts both; never above ``REINFORCED_MAX`` (0.999).
 * **A correction replaces.** Evidence whose ``status`` is not ``"active"`` (superseded by a
   correction, rejected by the dispatcher) is skipped entirely, so the reject button undoes
   any statement.
@@ -39,13 +42,14 @@ How specific statements combine (``S(r)``, ``_statement_factors``), oldest first
   phone's height fix allows (``PHONE_BAND``: within the fix's 80 % bound, +/- 3 m by
   default), the caller's statement leads. The posterior is a mix of two readings:
   ``(1 - k)`` x (the caller is right: the height fix is ignored) and ``k`` x (the phone is
-  right: the statements it contradicts are ignored), with k =
+  right: the statements it contradicts are ignored, and an earlier statement they had set
+  aside counts again), with k =
   ``phone_share_when_caller_disagrees`` (0.25), lowered when the statement is weak so that
   the stated rooms still hold more than the phone's floors. The phone's share is what sends
   a second team to the phone's floor.
 
 Safety: no factor is ever zero (eps = 0.1; rho is capped at ``RHO_MAX`` = 0.95 and the
-reinforced share at 0.99), so one wrong or misheard statement can never zero a room.
+reinforced share at 0.999), so one wrong or misheard statement can never zero a room.
 
 * "Not in model" bucket: it has no geometry, so it is scored at the base rate -
   L_phone = prior-weighted mean of the room likelihoods, F_i = the factor of the
@@ -96,7 +100,7 @@ class StatementSettings:
     share_low: float = 0.40  # stated share of a hesitant, vague statement
     share_high: float = 0.95  # stated share of a plain, exact statement; cap on any one statement
     missing_rating: float = 0.5  # certainty / specificity used when a rating is missing
-    reinforced_max: float = 0.99  # cap on the share agreeing statements reach together
+    reinforced_max: float = 0.999  # cap on the share agreeing statements reach together
     phone_share: float = 0.25  # share the phone's height fix keeps when the caller contradicts it
     labels: Mapping[str, str] = field(default_factory=dict)  # setting name -> label ("judgement")
 
@@ -252,8 +256,8 @@ class _Named:
 def _resolve_conflicts(named: Sequence[_Named]) -> tuple[list[_Named], list[tuple[int, int]]]:
     """``(kept, set_aside)``: of two specific statements with no room in common the later one
     is kept (same turn: higher share, then fewer rooms, then the later one). ``set_aside`` is
-    ``(index set aside, index that replaced it)``; ``kept`` is oldest first, and within one
-    turn the statement naming more rooms comes first (the floor before the room on it)."""
+    ``(index set aside, index that replaced it)``; ``kept`` is in the order the statements
+    are applied: the one naming the fewest rooms first (the room before the floor it is on)."""
     order = sorted(named, key=lambda n: (-n.time, -n.rho, len(n.rooms), -n.index))
     kept: list[_Named] = []
     aside: list[tuple[int, int]] = []
@@ -263,7 +267,7 @@ def _resolve_conflicts(named: Sequence[_Named]) -> tuple[list[_Named], list[tupl
             kept.append(n)
         else:
             aside.append((n.index, winner.index))
-    kept.sort(key=lambda n: (n.time, -len(n.rooms), n.index))
+    kept.sort(key=lambda n: (len(n.rooms), n.index))
     return kept, sorted(aside)
 
 
@@ -271,7 +275,7 @@ def _statement_factors(
     shares: Mapping[str, float], nim_share: float, named: Sequence[_Named], eps: float, reinforced_max: float
 ) -> tuple[dict[str, float], float]:
     """Per-room factor S(r) (and the factor of the "not in model" bucket) of the specific
-    statements, applied oldest first to the normalised prior ``shares`` + ``nim_share``.
+    statements, applied in the order given to the normalised prior ``shares`` + ``nim_share``.
 
     See the module docstring (agreement reinforces). Every factor is above zero.
     """
@@ -406,8 +410,9 @@ def fuse_detail(
     # Reading 1, the caller is right: the height fix is left out (any horizontal fix stays).
     level = {rid: phone_lik.get(rid, 1.0) / max(phone_height.get(rid, 1.0), 1e-300) for rid in pri}
     caller, caller_nim = posterior(kept, level)
-    # Reading 2, the phone is right: the statements it contradicts are left out.
-    agreeing = [n for n in kept if n not in conflicts]
+    # Reading 2, the phone is right: every statement it contradicts is left out, so an
+    # earlier statement that one of them had set aside counts again.
+    agreeing, _ = _resolve_conflicts([n for n in named if not n.rooms.isdisjoint(band)])
     device, device_nim = posterior(agreeing, phone_lik)
     k = cfg.phone_share
     for n in conflicts:
@@ -577,17 +582,17 @@ def statement_notices(building: Building, fix: PhoneFix | None, active: Sequence
     out: list[Banner] = []
     for old_i, new_i in fused.set_aside:
         old, new = active[old_i], active[new_i]
-        same_turn = old.turn == new.turn
-        rule = ("The more specific statement is used; the other is set aside." if same_turn else
-                "The later statement is used; the earlier one is set aside.")
-        when = "in the same turn" if same_turn else f"in turn {old.turn} and then turn {new.turn}"
-        out.append(Banner(
-            level="warning",
-            text=(f"The caller gave two different places {when}: {_place_text(building, old, matches[old_i])} "
-                  f"({_quote(old)}) and {_place_text(building, new, matches[new_i])} ({_quote(new)}). {rule} "
-                  f"Rejecting the statement in use brings the other one back."),
-            source=f"caller statements {old.id} and {new.id}, no correction heard",
-        ))
+        old_place, new_place = _place_text(building, old, matches[old_i]), _place_text(building, new, matches[new_i])
+        if old.turn == new.turn:
+            text = (f"Caller gave two different places in one turn: {new_place} ({_quote(new)}) and {old_place} "
+                    f"({_quote(old)}). The first is used (said with more certainty, or the more specific of the "
+                    f"two); rejecting it brings the other back.")
+        else:
+            text = (f"Caller gave two different places: {old_place} ({_quote(old)}, turn {old.turn}), then "
+                    f"{new_place} ({_quote(new)}, turn {new.turn}). The later statement is used; rejecting it "
+                    f"brings the earlier one back.")
+        out.append(Banner(level="warning", text=text,
+                          source=f"caller statements {old.id} and {new.id}, no correction heard"))
     if fused.phone_conflicts and fix is not None and fix.z_m is not None:
         band_floors = _floors_text(_floor_labels(building, fused.phone_band))
         pct = int(round(100 * fused.phone_share))
@@ -595,9 +600,9 @@ def statement_notices(building: Building, fix: PhoneFix | None, active: Sequence
             ev = active[i]
             out.append(Banner(
                 level="warning",
-                text=(f"The caller's statement ({_quote(ev)}: {_place_text(building, ev, matches[i])}) disagrees with "
-                      f"the phone's height fix ({fix.z_m:.1f} m: {band_floors}). The caller's statement leads. The "
-                      f"phone's fix keeps about {pct}% of the probability, on the floors near that height."),
+                text=(f"Caller says {_place_text(building, ev, matches[i])} ({_quote(ev)}); the phone's height fix "
+                      f"says {band_floors} ({fix.z_m:.1f} m). The caller's statement leads; the phone's fix keeps "
+                      f"about {pct}% of the probability."),
                 source=f"caller statement {ev.id} against the phone's height fix",
             ))
     return out

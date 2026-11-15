@@ -232,7 +232,8 @@ def get_model3d(building_id: str) -> dict[str, Any]:
     bm = unified.load_model(building_id)
     room_of: dict[str, str] = {}
     source = {"whole_scan": "Matterport scan (surveyed walls and openings)",
-              "scan_clusters": "Matterport scan positions (this scan has no wall data)"}.get(
+              "scan_clusters": "Matterport scan positions (this scan has no wall data)",
+              "floor_plan": "traced from the building's published floor plans"}.get(
         bm.archetype if bm else "", "generated from the property record")
     if bm is None:
         meta = load_meta(building_id)

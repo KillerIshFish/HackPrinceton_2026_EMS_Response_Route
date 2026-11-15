@@ -194,6 +194,8 @@ export function AerialSite({ building, meta, tiles, approach, mode = "aerial", s
   const scalePx = scaleM / tiles.m_per_px;
   const placement = meta.site.placement_source;
   const generated = meta.site.source === "generated";
+  /** a generated building whose floors are drawn to the real outline: only its interior is generated */
+  const drawnToOutline = generated && (meta.site as { shape?: { kind?: string } | null }).shape?.kind === "outline";
 
   return (
     <div>
@@ -376,7 +378,7 @@ export function AerialSite({ building, meta, tiles, approach, mode = "aerial", s
         </span>
         {hasReal && outlines.some((o) => o.kind === "model") ? (
           <span className="flex items-center gap-1.5">
-            <span className="block h-2 w-4 border border-dashed border-ink" aria-hidden /> {generated ? "Generated layout extent" : "Scan extent"}
+            <span className="block h-2 w-4 border border-dashed border-ink" aria-hidden /> {drawnToOutline ? "Model outline (drawn to the building outline)" : generated ? "Generated layout extent" : meta.site.source === "floor_plan" ? "Floor plan extent" : "Scan extent"}
           </span>
         ) : null}
         {!placed ? (
@@ -412,7 +414,17 @@ export function AerialSite({ building, meta, tiles, approach, mode = "aerial", s
           {asMap ? "Map data © OpenStreetMap contributors" : "Imagery: Vexcel"} ·{" "}
           {placement
             ? placed
-              ? `placed by ${placement}${generated ? (showApproach ? "; size and entrances are generated" : "; size is generated") : ""}`
+              ? `placed by ${placement}${
+                  drawnToOutline
+                    ? showApproach
+                      ? "; the interior and the entrances are generated"
+                      : "; the interior is generated"
+                    : generated
+                      ? showApproach
+                        ? "; shape, size and entrances are generated"
+                        : "; shape and size are generated"
+                      : ""
+                }`
               : placement
             : "positions annotated by hand, approximate"}
         </span>
