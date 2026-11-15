@@ -4,7 +4,7 @@
 // given plausible values for the Step 0 fields (see docs/BUILD_PLAN.md section 4):
 //   unknown         the headline demo call, a pending (unconfirmed) incident-type suggestion
 //   cardiac_arrest  agent mode: correction (superseded), answered yes/no question, rejected clue,
-//                   a searched room offered again (re_search), quantified stake, premise facts, trace
+//                   a searched room offered again (re_search), quantified stake, trace
 //   fire_smoke      smoke rates + heavy load notes, hazard classes, an officer gate, rejected clues
 //   active_threat   route_enabled=false: no plan stops, no entrance, incident board facts, no questions
 //
@@ -24,7 +24,6 @@ import type {
   Gates,
   IncidentType,
   Model3DPayload,
-  ParserMode,
   ScenarioSummary,
   SearchMode,
   SituationPatch,
@@ -265,11 +264,6 @@ export class FixtureBackend {
 
   setTeams(n: number): DemoState {
     this.state.n_teams = n;
-    return this.snapshot();
-  }
-
-  setParser(mode: ParserMode): DemoState {
-    this.state.parser_mode = mode;
     return this.snapshot();
   }
 

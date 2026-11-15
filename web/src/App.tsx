@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Box, Building2, ChevronRight, Clapperboard, Layers, Map as MapIcon, RotateCcw, ScanLine, Sparkles, TriangleAlert } from "lucide-react";
+import { Box, Building2, ChevronRight, Clapperboard, Layers, Map as MapIcon, RotateCcw, ScanLine, TriangleAlert } from "lucide-react";
 import { api } from "./api";
 import type {
   AskBody,
@@ -10,7 +10,6 @@ import type {
   ClientConfig,
   DemoState,
   Gates,
-  ParserMode,
   ScenarioSummary,
   SearchMode,
   SituationPatch,
@@ -31,13 +30,12 @@ import { ViewTabs } from "./components/ViewTabs";
 import type { ViewDef, ViewId } from "./components/ViewTabs";
 import { IncidentBoard } from "./components/IncidentBoard";
 import { StakeCard } from "./components/StakeCard";
-import { PremiseFacts } from "./components/PremiseFacts";
 
 const BACKEND_CMD = "uv run uvicorn api.server:app --reload --port 8000";
 const VIEW_IDS: ViewId[] = ["plan", "3d", "scan", "approach"];
 
 /**
- * What a request in flight is doing: "step" | "reset" | "building" | "generate" | "parser" |
+ * What a request in flight is doing: "step" | "reset" | "building" | "generate" |
  * "situation" | "scenario" | "say" | "ask" | "evidence:<id>" | "searched:<room id>" |
  * "clear:<room id>" | "found:<room id>" | "undo" | "gates" | "timestamp".
  */
@@ -293,7 +291,7 @@ export default function App() {
   const { policy } = state;
 
   // -------------------------------------------------------------------------
-  // SLOTS for step D4. Each renders nothing until D4 fills it; D4 edits only these three lines.
+  // SLOTS for step D4. Each renders nothing until D4 fills it; D4 edits only these lines.
   // -------------------------------------------------------------------------
   /** D4: <IncidentBoard .../>. Replaces the search plan when policy.show_incident_board (active threat). */
   const incidentBoard: ReactNode = (
@@ -301,10 +299,6 @@ export default function App() {
   );
   /** D4: <StakeCard .../> from policy.stake. Sits directly under the answer strip. */
   const stakeCard: ReactNode = <StakeCard policy={policy} approach={state.approach} incidentType={state.situation.incident_type} />;
-  /** D4: <PremiseFacts .../>. Sits under the search plan in the right column. */
-  const premiseFacts: ReactNode = (
-    <PremiseFacts facts={state.facts} situation={state.situation} building={building} elevatorAllowed={policy.elevator_allowed} />
-  );
 
   // ---- map views (centre column). D3 owns the floor plan, D4 the 3D and approach views. ----
   const views: ViewDef[] = [
@@ -458,14 +452,6 @@ export default function App() {
         </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <ParserToggle
-            mode={state.parser_mode}
-            available={state.llm?.available ?? false}
-            calls={state.llm?.usage.calls ?? 0}
-            tokens={(state.llm?.usage.input_tokens ?? 0) + (state.llm?.usage.output_tokens ?? 0)}
-            disabled={busy !== null}
-            onChange={(mode) => void run("parser", () => api.setParser(mode))}
-          />
           <button
             onClick={() => void run("reset", api.reset)}
             disabled={busy !== null}
@@ -558,7 +544,7 @@ export default function App() {
           <ViewTabs views={views} value={view} onValueChange={setView} />
         </div>
 
-        {/* Right: the search plan, or the incident board for an active threat; premise facts under it */}
+        {/* Right: the search plan, or the incident board for an active threat */}
         <div className="flex min-h-0 flex-col gap-3 xl:h-full">
           {policy.show_incident_board ? (
             <>
@@ -578,8 +564,6 @@ export default function App() {
               />
             </div>
           )}
-          {/* SLOT premiseFacts (D4) */}
-          {premiseFacts}
         </div>
       </main>
     </div>
@@ -637,62 +621,6 @@ function sourceSummary(sources: Record<string, number>, total: number): string {
     .filter(([n]) => n > 0)
     .map(([n, label]) => `${n} ${label}`)
     .join(", ");
-}
-
-function ParserToggle({
-  mode,
-  available,
-  calls,
-  tokens,
-  disabled,
-  onChange,
-}: {
-  mode: ParserMode;
-  available: boolean;
-  calls: number;
-  tokens: number;
-  disabled: boolean;
-  onChange: (mode: ParserMode) => void;
-}) {
-  const options: { key: ParserMode; label: string }[] = [
-    { key: "rules", label: "Rules" },
-    // one model mode: the server treats "agent" as an alias of "llm" (same grounded interpreter)
-    { key: "llm", label: "Claude Haiku" },
-  ];
-  return (
-    <div
-      className="flex items-center gap-1.5"
-      role="group"
-      aria-label="Clue parser"
-      title={
-        available
-          ? `Clue parser. Claude Haiku reads each caller turn against this building's room list (one request per turn). It has made ${calls} request${calls === 1 ? "" : "s"} (${tokens.toLocaleString()} tokens) in total; repeated utterances are served from a local cache.`
-          : "Clue parser. Claude Haiku needs LLM_PROVIDER=anthropic and LLM_API_KEY in .env."
-      }
-    >
-      <Sparkles size={14} className="text-ink-mute" aria-hidden />
-      <span className="hidden text-xs text-ink-mute 2xl:inline">Parser</span>
-      <div className="flex overflow-hidden rounded border border-line">
-        {options.map((o) => {
-          const active = mode === o.key || (o.key === "llm" && mode === "agent");
-          const off = disabled || (o.key !== "rules" && !available);
-          return (
-            <button
-              key={o.key}
-              aria-pressed={active}
-              disabled={off}
-              onClick={() => !active && onChange(o.key)}
-              className={`border-l border-line px-2 py-1 text-xs first:border-l-0 disabled:cursor-not-allowed ${
-                active ? "bg-ink font-semibold text-bg" : "text-ink-dim hover:bg-raised hover:text-ink disabled:opacity-50"
-              }`}
-            >
-              {o.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
 }
 
 function LoadScreen({ loading, error, onRetry }: { loading: boolean; error: string | null; onRetry: () => void }) {

@@ -2,9 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Check, ClipboardCopy, Crosshair, HeartPulse, Radio, UsersRound, FileText } from "lucide-react";
 import type { Building, Fact, FactCategory, TranscriptTurn } from "../types";
-import { roomIndex } from "../lib";
+import { clockTime, roomIndex } from "../lib";
 import { Panel } from "./Panel";
-import { clockTime } from "./PremiseFacts";
 
 interface Props {
   facts: Fact[];
@@ -118,7 +117,7 @@ export function IncidentBoard({ facts, transcript, building, callStartedAt }: Pr
   const sections = SECTIONS.map((s) => ({
     ...s,
     entries: facts
-      .filter((f) => (s.key === "other" ? !BOARD_CATEGORIES.has(f.category) && !f.premise_key : f.category === s.key))
+      .filter((f) => (s.key === "other" ? !BOARD_CATEGORIES.has(f.category) : f.category === s.key))
       .sort(newestFirst)
       .map(entry),
   })).filter((s) => s.key !== "other" || s.entries.length > 0);

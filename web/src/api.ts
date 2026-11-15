@@ -8,7 +8,6 @@ import type {
   Gates,
   GenerateReport,
   Model3DPayload,
-  ParserMode,
   Posterior,
   PropertyHit,
   SearchMode,
@@ -115,8 +114,6 @@ export const api = {
   step: () => live(() => post<DemoState>("/calls/demo/step"), (b) => b.snapshot()),
   reset: () => live(() => post<DemoState>("/calls/demo/reset"), (b) => b.load()),
   setBuilding: (id: string) => live(() => post<DemoState>(`/calls/demo/building?id=${enc(id)}`), (b) => b.snapshot()),
-  /** "rules" | "llm" | "agent" (llm and agent need an API key on the server) */
-  setParser: (mode: ParserMode) => live(() => post<DemoState>(`/calls/demo/parser?mode=${mode}`), (b) => b.setParser(mode)),
   setTeams: (n: number) => live(() => post<DemoState>(`/calls/demo/teams?n=${n}`), (b) => b.setTeams(n)),
   /** A caller turn (default) or a dispatcher turn. `answers` is set by the Yes / No / Not sure buttons. */
   say: (text: string, speaker: "caller" | "dispatcher" = "caller", answers: Answer | null = null) => {

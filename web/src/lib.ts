@@ -159,3 +159,11 @@ export const Z_BAND_M = 3.0;
 export function floorZ(building: Building, floor: number): number {
   return (building.floor_heights_m[String(floor)] ?? 0) + PHONE_HEIGHT_M;
 }
+
+/** "02:14:07 PM" for an ISO timestamp, or null when there is none */
+export function clockTime(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
