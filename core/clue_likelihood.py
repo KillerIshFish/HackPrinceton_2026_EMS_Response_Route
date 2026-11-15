@@ -165,10 +165,27 @@ def _section_match(building: Building, section: str, key: str, vocab: dict) -> d
     return _rule_match(building, entry, vocab)
 
 
+def _layout_match(building: Building, key: str) -> dict[str, float] | None:
+    """1.0 on the rooms a layout feature describes ("corner", "hall_end", ...), else 0.0.
+
+    The features come from the layout map the reasoning reader uses (parser.layout); the import
+    is local because that module sits above this one.
+    """
+    from parser.layout import layout_features
+
+    rooms = layout_features(building).get(key)
+    if rooms is None:
+        return None
+    return {r.id: 1.0 if r.id in rooms else 0.0 for r in building.rooms}
+
+
 def _positive_match(building: Building, clue_type: str, value: str, vocab: dict) -> dict[str, float] | None:
     """Positive (polarity-free) match vector, or None when the value is unknown."""
     value = str(value).strip()
     sections: list[str] = []
+
+    if clue_type == "layout" or value.startswith("layout:"):
+        return _layout_match(building, value.removeprefix("layout:"))
 
     if ":" in value:  # explicit "<section>:<key>"
         prefix, _, rest = value.partition(":")

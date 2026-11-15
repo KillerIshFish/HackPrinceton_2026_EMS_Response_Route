@@ -436,3 +436,76 @@ def hall_text(h: HallLayout, idx) -> str:
     if mids:
         body.append("crossed part-way by " + ", ".join(label(c) for c in mids))
     return head + " " + "; ".join(body)
+
+
+# ---------------------------------------------------------------------------
+# Yes / no layout features (parser.next_question asks about them, core.clue_likelihood
+# scores the answers)
+# ---------------------------------------------------------------------------
+
+NEAR_ENTRANCE_M = 25.0  # walking metres that count as "a short walk from the door you came in by"
+
+# feature key -> the yes / no question that asks about it
+LAYOUT_QUESTIONS: dict[str, str] = {
+    "corner": "Is the room in a corner of the building, with outside walls on two sides?",
+    "interior": "Is it an inside room, with no outside wall or window?",
+    "large": "Is it one of the bigger rooms on that floor?",
+    "small": "Is it a small room, about the size of a closet or a single office?",
+    "hall_end": "Is the room at or near the end of a hallway?",
+    "near_entrance": "Is it a short walk from the door you came in by?",
+}
+
+# a "yes" to the key makes these questions pointless
+LAYOUT_EXCLUDES: dict[str, tuple[str, ...]] = {
+    "corner": ("interior",),
+    "interior": ("corner",),
+    "large": ("small",),
+    "small": ("large",),
+}
+
+_FEATURE_CACHE: dict[tuple, dict[str, frozenset[str]]] = {}
+
+
+def _features(layout: BuildingLayout, rooms: list[Room]) -> dict[str, frozenset[str]]:
+    out: dict[str, set[str]] = {k: set() for k in LAYOUT_QUESTIONS}
+    for r in rooms:
+        lay = layout.rooms.get(r.id)
+        if lay is None:
+            continue
+        if r.room_type not in CIRCULATION:  # room-shape questions are about rooms, not hallways
+            if lay.position.endswith("corner"):
+                out["corner"].add(r.id)
+            if lay.position.startswith("interior"):
+                out["interior"].add(r.id)
+            if lay.size_word.startswith("large"):
+                out["large"].add(r.id)
+            if lay.size_word.startswith(("small", "tiny")):
+                out["small"].add(r.id)
+            if any(s.door == 0 or (s.of >= 3 and s.door in (1, s.of)) for s in lay.halls):
+                out["hall_end"].add(r.id)
+        if lay.entrance_m is not None and lay.entrance_m <= NEAR_ENTRANCE_M:
+            out["near_entrance"].add(r.id)
+    return {k: frozenset(v) for k, v in out.items()}
+
+
+def layout_features(building) -> dict[str, frozenset[str]]:
+    """``feature key -> ids of the rooms it describes`` for the keys of ``LAYOUT_QUESTIONS``.
+
+    Built from the layout map once per building (cached by id and room ids). A building whose
+    layout cannot be built (no geometry, no walking graph) gets no features, so no layout
+    questions are asked there.
+    """
+    key = (building.id, tuple(r.id for r in building.rooms))
+    hit = _FEATURE_CACHE.get(key)
+    if hit is not None:
+        return hit
+    from parser.building_tools import BuildingIndex
+
+    try:
+        feats = _features(BuildingIndex(building).layout, list(building.rooms))
+    except Exception:  # noqa: BLE001 - a layout failure must not break the question list
+        feats = {}
+    if len(_FEATURE_CACHE) > 32:
+        _FEATURE_CACHE.clear()
+    _FEATURE_CACHE[key] = feats
+    return feats

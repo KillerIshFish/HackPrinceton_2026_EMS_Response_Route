@@ -9,6 +9,7 @@ export type ClueType =
   | "sound"
   | "smell"
   | "route"
+  | "layout"
   | "negative";
 
 export type XY = [number, number];

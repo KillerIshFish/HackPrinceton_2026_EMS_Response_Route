@@ -236,3 +236,54 @@ def test_next_question_still_returns_the_best_yes_no(ptc, ptc_prior) -> None:
     assert nq is not None and {"question", "clue_type", "value", "expected_info_gain_bits", "p_yes"} <= set(nq)
     best_yes_no = next(q for q in top_questions(ptc, rp, p_nim, k=100) if q.kind == "yes_no")
     assert (nq["clue_type"], nq["value"]) == (best_yes_no.clue_type, best_yes_no.value)
+
+
+# ---------------------------------------------------------------------------
+# Layout questions and questions the caller already answered
+# ---------------------------------------------------------------------------
+
+
+def _ids(qs) -> set[str]:
+    return {q.id for q in qs}
+
+
+def test_layout_questions_are_offered_and_score_the_current_belief(ptc, ptc_prior) -> None:
+    from parser.layout import LAYOUT_QUESTIONS, layout_features
+
+    feats = layout_features(ptc)
+    assert feats["corner"] and feats["interior"] and not (feats["corner"] & feats["interior"])
+    rp, p_nim = ptc_prior
+    layout_ids = {q.id for q in top_questions(ptc, rp, p_nim, k=200) if q.clue_type == "layout"}
+    assert layout_ids and layout_ids <= {f"layout:{k}" for k in LAYOUT_QUESTIONS}
+
+    # once nearly all the probability sits on corner rooms, "is it a corner room?" tells us little
+    corner_heavy = {rid: (1.0 if rid in feats["corner"] else 1e-4) for rid in rp}
+    total = sum(corner_heavy.values())
+    corner_heavy = {rid: p / total for rid, p in corner_heavy.items()}
+    gain = {q.id: q.expected_info_gain_bits for q in top_questions(ptc, rp, p_nim, k=200)}
+    gain_after = {q.id: q.expected_info_gain_bits for q in top_questions(ptc, corner_heavy, 0.0, k=200)}
+    assert gain_after.get("layout:corner", 0.0) < gain["layout:corner"]
+    assert _ids(top_questions(ptc, rp, p_nim)) != _ids(top_questions(ptc, corner_heavy, 0.0))
+
+
+def test_a_layout_answer_retires_its_question_and_the_opposite_one(ptc, ptc_prior) -> None:
+    rp, p_nim = ptc_prior
+    yes = _ids(top_questions(ptc, rp, p_nim, asked={"layout:corner"}, k=200))
+    assert "layout:corner" not in yes and "layout:interior" not in yes
+    no = _ids(top_questions(ptc, rp, p_nim, asked={"negative:layout:corner"}, k=200))
+    assert "layout:corner" not in no and "layout:interior" in no
+
+
+def test_a_question_the_caller_answered_in_their_own_words_is_not_suggested(ptc, ptc_prior) -> None:
+    from core.clue_likelihood import clue_match
+    from core.schema import Clue
+
+    rp, p_nim = ptc_prior
+    street = Clue(type="view", value="street", polarity=True, confidence=1.0, span="")
+    street_rooms = frozenset(rid for rid, m in clue_match(ptc, street).items() if m >= 0.5)
+    assert "view:street" in _ids(top_questions(ptc, rp, p_nim, k=200))
+    # the reader recorded "I can see the street" as a clue over the street-facing rooms
+    assert "view:street" not in _ids(top_questions(ptc, rp, p_nim, k=200, answered=[street_rooms]))
+    # a clue about something else leaves it alone
+    other = frozenset(list(rp)[:3])
+    assert "view:street" in _ids(top_questions(ptc, rp, p_nim, k=200, answered=[other]))

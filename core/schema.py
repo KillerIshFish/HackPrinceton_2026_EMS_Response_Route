@@ -48,7 +48,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # "route" was added after the freeze (additive): how the caller reached the room, e.g.
 # "turned right after coming up the stairs". Values are keys of `routes` in clue_vocab.yaml.
-ClueType = Literal["room_type", "floor", "landmark", "view", "sound", "smell", "negative", "route"]
+# "layout" (additive): an answer to a layout yes / no question ("is it a corner room?"); its
+# value is a key of parser.layout.LAYOUT_QUESTIONS.
+ClueType = Literal["room_type", "floor", "landmark", "view", "sound", "smell", "negative", "route", "layout"]
 
 # Enumerations of the Step 0 contract (docs/BUILD_PLAN.md section 4). Spelling is the contract.
 IncidentType = Literal[

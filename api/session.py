@@ -42,7 +42,7 @@ from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from core.evidence import EvidenceMatch, evidence_match, normalize_unit
-from core.fusion import Fused, fuse_evidence
+from core.fusion import Fused, fuse_evidence, is_conclusion
 from core.prior import compute_prior
 from core.schema import (
     AgentTraceEntry,
@@ -864,6 +864,16 @@ class CallSession:
                 asked.add(f"negative:{SECTION_FOR_TYPE['floor']}:{value}")
         return asked
 
+    @staticmethod
+    def _described_rooms(evidence: list[Evidence]) -> list[frozenset[str]]:
+        """Room sets the caller described in their own words (the reasoning reader's active
+        descriptive clues and denials), so a question they already answer is not suggested."""
+        return [
+            frozenset(e.matched_room_ids) for e in evidence
+            if e.kind == "grounded" and e.status == "active" and e.matched_room_ids
+            and (e.negate or e.default_match > 0.0) and not is_conclusion(e)
+        ]
+
     def state(self) -> DemoState:
         policy = self.policy()
         gates = self._gates()
@@ -875,6 +885,7 @@ class CallSession:
         room_probs, p_nim = residual_probs(belief, p0, self._looks())
         clues = [e.clue for e in evidence if e.kind == "vocab" and e.clue is not None and e.status == "active"]
         asked = self._asked_keys(evidence)
+        answered = self._described_rooms(evidence)
         return DemoState(
             building_id=self.building.id,
             turn=self.script_pos,
@@ -888,7 +899,8 @@ class CallSession:
             posterior=summarize(self.building, room_probs, p_nim),
             plan=self._plan(belief, p0, self.n_teams, policy, gates, self._phone_floor_rooms(fused)),
             approach=self._approach(belief, policy, gates),  # the entrance stays put as rooms are searched
-            next_question=next_question(self.building, room_probs, p_nim, asked=asked, policy=policy),
+            next_question=next_question(self.building, room_probs, p_nim, asked=asked, policy=policy,
+                                        answered=answered),
             history=[self._history_point(i, policy, gates) for i in range(len(self.revealed))],
             parser_mode=self.parser_mode,
             llm=LLMStatus(available=llm_available(), model=agent_model(), usage=llm_usage()),
@@ -897,7 +909,8 @@ class CallSession:
             policy=policy,
             evidence=evidence,
             facts=self._facts(),
-            questions=top_questions(self.building, room_probs, p_nim, asked=asked, policy=policy),
+            questions=top_questions(self.building, room_probs, p_nim, asked=asked, policy=policy,
+                                    answered=answered),
             searched=list(self.searched),
             found_room_id=self.found_room_id,
             found_at=self.found_at,

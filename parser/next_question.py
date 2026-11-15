@@ -15,6 +15,18 @@ the expected entropy reduction (mutual information between answer and room):
 
 ``next_question`` returns the best not-yet-asked yes/no question (older callers).
 
+Layout questions
+----------------
+Besides the vocabulary, every building gets yes/no questions about its own shape, from the
+layout map the reasoning reader uses (``parser.layout.layout_features``): a corner room, an
+inside room, one of the bigger or smaller rooms on its floor, at the end of a hallway, a short
+walk from the entrance. They are scored with the same information gain, so which of them is
+offered follows the rooms still likely. Answers are ``layout`` clues.
+
+A yes/no question is also dropped once a statement on the console already answers it: a
+descriptive clue from the caller's own words picking out nearly the same rooms
+(``already_answered``), e.g. "I can see the street" against "can you see the street?".
+
 Open questions (Step C3)
 ------------------------
 ``top_questions`` also scores open questions built from *this* building, each with a
@@ -51,9 +63,15 @@ from core.clue_likelihood import clue_match
 from core.schema import Building, Clue, Policy, Question
 from core.uncertainty import entropy_bits
 from parser.extract import SECTION_FOR_TYPE, TYPE_FOR_SECTION, load_vocab
+from parser.layout import LAYOUT_EXCLUDES, LAYOUT_QUESTIONS, layout_features
 
 EPS = 0.1
 MIN_GAIN_BITS = 1e-6
+
+# A yes / no question counts as already answered when a descriptive statement on the console
+# (the reasoning reader's clue from the caller's own words) picks out nearly the same rooms:
+# overlap / union of the two room sets at least this much.
+ANSWERED_OVERLAP = 0.75
 
 # Open questions: probability the caller cannot answer, and the share of the in-building
 # probability the labelled rooms must hold before the question is offered.
@@ -143,7 +161,9 @@ def _excluded_keys(asked: Iterable[str], candidates: Iterable[tuple[str, str]], 
         head, _, rest = key.partition(":")
         if head == "negative":
             section, _, value = rest.partition(":")
-            if value and section in TYPE_FOR_SECTION:
+            if value and section == "layout":  # "no" to a layout question
+                out.add(question_key("layout", value))
+            elif value and section in TYPE_FOR_SECTION:
                 out.add(question_key(TYPE_FOR_SECTION[section], value))
                 if (section, value) == ("landmarks", "window"):  # no window -> no view
                     out.update(question_key(t, v) for t, v in candidates if t == "view")
@@ -157,6 +177,8 @@ def _excluded_keys(asked: Iterable[str], candidates: Iterable[tuple[str, str]], 
             out.add(question_key("landmark", "window"))
         elif head == "floor":
             out.update(question_key(t, v) for t, v in candidates if t == "floor")
+        elif head == "layout":  # "yes, a corner room" makes "an inside room?" pointless
+            out.update(question_key("layout", v) for v in LAYOUT_EXCLUDES.get(rest, ()))
     return out
 
 
@@ -170,6 +192,8 @@ def _phrase_question(clue_type: str, value: str) -> str:
         return _LANDMARK_QUESTIONS.get(value, f"Can you see a {pretty} near you?")
     if clue_type == "floor":
         return f"Do you think you're on floor {value}?"
+    if clue_type == "layout" and value in LAYOUT_QUESTIONS:
+        return LAYOUT_QUESTIONS[value]
     return f"Does this apply to where you are: {pretty}?"
 
 
@@ -184,6 +208,12 @@ def candidate_questions(building: Building, vocab: dict | None = None) -> list[t
     for ctype in ("view", "landmark"):
         for key in vocab.get(SECTION_FOR_TYPE[ctype]) or {}:
             out.append((ctype, str(key)))
+    # Questions about the shape of this building: offered when the feature splits the rooms
+    # (some have it, some do not). Whether it splits the rooms still likely is up to the gain.
+    n_rooms = len(building.rooms)
+    for key, rooms in layout_features(building).items():
+        if 0 < len(rooms) < n_rooms:
+            out.append(("layout", key))
     seen_labels: set[str] = set()
     for room in sorted(building.rooms, key=lambda r: r.floor):
         if room.floor_label not in seen_labels:
@@ -224,23 +254,51 @@ def expected_info_gain_bits(
     return max(0.0, gain), p_yes / total
 
 
+def _overlap(a: frozenset[str], b: frozenset[str]) -> float:
+    union = len(a | b)
+    return len(a & b) / union if union else 0.0
+
+
+def already_answered(match: Mapping[str, float], answered: Iterable[frozenset[str]], all_ids: frozenset[str]) -> bool:
+    """True when a statement already on the console settles this yes / no question.
+
+    The question splits the rooms into the ones a "yes" points to (match at least 0.5) and the
+    rest. If a described set of rooms is nearly either side, the caller has in effect answered
+    it ("I can see the street out the window" answers "can you see the street?").
+    """
+    yes = frozenset(rid for rid, m in match.items() if m >= 0.5)
+    no = all_ids - yes
+    if not yes or not no:
+        return False
+    return any(_overlap(s, yes) >= ANSWERED_OVERLAP or _overlap(s, no) >= ANSWERED_OVERLAP for s in answered)
+
+
 def rank_questions(
     building: Building,
     room_probs: Mapping[str, float],
     p_nim: float,
     asked: set[str] | None = None,
     vocab: dict | None = None,
+    answered: Iterable[frozenset[str]] = (),
 ) -> list[dict]:
-    """All not-yet-asked candidate questions, best expected information gain first."""
+    """All not-yet-asked candidate questions, best expected information gain first.
+
+    ``answered``: room sets the caller has already described in their own words (see
+    ``already_answered``); a question splitting out nearly the same rooms is left out.
+    """
     vocab = vocab or load_vocab()
     candidates = candidate_questions(building, vocab)
     excluded = _excluded_keys(asked or set(), candidates, vocab)
+    answered = [a for a in answered if a]
+    all_ids = frozenset(r.id for r in building.rooms)
     ranked: list[dict] = []
     for clue_type, value in candidates:
         if question_key(clue_type, value) in excluded:
             continue
         probe = Clue(type=clue_type, value=value, polarity=True, confidence=1.0, span="")  # type: ignore[arg-type]
         match = clue_match(building, probe, vocab)
+        if answered and already_answered(match, answered, all_ids):
+            continue
         gain, p_yes = expected_info_gain_bits(room_probs, p_nim, match)
         ranked.append(
             {
@@ -272,6 +330,7 @@ def next_question(
     asked: set[str] | None = None,
     *,
     policy: Policy | None = None,
+    answered: Iterable[frozenset[str]] = (),
 ) -> dict | None:
     """Best next yes/no question, or None when nothing left would reduce uncertainty.
 
@@ -285,7 +344,7 @@ def next_question(
     """
     if not prompts_allowed(policy):
         return None
-    ranked = rank_questions(building, room_probs, p_nim, asked)
+    ranked = rank_questions(building, room_probs, p_nim, asked, answered=answered)
     if not ranked or ranked[0]["expected_info_gain_bits"] <= MIN_GAIN_BITS:
         return None
     return ranked[0]
@@ -481,6 +540,7 @@ def top_questions(
     *,
     meta: Mapping[str, Mapping[str, Any]] | None = None,
     vocab: dict | None = None,
+    answered: Iterable[frozenset[str]] = (),
 ) -> list[Question]:
     """The best ``k`` questions for DemoState.questions, yes/no and open, best gain first.
 
@@ -500,7 +560,7 @@ def top_questions(
         return []
     asked = set(asked or ())
     candidates: list[Question] = []
-    for q in rank_questions(building, room_probs, p_nim, asked, vocab):
+    for q in rank_questions(building, room_probs, p_nim, asked, vocab, answered=answered):
         if q["clue_type"] == "floor" and "open:floor" in asked:
             continue
         candidates.append(
