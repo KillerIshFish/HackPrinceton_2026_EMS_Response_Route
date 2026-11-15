@@ -347,7 +347,7 @@ def test_the_model_rates_a_hedged_named_room(building, monkeypatch):
     [ev] = out.evidence  # no rule reading first: the one statement is the model's
     assert ev.source == "llm" and ev.matched_room_ids == [ROOM_302] and names_rooms(ev)
     assert ev.confidence == pytest.approx(stated_share(0.2, 1.0)) == pytest.approx(0.51)
-    assert "rated by Claude Opus 5.5" in ev.rationale
+    assert "rated by Claude Sonnet 5.5" in ev.rationale
     assert len(client.calls) == 1
     message = client.calls[0]["messages"][0]["content"]
     assert "rate_statement" not in message and "Already recorded for turn" not in message

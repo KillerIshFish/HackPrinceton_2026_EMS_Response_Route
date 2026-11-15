@@ -108,7 +108,7 @@ def read(building, call, *blocks, prior_evidence=()):
 
 
 def clue_args(**over):
-    args = dict(clue="corner office at the end of the south hall", room_ids=list(CORNER_ROOMS), others_fit=0.1,
+    args = dict(clue="corner office at the end of the south hall", room_ids=list(CORNER_ROOMS), others_fit=0.2,
                 negate=False, confidence=0.8, span="the corner office at the end of the south hall",
                 reasoning="301 and 303 are the corner offices at either end of the south corridors")
     args.update(over)
@@ -126,7 +126,7 @@ def test_record_clue_is_descriptive_grounded_evidence(building):
     [ev] = out.evidence
     assert ev.kind == "grounded" and ev.source == "agent" and ev.id == "t1-e0"
     assert ev.selector == RoomSelector(room_ids=CORNER_ROOMS) and ev.matched_room_ids == CORNER_ROOMS
-    assert ev.default_match == pytest.approx(0.1) and ev.negate is False
+    assert ev.default_match == pytest.approx(0.2) and ev.negate is False
     assert not names_rooms(ev)  # a description, not a statement that names rooms
     assert ev.confidence == pytest.approx(0.8)
     assert ev.rationale.startswith("corner office at the end of the south hall: 301 and 303")
@@ -137,9 +137,23 @@ def test_record_clue_is_descriptive_grounded_evidence(building):
                                          (0.3, 0.3), (0.9, agent.CLUE_OTHERS_FIT_MAX), ("loose", 0.2)])
 def test_record_clue_others_fit_is_clamped(building, given, kept):
     call = [*CORNER[:1], CORNER[1].model_copy(update={"text": CORNER[1].text + f" ({given})"})]  # distinct cache key
-    out, _ = read(building, call, tool_use("record_clue", **clue_args(others_fit=given)))
+    many = [r.id for r in building.rooms if r.floor_label == "3" and r.room_type not in CIRCULATION][:8]
+    assert len(many) > agent.PINPOINT_MAX_ROOMS  # more rooms than a pinpointing clue may leave: stays descriptive
+    out, _ = read(building, call, tool_use("record_clue", **clue_args(others_fit=given, room_ids=many)))
     [ev] = out.evidence
     assert ev.default_match == pytest.approx(kept) and ev.default_match > 0.0 and not names_rooms(ev)
+
+
+def test_a_clue_that_rules_the_others_out_places_the_caller(building):
+    # others_fit <= 0.1 and at most five rooms: a room worked out from a description (share <= 0.7)
+    out, _ = read(building, CORNER, tool_use("record_clue", **clue_args(others_fit=0.05, confidence=0.85)))
+    [ev] = out.evidence
+    assert ev.default_match == 0.0 and names_rooms(ev) and ev.matched_room_ids == CORNER_ROOMS
+    assert ev.confidence == agent.DESCRIBED_CONFIDENCE_CAP == 0.7 and "pinpointing clue" in out.trace[0].reason
+    # a loose clue over the same rooms stays a soft factor
+    call = [*CORNER[:1], CORNER[1].model_copy(update={"text": CORNER[1].text + " ok"})]
+    out, _ = read(building, call, tool_use("record_clue", **clue_args(others_fit=0.11)))
+    assert not names_rooms(out.evidence[0]) and out.evidence[0].default_match == pytest.approx(0.11)
 
 
 def test_record_clue_denial_leaves_the_other_rooms_alone(building):
@@ -209,7 +223,7 @@ def test_record_floor_stated_carries_the_stated_share(building):
     [ev] = out.evidence
     assert ev.kind == "vocab" and ev.clue.type == "floor" and ev.clue.value == "3" and ev.clue.polarity
     assert ev.confidence == pytest.approx(0.675) == pytest.approx(ev.clue.confidence)  # stated_share(0.5, 1.0)
-    assert names_rooms(ev) and "rated by Claude Opus 5.5" in ev.rationale
+    assert names_rooms(ev) and "rated by Claude Sonnet 5.5" in ev.rationale
 
 
 def test_record_floor_worked_out_is_capped(building):
@@ -275,12 +289,12 @@ def test_create_uses_the_plain_path_on_haiku_and_on_stubs_without_beta(monkeypat
     assert len(plain_only.calls) == 1 and "betas" not in plain_only.calls[0]
 
 
-def test_a_live_turn_on_opus_goes_through_the_beta_path(building):
+def test_a_live_turn_on_the_default_model_goes_through_the_beta_path(building):
     client = BetaStubClient([reply(tool_use("record_clue", **clue_args()))])
     out = agent.interpret(building, CORNER, 1, client=client)
     assert client.plain == [] and len(client.beta_calls) == 1
     request = client.beta_calls[0]
-    assert request["model"] == "claude-opus-5-5" and request["fallbacks"] == "default"
+    assert request["model"] == agent.DEFAULT_AGENT_MODEL and request["fallbacks"] == "default"
     assert request["thinking"] == {"type": "adaptive"} and request["max_tokens"] == 16000
     assert [e.matched_room_ids for e in out.evidence] == [CORNER_ROOMS]
 

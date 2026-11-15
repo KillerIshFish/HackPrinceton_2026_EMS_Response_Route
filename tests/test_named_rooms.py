@@ -448,12 +448,12 @@ def test_stubbed_model_grounds_302_in_one_request(building, monkeypatch):
     probs, _ = posterior_probs(building, clues=out.evidence)
     assert rank(probs, FIRE_TRUE_ROOM_ID) == 1 and probs[FIRE_TRUE_ROOM_ID] > 0.8
     request = client.calls[0]
-    assert request["model"] == agent.agent_model() == "claude-opus-5-5"
+    assert request["model"] == agent.agent_model() == "claude-sonnet-5-5"
     assert request["thinking"] == {"type": "adaptive"}  # always on for Opus 5.5
     assert request["output_config"] == {"effort": "low"}
     assert request["system"][0]["cache_control"] == {"type": "ephemeral"}
     assert "f3-office-302 | Office 302" in request["system"][0]["text"]
-    assert "rated by Claude Opus 5.5" in ev.rationale
+    assert "rated by Claude Sonnet 5.5" in ev.rationale
     assert "<transcript>" in request["messages"][0]["content"]
 
 
@@ -628,7 +628,7 @@ def test_claude_haiku_mode_labels_what_it_read_as_llm(building, monkeypatch):
 
 def test_model_settings_and_prewarm(building, monkeypatch):
     monkeypatch.delenv("LLM_MODEL", raising=False)
-    assert agent.model_settings() == {"model": "claude-opus-5-5", "thinking": agent.DEFAULT_THINKING,
+    assert agent.model_settings() == {"model": "claude-sonnet-5-5", "thinking": agent.DEFAULT_THINKING,
                                       "effort": agent.DEFAULT_EFFORT, "strict": False}
     monkeypatch.setenv("LLM_STRICT_TOOLS", "1")
     assert agent.model_settings()["strict"] is True
@@ -646,14 +646,14 @@ def test_model_settings_and_prewarm(building, monkeypatch):
     monkeypatch.setenv("LLM_THINKING", "adaptive")
     monkeypatch.setenv("LLM_EFFORT", "medium")
     monkeypatch.setenv("LLM_STRICT_TOOLS", "0")
-    assert agent.model_settings() == {"model": "claude-opus-5-5", "thinking": "adaptive", "effort": "medium",
+    assert agent.model_settings() == {"model": "claude-sonnet-5-5", "thinking": "adaptive", "effort": "medium",
                                       "strict": False}
     assert all("strict" not in t for t in agent.request_tools(False)) and agent.request_tools(True) is agent.TOOLS
     client = StubClient([reply()])
     usage = agent.prewarm(building, client=client)
     [request] = client.calls
     assert request["max_tokens"] == 0 and request["thinking"] == {"type": "adaptive"}
-    assert request["model"] == "claude-opus-5-5"
+    assert request["model"] == "claude-sonnet-5-5"
     assert request["output_config"] == {"effort": "medium"}
     assert request["system"][0]["cache_control"] == {"type": "ephemeral"}
     assert usage is not None and extract.llm_usage()["prewarm_calls"] == 1

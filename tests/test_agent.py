@@ -176,12 +176,12 @@ def test_patel_office_grounds_to_tenant_room(building, meta, patel_room, monkeyp
     # system block and tools are identical on every request (so they cache)
     assert all(c["system"] == client.calls[0]["system"] and c["tools"] == client.calls[0]["tools"] for c in client.calls)
     assert client.calls[0]["system"][0]["cache_control"] == {"type": "ephemeral"}
-    # the default reader: Claude Opus 5.5 with adaptive thinking (the stub has no beta namespace,
+    # the default reader: Claude Sonnet 5.5 (the eval winner) with adaptive thinking (the stub has no beta namespace,
     # so the plain messages.create path is used)
-    assert client.calls[0]["model"] == agent.agent_model() == agent.DEFAULT_AGENT_MODEL == "claude-opus-5-5"
+    assert client.calls[0]["model"] == agent.agent_model() == agent.DEFAULT_AGENT_MODEL == "claude-sonnet-5-5"
     assert client.calls[0]["thinking"] == {"type": "adaptive"} and client.calls[0]["max_tokens"] == 16000
     assert "betas" not in client.calls[0] and "fallbacks" not in client.calls[0]
-    assert "Claude Opus 5.5" in ev.rationale  # the rating says which model made it
+    assert "Claude Sonnet 5.5" in ev.rationale  # the rating says which model made it
 
 
 def test_fabricated_span_is_dropped(building, meta):

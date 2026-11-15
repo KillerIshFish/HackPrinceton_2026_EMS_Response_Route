@@ -109,11 +109,16 @@ DESCRIBED_CONFIDENCE_CAP = 0.7
 CLUE_CONFIDENCE_CAP = 0.9
 CLUE_OTHERS_FIT_MIN = 0.05  # > 0 keeps a clue descriptive (core.fusion.names_rooms)
 CLUE_OTHERS_FIT_MAX = 0.5
+# A clue that rules the other rooms out (others_fit at most this) and leaves at most this many
+# rooms places the caller like a room worked out from a description: a stated share of at most
+# DESCRIBED_CONFIDENCE_CAP instead of a soft factor.
+PINPOINT_OTHERS_FIT = 0.1
+PINPOINT_MAX_ROOMS = 5
 RELATIVE_FLOORS = ("top", "ground", "basement")
 
 # Model settings (see the module docstring); the default model is the eval winner
 # (eval/run_agent_eval.py on the free-form calls, layout calls included).
-DEFAULT_AGENT_MODEL = "claude-opus-5-5"
+DEFAULT_AGENT_MODEL = "claude-sonnet-5-5"
 MODEL_LABELS = {
     "claude-opus-5-5": "Claude Opus 5.5",
     "claude-sonnet-5-5": "Claude Sonnet 5.5",
@@ -922,9 +927,17 @@ def _validate(run_calls: list[dict], idx: BuildingIndex, transcript: Sequence[Tr
                 drop("duplicate within this turn")
                 continue
             seen_rooms.add(rooms_key)
-            if conf > CLUE_CONFIDENCE_CAP:
-                note(f"confidence capped at {CLUE_CONFIDENCE_CAP}")
-            conf = min(conf, CLUE_CONFIDENCE_CAP)
+            if not negate and others <= PINPOINT_OTHERS_FIT and len(ids) <= PINPOINT_MAX_ROOMS:
+                # The clue rules the other rooms out and leaves a handful: like a room worked out
+                # from a description, it places the caller (a stated share, capped at 0.7).
+                default_match = 0.0
+                if conf > DESCRIBED_CONFIDENCE_CAP:
+                    note(f"pinpointing clue: share capped at {DESCRIBED_CONFIDENCE_CAP}")
+                conf = min(conf, DESCRIBED_CONFIDENCE_CAP)
+            else:
+                if conf > CLUE_CONFIDENCE_CAP:
+                    note(f"confidence capped at {CLUE_CONFIDENCE_CAP}")
+                conf = min(conf, CLUE_CONFIDENCE_CAP)
             what = str(args.get("clue", "")).strip()
             why = str(args.get("reasoning", "")).strip()
             rationale = (f"{what}: {why}" if what and why else what or why)[:400]
