@@ -1,64 +1,62 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Caller Locator Benchmark</title>
+<meta name="color-scheme" content="dark">
+<title>ELC — Simulation Benchmark</title>
 <meta name="description" content="Simulation benchmark: how much sooner the Emergency Location Console's search plan reaches a 911 caller than an informed dispatcher or an address-only sweep.">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 * { box-sizing: border-box; }
 html { scroll-padding-top: 64px; }
 body { margin: 0; }
 img { max-width: 100%; }
 [hidden]:not([hidden=until-found i]) { display: none !important; }
-/* Layout: one reading column (~70ch) with charts allowed to run the full 900px measure; CAD-style T+ timecodes as the subject detail. */
+/* Same palette and type as index.html (and the dispatcher console, web/src/index.css). */
 :root {
-  --bg: #f6f7f8; --surface: #ffffff; --ink: #0f1720; --ink2: #4a5562; --muted: #7d8690;
-  --grid: #e3e6ea; --axis: #c4cad1; --line: rgba(15,23,32,0.10);
-  --app: #2a78d6; --app-soft: #86b6ef; --disp: #eb6834; --addr: #1baf7a; --shared: #c9ced4;
-  --note-bg: #fff6e9; --note-ink: #7a4300; --note-line: #f0c98f;
-  --f-head: "Barlow Semi Condensed", "Barlow", "Segoe UI", system-ui, sans-serif;
-  --f-body: "Barlow", "Segoe UI", system-ui, sans-serif;
-  --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
-  color-scheme: light;
+  --bg: #0b1016; --panel: #111821; --raised: #17202b; --line: #243140; --line-strong: #34465a;
+  --ink: #e6edf3; --ink-dim: #a7b6c5; --ink-mute: #8394a6;
+  --accent: #f2a93b; --accent-strong: #ffbe55; --accent-ink: #1a1204; --prob: #3fb8ae;
+  /* chart names used by the script below */
+  --surface: var(--panel); --ink2: var(--ink-dim); --muted: var(--ink-mute);
+  --grid: #1c2733; --axis: var(--line-strong);
+  --app: #3fb8ae; --app-soft: #22789a; --disp: #d9922e; --addr: #7486ea; --shared: #2b3a4b;
+  --note-bg: color-mix(in srgb, var(--accent) 10%, var(--panel)); --note-ink: #f5d29a; --note-line: color-mix(in srgb, var(--accent) 40%, var(--line));
+  --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  --f-head: var(--sans); --f-body: var(--sans); --f-mono: var(--mono);
+  color-scheme: dark;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #111417; --surface: #181c20; --ink: #eef1f4; --ink2: #b9c1ca; --muted: #828b95;
-  --grid: #262b31; --axis: #3a4148; --line: rgba(255,255,255,0.10);
-  --app: #3987e5; --app-soft: #2f5f99; --disp: #d95926; --addr: #199e70; --shared: #4a525b;
-  --note-bg: #2a2114; --note-ink: #f2c98a; --note-line: #5c4521; color-scheme: dark } }
-:root[data-theme="dark"] {
-  --bg: #111417; --surface: #181c20; --ink: #eef1f4; --ink2: #b9c1ca; --muted: #828b95;
-  --grid: #262b31; --axis: #3a4148; --line: rgba(255,255,255,0.10);
-  --app: #3987e5; --app-soft: #2f5f99; --disp: #d95926; --addr: #199e70; --shared: #4a525b;
-  --note-bg: #2a2114; --note-ink: #f2c98a; --note-line: #5c4521; color-scheme: dark }
 
-body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 17px; line-height: 1.55; }
+body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 16px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+a { color: var(--accent-strong); }
 
-/* Site bar: links back to the ELC home page. */
-.sitebar { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
-.sitebar .in { max-width: 920px; margin: 0 auto; padding: 0 max(16px, env(safe-area-inset-left, 0px)); height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.sitebar a { color: var(--ink2); text-decoration: none; font-size: 15px; }
-.sitebar a:hover { color: var(--ink); }
-.sitebar .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); font-weight: 600; white-space: nowrap; }
-.sitebar .brand svg { width: 26px; height: 26px; }
-.sitebar nav { display: flex; gap: 18px; }
-.sitebar nav a[aria-current="page"] { color: var(--ink); }
-@media (max-width: 420px) { .sitebar .brand span { display: none; } }
+/* Header and page tabs: identical to index.html */
+.top-wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+header.top { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+header.top .top-wrap { display: flex; align-items: center; justify-content: space-between; height: 56px; gap: 16px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--ink); text-decoration: none; white-space: nowrap; }
+.brand svg { width: 26px; height: 26px; }
+.brand-dash { color: var(--ink-mute); font-weight: 400; }
+@media (max-width: 560px) { .brand-long, .brand-dash { display: none; } }
+nav.tabs { display: flex; align-self: stretch; gap: 4px; }
+nav.tabs a { display: flex; align-items: center; padding: 0 12px; margin-bottom: -1px; color: var(--ink-dim); text-decoration: none; font-size: 14px; font-weight: 600; border-bottom: 2px solid transparent; }
+nav.tabs a:hover { color: var(--ink); }
+nav.tabs a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--accent); }
+footer.site { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--ink-mute); font-size: 14px; }
+footer.site .top-wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 
-.wrap { max-width: 920px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 40px 72px; display: grid; gap: 56px; }
+.wrap { max-width: 1040px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 48px 72px; display: grid; gap: 56px; }
+.wrap > section { padding-top: 48px; border-top: 1px solid var(--line); }
 section { display: grid; gap: 18px; min-width: 0; }
-h1, h2, h3 { font-family: var(--f-head); line-height: 1.12; margin: 0; text-wrap: balance; letter-spacing: -0.005em; }
-h1 { font-size: clamp(34px, 6vw, 52px); font-weight: 700; }
-h2 { font-size: 28px; font-weight: 700; }
-h3 { font-size: 19px; font-weight: 600; }
+h1, h2, h3 { line-height: 1.12; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(32px, 5vw, 48px); letter-spacing: -0.02em; }
+h2 { font-size: 28px; letter-spacing: -0.01em; }
+h3 { font-size: 17px; font-weight: 600; }
 p { margin: 0; max-width: 70ch; }
-.eyebrow { font-family: var(--f-mono); font-size: 12.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
-.lede { font-size: 20px; color: var(--ink2); max-width: 64ch; }
+.eyebrow { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--prob); font-weight: 600; }
+.lede { font-size: 18px; color: var(--ink2); max-width: 64ch; }
 .muted { color: var(--muted); }
 .small { font-size: 14.5px; color: var(--ink2); }
 .mono, .num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
@@ -66,7 +64,7 @@ header.page { display: grid; gap: 16px; }
 
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
 .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 16px 14px; display: grid; gap: 6px; align-content: start; }
-.tile .big { font-family: var(--f-head); font-size: 38px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.tile .big { font-family: var(--mono); font-size: 32px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
 .tile .big.app { color: var(--app); }
 .tile .cap { font-size: 14.5px; color: var(--ink2); line-height: 1.35; }
 
@@ -77,11 +75,11 @@ header.page { display: grid; gap: 16px; }
 .scope { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 6px; font-size: 15.5px; color: var(--ink2); }
 .scope p { max-width: none; }
 .scope strong { color: var(--ink); font-weight: 600; }
-.scope a { color: var(--app); }
+.scope a { color: var(--accent-strong); }
 
 figure { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 18px 14px; display: grid; gap: 10px; min-width: 0; }
 figcaption { display: grid; gap: 4px; }
-figcaption .t { font-family: var(--f-head); font-weight: 600; font-size: 18px; }
+figcaption .t { font-weight: 600; font-size: 17px; }
 figcaption .s { font-size: 14.5px; color: var(--ink2); }
 .chart { position: relative; width: 100%; min-width: 0; }
 .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
@@ -96,7 +94,7 @@ figcaption .s { font-size: 14.5px; color: var(--ink2); }
 .tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
 table { border-collapse: collapse; width: 100%; font-size: 15px; min-width: 640px; }
 th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--grid); vertical-align: top; }
-th { font-weight: 600; color: var(--ink2); font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; }
+th { font-weight: 500; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
 td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--f-mono); font-size: 14px; }
 tr:last-child td { border-bottom: none; }
 td .sub { display: block; font-size: 13px; color: var(--muted); }
@@ -104,15 +102,15 @@ td .sub { display: block; font-size: 13px; color: var(--muted); }
 
 .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
 ul.lim { margin: 0; padding-left: 20px; display: grid; gap: 8px; max-width: 72ch; }
-code { font-family: var(--f-mono); font-size: 0.86em; background: var(--grid); padding: 1px 5px; border-radius: 4px; }
-pre { margin: 0; font-family: var(--f-mono); font-size: 13.5px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto; }
-:focus-visible { outline: 2px solid var(--app); outline-offset: 2px; }
-@media (max-width: 520px) { body { font-size: 16px; } .tile .big { font-size: 32px; } figure { padding: 14px 12px 12px; } }
+code { font-family: var(--f-mono); font-size: 0.86em; background: var(--raised); padding: 1px 5px; border-radius: 4px; }
+pre { margin: 0; font-family: var(--f-mono); font-size: 13.5px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 520px) { .tile .big { font-size: 28px; } figure { padding: 14px 12px 12px; } }
 </style>
 </head>
 <body>
-<div class="sitebar">
-  <div class="in">
+<header class="top">
+  <div class="top-wrap">
     <a class="brand" href="/">
       <svg viewBox="0 0 32 32" aria-hidden="true">
         <rect width="32" height="32" rx="6" fill="#0b1016"/>
@@ -122,15 +120,14 @@ pre { margin: 0; font-family: var(--f-mono); font-size: 13.5px; background: var(
         <rect x="6" y="24" width="20" height="2" fill="#1b3f63"/>
         <circle cx="21" cy="20.5" r="3" fill="#f2a93b"/>
       </svg>
-      <span>ELC — Emergency Location Console</span>
+      <span>ELC <span class="brand-dash">—</span> <span class="brand-long">Emergency Location Console</span></span>
     </a>
-    <nav>
-      <a href="/">Home</a>
-      <a href="/#results">Caller reading</a>
+    <nav class="tabs" aria-label="Site">
+      <a href="/">Overview</a>
       <a href="/benchmark" aria-current="page">Benchmark</a>
     </nav>
   </div>
-</div>
+</header>
 
 <div class="wrap">
 <header class="page">
@@ -142,7 +139,7 @@ pre { margin: 0; font-family: var(--f-mono); font-size: 13.5px; background: var(
     <p><strong>Read this as a simulation, not field evidence.</strong> Callers, phone fixes and room-search times are modelled, and survival comes from published curves applied to the simulated times.</p>
   </div>
   <div class="scope">
-    <p><strong>What this page measures.</strong> Each simulated caller's clues are handed to the app as structured statements, so the benchmark tests the probability model and the search planner, the same information for every method. How the app turns a caller's actual words into those statements is tested separately: the Claude Sonnet 5.5 reader places the caller in the top room on 93% of 78 free-form test calls, against 54% for keyword rules. See <a href="/#results">how well it reads callers</a>.</p>
+    <p><strong>What this page measures.</strong> Each simulated caller's clues are handed to the app as structured statements, so the benchmark tests the probability model and the search planner, the same information for every method. Turning a caller's actual words into those statements is the agent's job, described in <a href="/#agent">how the agent decides</a>.</p>
   </div>
 </header>
 
@@ -416,7 +413,7 @@ function timeline() {
     el("rect", { x: x(curb), y, width: x(curb + entry) - x(curb) - 2, height: 26, rx: 4, fill: "var(--shared)", opacity: 0.7 }, s);
     el("rect", { x: x(curb + entry), y, width: x(curb + entry + t) - x(curb + entry), height: 26, rx: 4, fill: color }, s);
     txt(s, x(curb + entry + t) + 6, y + 13, `${mmss(curb + entry + t)} patient`, { size: 12, mono: true, fill: "var(--ink2)" });
-    txt(s, x(curb + entry) + 8, y + 13, `search ${fmtMin(t)}`, { size: 12, fill: "#fff", weight: 600 });
+    txt(s, x(curb + entry) + 8, y + 13, `search ${fmtMin(t)}`, { size: 12, fill: "#0b1016", weight: 600 });
   };
   txt(s, x(curb / 2), 14, "drive (same for all)", { anchor: "middle", size: 12, fill: "var(--muted)" });
   txt(s, x(curb + entry / 2), 14, "to door", { anchor: "middle", size: 12, fill: "var(--muted)" });
@@ -477,5 +474,11 @@ function render() {
 pipeline(); timeline(); render();
 let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 150); });
 </script>
+<footer class="site">
+  <div class="top-wrap">
+    <span>ELC — Emergency Location Console. Built at HackPrinceton 2026. <a href="/">Overview</a> · <a href="https://github.com/KillerIshFish/HackPrinceton_2026_EMS_Response_Route">GitHub</a></span>
+    <span>A decision aid for dispatchers. It ranks where to look; it does not replace a search.</span>
+  </div>
+</footer>
 </body>
 </html>
