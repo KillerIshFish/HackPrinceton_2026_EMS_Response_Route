@@ -1,0 +1,5132 @@
+{
+ "tables": {
+  "original": [
+   {
+    "mode": "rules",
+    "n": 32,
+    "n_location": 27,
+    "n_no_info": 5,
+    "top1": 0.7037037037037037,
+    "top3": 0.9259259259259259,
+    "p_true": 0.6944658647271397,
+    "no_info_empty": 1.0,
+    "req_sent_per_call": 0.0,
+    "req_produce_per_call": 0.0,
+    "req_per_turn": null,
+    "one_request_turns": null,
+    "tok_in_per_call": 0.0,
+    "tok_out_per_call": 0.0,
+    "secs_per_turn": null,
+    "fallback": 0
+   },
+   {
+    "mode": "llm",
+    "n": 32,
+    "n_location": 27,
+    "n_no_info": 5,
+    "top1": 0.9259259259259259,
+    "top3": 1.0,
+    "p_true": 0.863083375888209,
+    "no_info_empty": 1.0,
+    "req_sent_per_call": 0.0,
+    "req_produce_per_call": 1.1875,
+    "req_per_turn": 1.0,
+    "one_request_turns": 1.0,
+    "tok_in_per_call": 0.0,
+    "tok_out_per_call": 0.0,
+    "secs_per_turn": {
+     "mean": 1.7994473684210526,
+     "median": 1.6815,
+     "p90": 2.609,
+     "max": 4.247,
+     "n": 38
+    },
+    "fallback": 0
+   }
+  ],
+  "added": [
+   {
+    "mode": "rules",
+    "n": 25,
+    "n_location": 23,
+    "n_no_info": 2,
+    "top1": 0.782608695652174,
+    "top3": 0.9130434782608695,
+    "p_true": 0.7562078194293015,
+    "no_info_empty": 1.0,
+    "req_sent_per_call": 0.0,
+    "req_produce_per_call": 0.0,
+    "req_per_turn": null,
+    "one_request_turns": null,
+    "tok_in_per_call": 0.0,
+    "tok_out_per_call": 0.0,
+    "secs_per_turn": null,
+    "fallback": 0
+   },
+   {
+    "mode": "llm",
+    "n": 25,
+    "n_location": 23,
+    "n_no_info": 2,
+    "top1": 0.9565217391304348,
+    "top3": 1.0,
+    "p_true": 0.8966425704331478,
+    "no_info_empty": 1.0,
+    "req_sent_per_call": 0.0,
+    "req_produce_per_call": 1.12,
+    "req_per_turn": 1.0,
+    "one_request_turns": 1.0,
+    "tok_in_per_call": 0.0,
+    "tok_out_per_call": 0.0,
+    "secs_per_turn": {
+     "mean": 1.534892857142857,
+     "median": 1.315,
+     "p90": 2.519,
+     "max": 2.751,
+     "n": 28
+    },
+    "fallback": 0
+   }
+  ],
+  "all": [
+   {
+    "mode": "rules",
+    "n": 57,
+    "n_location": 50,
+    "n_no_info": 7,
+    "top1": 0.74,
+    "top3": 0.92,
+    "p_true": 0.7228671638901342,
+    "no_info_empty": 1.0,
+    "req_sent_per_call": 0.0,
+    "req_produce_per_call": 0.0,
+    "req_per_turn": null,
+    "one_request_turns": null,
+    "tok_in_per_call": 0.0,
+    "tok_out_per_call": 0.0,
+    "secs_per_turn": null,
+    "fallback": 0
+   },
+   {
+    "mode": "llm",
+    "n": 57,
+    "n_location": 50,
+    "n_no_info": 7,
+    "top1": 0.94,
+    "top3": 1.0,
+    "p_true": 0.8785206053788809,
+    "no_info_empty": 1.0,
+    "req_sent_per_call": 0.0,
+    "req_produce_per_call": 1.1578947368421053,
+    "req_per_turn": 1.0,
+    "one_request_turns": 1.0,
+    "tok_in_per_call": 0.0,
+    "tok_out_per_call": 0.0,
+    "secs_per_turn": {
+     "mean": 1.6872121212121212,
+     "median": 1.4805,
+     "p90": 2.579,
+     "max": 4.247,
+     "n": 66
+    },
+    "fallback": 0
+   }
+  ]
+ },
+ "calls": [
+  {
+   "call_id": "ptc-office-number",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.981615320454321,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "name_contains=office,unit=303 -> Office 303@0.95[rules]",
+    "room_type=office@1.00[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9816
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-office-number",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 100,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.278
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "name_contains=office,unit=303 -> Office 303@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-door-sign",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9974383713077959,
+   "n_rooms": 100,
+   "active_location": 3,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['f4-boardroom'] -> Boardroom@0.95[rules]",
+    "room_type=conference@0.80[rules]",
+    "floor=top@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9974
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-door-sign",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9854333036624109,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.341
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f4-boardroom'] -> Boardroom@0.95[rules]",
+    "floor=4@0.95[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9854
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-next-to-server-room",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 3,
+   "p_true": 0.13625169828724748,
+   "n_rooms": 100,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "floor=2@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     3,
+     0.1363
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-next-to-server-room",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.466322084880154,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    2.648
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f2-open-office-n2', 'f2-open-office-s2'] -> Open Office 2 North-Centre, Open Office 2 South-East@0.65[llm]",
+    "floor=2@0.95[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.4663
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-correction-floor",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9706969464180191,
+   "n_rooms": 100,
+   "active_location": 3,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules",
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['f4-break-room'] -> Executive Lounge@0.95[rules]",
+    "floor=4@0.95[rules]",
+    "room_type=common_area@0.80[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     18,
+     0.0054
+    ],
+    [
+     3,
+     1,
+     0.9707
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-correction-floor",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.961970673939661,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 2,
+   "turn_secs": [
+    1.916,
+    1.962
+   ],
+   "turn_requests": [
+    1,
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm",
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f4-break-room'] -> Executive Lounge@0.90[rules]",
+    "floor=4@0.90[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     45,
+     0.0
+    ],
+    [
+     3,
+     1,
+     0.962
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-yes-window-bathroom",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.19801316501891972,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "view=parking_lot@0.85[rules]",
+    "room_type=restroom@1.00[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.198
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-yes-window-bathroom",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9101839061554085,
+   "n_rooms": 100,
+   "active_location": 3,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    2.609
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "view=parking_lot@0.85[rules]",
+    "room_type=restroom@0.60[llm]",
+    "room_ids=['f4-restroom-north'] -> Restroom (North, window)@0.55[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9102
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-no-to-street",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 2,
+   "p_true": 0.404105617225164,
+   "n_rooms": 100,
+   "active_location": 5,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules",
+    "rules"
+   ],
+   "evidence": [
+    "room_type=office@1.00[rules]",
+    "floor=3@0.95[rules]",
+    "landmark=stairs@0.80[rules]",
+    "negative=views:parking_lot(no)@0.85[rules]",
+    "view=street@0.90[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     2,
+     0.3509
+    ],
+    [
+     3,
+     2,
+     0.4041
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-no-to-street",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 2,
+   "p_true": 0.43913912727038246,
+   "n_rooms": 100,
+   "active_location": 4,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 2,
+   "turn_secs": [
+    2.179,
+    1.424
+   ],
+   "turn_requests": [
+    1,
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm",
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f3-office-301', 'f3-office-303'] -> Office 301, Office 303@0.65[llm]",
+    "floor=3@0.95[llm]",
+    "negative=views:parking_lot(no)@0.85[rules]",
+    "view=street@0.80[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     2,
+     0.4124
+    ],
+    [
+     3,
+     2,
+     0.4391
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-homophones",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 43,
+   "p_true": 0.008998808865779242,
+   "n_rooms": 100,
+   "active_location": 0,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [],
+   "trajectory": [
+    [
+     1,
+     43,
+     0.009
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-homophones",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.8935694758268293,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    2.358
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f4-break-room'] -> Executive Lounge@0.70[llm]",
+    "floor=4@0.95[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.8936
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-dropped-words-copy-room",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9203928767327296,
+   "n_rooms": 100,
+   "active_location": 3,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['f2-storage-supply', 'f3-storage-supply', 'f4-storage-supply'] -> Supply & Copy Room 2, Supply & Copy Room 3, Supply & Copy Room 4@0.95[rules]",
+    "room_type=copy_room@1.00[rules]",
+    "floor=3@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9204
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-dropped-words-copy-room",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9896723914977739,
+   "n_rooms": 100,
+   "active_location": 3,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    4.247
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f2-storage-supply', 'f3-storage-supply', 'f4-storage-supply'] -> Supply & Copy Room 2, Supply & Copy Room 3, Supply & Copy Room 4@0.79[rules]",
+    "floor=3@0.95[llm]",
+    "room_ids=['f3-storage-supply'] -> Supply & Copy Room 3@0.84[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9897
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-security-office",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9815338263976956,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['f1-office-security'] -> Security Office@0.95[rules]",
+    "room_type=office@1.00[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9815
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-security-office",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 100,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.223
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f1-office-security'] -> Security Office@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-no-info-collapse",
+   "mode": "rules",
+   "no_info": true,
+   "scenario": false,
+   "status": "ok",
+   "rank": 15,
+   "p_true": 0.02044757903013666,
+   "n_rooms": 100,
+   "active_location": 0,
+   "facts": 1,
+   "suggested_type": "cardiac_arrest",
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [],
+   "trajectory": [
+    [
+     1,
+     15,
+     0.0204
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-no-info-collapse",
+   "mode": "llm",
+   "no_info": true,
+   "scenario": false,
+   "status": "ok",
+   "rank": 15,
+   "p_true": 0.02044757903013666,
+   "n_rooms": 100,
+   "active_location": 0,
+   "facts": 1,
+   "suggested_type": "cardiac_arrest",
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.251
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [],
+   "trajectory": [
+    [
+     1,
+     15,
+     0.0204
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-no-info-scared",
+   "mode": "rules",
+   "no_info": true,
+   "scenario": false,
+   "status": "ok",
+   "rank": 68,
+   "p_true": 0.0022777426199187896,
+   "n_rooms": 100,
+   "active_location": 0,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules",
+    "rules"
+   ],
+   "evidence": [],
+   "trajectory": [
+    [
+     1,
+     68,
+     0.0023
+    ],
+    [
+     3,
+     68,
+     0.0023
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-no-info-scared",
+   "mode": "llm",
+   "no_info": true,
+   "scenario": false,
+   "status": "ok",
+   "rank": 68,
+   "p_true": 0.0022777426199187896,
+   "n_rooms": 100,
+   "active_location": 0,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 2,
+   "turn_secs": [
+    0.866,
+    0.575
+   ],
+   "turn_requests": [
+    1,
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm",
+    "llm"
+   ],
+   "evidence": [],
+   "trajectory": [
+    [
+     1,
+     68,
+     0.0023
+    ],
+    [
+     3,
+     68,
+     0.0023
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-tenant-black-label",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9646306457312577,
+   "n_rooms": 148,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['f8-s830'] -> Suite 830@0.95[rules]",
+    "room_type=office@0.80[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9646
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-tenant-black-label",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9896414259532101,
+   "n_rooms": 148,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.993
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f8-s830'] -> Suite 830@0.95[rules]",
+    "floor=8@0.95[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9896
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-suite-640",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 148,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "name_contains=suite,unit=640 -> Suite 640@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-suite-640",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 148,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.664
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "name_contains=suite,unit=640 -> Suite 640@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-sweet-475",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 148,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "unit=475 -> Suite 475@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-sweet-475",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.84,
+   "n_rooms": 148,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.712
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "unit=475 -> Suite 475@0.84[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.84
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-tenant-law-firm",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 148,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['f4-s450'] -> Suite 450@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-tenant-law-firm",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.7960000000000002,
+   "n_rooms": 148,
+   "active_location": 1,
+   "facts": 1,
+   "suggested_type": "cardiac_arrest",
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.331
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f4-s450'] -> Suite 450@0.80[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.796
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-correction-suite",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 148,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules",
+    "rules"
+   ],
+   "evidence": [
+    "unit=660 -> Suite 660@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     57,
+     0.0002
+    ],
+    [
+     3,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-correction-suite",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9219999999999999,
+   "n_rooms": 148,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 2,
+   "turn_secs": [
+    1.032,
+    1.108
+   ],
+   "turn_requests": [
+    1,
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm",
+    "llm"
+   ],
+   "evidence": [
+    "unit=660 -> Suite 660@0.92[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     57,
+     0.0002
+    ],
+    [
+     3,
+     1,
+     0.922
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-negated-across-hall",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9580735688436923,
+   "n_rooms": 148,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "unit=530 -> Suite 530@0.95[rules]",
+    "room_type=corridor@0.80[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9581
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-negated-across-hall",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9507779222027959,
+   "n_rooms": 148,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    2.029
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "unit=530 -> Suite 530@0.95[rules]",
+    "NOT room_ids=['f5-s520-r1'] -> Suite 520 open area@0.85[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9508
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-pt-front-desk",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 4,
+   "p_true": 0.02949900793973959,
+   "n_rooms": 148,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_type=lobby@1.00[rules]",
+    "floor=ground@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     4,
+     0.0295
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-pt-front-desk",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.5665941405159729,
+   "n_rooms": 148,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    2.374
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f1-s101-r6', 'f1-s101-r10'] -> Suite 101 reception 1, Suite 101 reception 2@0.70[llm]",
+    "floor=1@0.95[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.5666
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-yes-eighth-floor",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9894118677236762,
+   "n_rooms": 148,
+   "active_location": 3,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules",
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['f8-s810'] -> Suite 810@0.95[rules]",
+    "room_type=office@0.80[rules]",
+    "floor=8@0.85[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9647
+    ],
+    [
+     3,
+     1,
+     0.9894
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-yes-eighth-floor",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.984840441790358,
+   "n_rooms": 148,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 2,
+   "turn_secs": [
+    0.77,
+    1.303
+   ],
+   "turn_requests": [
+    1,
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm",
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f8-s810'] -> Suite 810@0.95[rules]",
+    "floor=8@0.85[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ],
+    [
+     3,
+     1,
+     0.9848
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-kitchenette",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 2,
+   "p_true": 0.40255519347045865,
+   "n_rooms": 148,
+   "active_location": 3,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['f6-s650-r1', 'f6-s650-r2'] -> Suite 650 open area, Suite 650 kitchenette@0.95[rules]",
+    "room_type=break_room@1.00[rules]",
+    "floor=6@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     2,
+     0.4026
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-kitchenette",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9950899436906118,
+   "n_rooms": 148,
+   "active_location": 3,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    2.524
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f6-s650-r1', 'f6-s650-r2'] -> Suite 650 open area, Suite 650 kitchenette@0.90[rules]",
+    "room_ids=['f6-s650-r2'] -> Suite 650 kitchenette@0.90[llm]",
+    "floor=6@0.95[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9951
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-no-info-seizure",
+   "mode": "rules",
+   "no_info": true,
+   "scenario": false,
+   "status": "ok",
+   "rank": 3,
+   "p_true": 0.042491978249548486,
+   "n_rooms": 148,
+   "active_location": 0,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [],
+   "trajectory": [
+    [
+     1,
+     3,
+     0.0425
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-no-info-seizure",
+   "mode": "llm",
+   "no_info": true,
+   "scenario": false,
+   "status": "ok",
+   "rank": 3,
+   "p_true": 0.042491978249548486,
+   "n_rooms": 148,
+   "active_location": 0,
+   "facts": 1,
+   "suggested_type": "other_medical",
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.577
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [],
+   "trajectory": [
+    [
+     1,
+     3,
+     0.0425
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "wash-kitchen-common",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9945171408044474,
+   "n_rooms": 38,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['f1-r20'] -> Kitchen@0.95[rules]",
+    "room_type=break_room@1.00[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9945
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "wash-kitchen-common",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 38,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.767
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f1-r20'] -> Kitchen@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "wash-roof",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 2,
+   "p_true": 0.06954864799998654,
+   "n_rooms": 38,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_type=rooftop@1.00[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     2,
+     0.0695
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "wash-roof",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.895,
+   "n_rooms": 38,
+   "active_location": 1,
+   "facts": 1,
+   "suggested_type": "other_medical",
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    2.134
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f3-r37'] -> Rooftop@0.90[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.895
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "wash-upstairs-houses",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 2,
+   "p_true": 0.15204341676499394,
+   "n_rooms": 38,
+   "active_location": 4,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_type=office@0.80[rules]",
+    "landmark=stairs@0.80[rules]",
+    "landmark=window@0.80[rules]",
+    "view=residential@0.90[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     2,
+     0.152
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "wash-upstairs-houses",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 2,
+   "p_true": 0.2654021330712472,
+   "n_rooms": 38,
+   "active_location": 3,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    4.163
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f2-r26', 'f2-r33', 'f2-r35'] -> Office 4, Office 7, Office 9@0.50[llm]",
+    "landmark=stairs@0.70[llm]",
+    "view=residential@0.80[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     2,
+     0.2654
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "wash-warehouse-noise",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 3,
+   "p_true": 0.041252227646847765,
+   "n_rooms": 38,
+   "active_location": 0,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [],
+   "trajectory": [
+    [
+     1,
+     3,
+     0.0413
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "wash-warehouse-noise",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9426872775785929,
+   "n_rooms": 38,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    2.761
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f1-r01'] -> Warehouse@0.84[llm]",
+    "room_type=warehouse@0.50[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9427
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "wash-no-info-hello",
+   "mode": "rules",
+   "no_info": true,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.14997783935293255,
+   "n_rooms": 38,
+   "active_location": 0,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.15
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "wash-no-info-hello",
+   "mode": "llm",
+   "no_info": true,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.14997783935293255,
+   "n_rooms": 38,
+   "active_location": 0,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.186
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.15
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "mariposa-apartment-202",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 40,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "unit=202 -> Unit 202@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "mariposa-apartment-202",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 40,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.084
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "unit=202 -> Unit 202@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "mariposa-correction-unit",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 40,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules",
+    "rules"
+   ],
+   "evidence": [
+    "unit=402 -> Unit 402@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     4,
+     0.0043
+    ],
+    [
+     3,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "mariposa-correction-unit",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.922,
+   "n_rooms": 40,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 2,
+   "turn_secs": [
+    2.218,
+    1.823
+   ],
+   "turn_requests": [
+    1,
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm",
+    "llm"
+   ],
+   "evidence": [
+    "unit=402 -> Unit 402@0.92[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     4,
+     0.0043
+    ],
+    [
+     3,
+     1,
+     0.922
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "mariposa-no-info-fall",
+   "mode": "rules",
+   "no_info": true,
+   "scenario": false,
+   "status": "ok",
+   "rank": 4,
+   "p_true": 0.07864360155779562,
+   "n_rooms": 40,
+   "active_location": 0,
+   "facts": 1,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [],
+   "trajectory": [
+    [
+     1,
+     4,
+     0.0786
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "mariposa-no-info-fall",
+   "mode": "llm",
+   "no_info": true,
+   "scenario": false,
+   "status": "ok",
+   "rank": 4,
+   "p_true": 0.07864360155779562,
+   "n_rooms": 40,
+   "active_location": 0,
+   "facts": 1,
+   "suggested_type": "external_bleeding",
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.231
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [],
+   "trajectory": [
+    [
+     1,
+     4,
+     0.0786
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "cornerstone-tenant-nadel",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 99,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['t244738371'] -> 400 Nadel Architects@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "cornerstone-tenant-nadel",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 99,
+   "active_location": 1,
+   "facts": 1,
+   "suggested_type": "other_medical",
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.512
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['t244738371'] -> 400 Nadel Architects@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "cornerstone-garden-cafe",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 99,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['t244889771'] -> 150 Garden Cafe@0.95[rules]",
+    "view=residential@0.90[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "cornerstone-garden-cafe",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9369269009462361,
+   "n_rooms": 99,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.507
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['t244889771'] -> 150 Garden Cafe@0.90[rules]",
+    "floor=1@0.53[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9369
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "cornerstone-suite-795",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 99,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "unit=795 -> 795 Nagata Acoustics@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "cornerstone-suite-795",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 99,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.699
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "unit=795 -> 795 Nagata Acoustics@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-bare-302",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 100,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "unit=302 -> Office 302@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-bare-302",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 100,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.145
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "unit=302 -> Office 302@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-my-office-302",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9953986923371515,
+   "n_rooms": 100,
+   "active_location": 3,
+   "facts": 2,
+   "suggested_type": "fire_smoke",
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "name_contains=office,unit=302 -> Office 302@0.95[rules]",
+    "floor=3@0.95[rules]",
+    "room_type=office@1.00[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9954
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-my-office-302",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9855659425698731,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 2,
+   "suggested_type": "fire_smoke",
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    2.303
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "name_contains=office,unit=302 -> Office 302@0.95[rules]",
+    "floor=3@0.95[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9856
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-room-405",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 100,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "unit=405 -> Executive Office 405@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-room-405",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9853542891338567,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.368
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "unit=405 -> Executive Office 405@0.95[rules]",
+    "floor=4@0.95[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9854
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-server-room",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9947611857045037,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['f2-server-room'] -> Server Room / MDF@0.95[rules]",
+    "room_type=server_room@1.00[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9948
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-server-room",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 100,
+   "active_location": 1,
+   "facts": 1,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.265
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f2-server-room'] -> Server Room / MDF@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-conference-2n",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9876247131987084,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['f2-conference-n'] -> Conference Room 2N@0.95[rules]",
+    "room_type=conference@0.80[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9876
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-conference-2n",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 100,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.286
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f2-conference-n'] -> Conference Room 2N@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-fire-in-301",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 100,
+   "active_location": 1,
+   "facts": 1,
+   "suggested_type": "fire_smoke",
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "unit=302 -> Office 302@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-fire-in-301",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.895,
+   "n_rooms": 100,
+   "active_location": 1,
+   "facts": 1,
+   "suggested_type": "fire_smoke",
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.32
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "unit=302 -> Office 302@0.90[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.895
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-across-from-302",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 3,
+   "p_true": 0.3304513972806578,
+   "n_rooms": 100,
+   "active_location": 3,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['f2-storage-supply', 'f3-storage-supply', 'f4-storage-supply'] -> Supply & Copy Room 2, Supply & Copy Room 3, Supply & Copy Room 4@0.95[rules]",
+    "room_type=copy_room@1.00[rules]",
+    "room_type=storage@0.80[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     3,
+     0.3305
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-across-from-302",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9732149244354376,
+   "n_rooms": 100,
+   "active_location": 3,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    2.579
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f2-storage-supply', 'f3-storage-supply', 'f4-storage-supply'] -> Supply & Copy Room 2, Supply & Copy Room 3, Supply & Copy Room 4@0.84[rules]",
+    "room_ids=['f3-storage-supply'] -> Supply & Copy Room 3@0.70[llm]",
+    "floor=3@0.70[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9732
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-lounge-next-to-boardroom",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.8263543114540574,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['f4-break-room'] -> Executive Lounge@0.95[rules]",
+    "room_type=common_area@1.00[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.8264
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-lounge-next-to-boardroom",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 100,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.005
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f4-break-room'] -> Executive Lounge@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-meeting-room-next-to-break-room",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 5,
+   "p_true": 0.06931539892732186,
+   "n_rooms": 100,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_type=conference@0.80[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     5,
+     0.0693
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-meeting-room-next-to-break-room",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.8965260923645945,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    2.519
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f3-conference-n'] -> Conference Room 3N@0.70[llm]",
+    "floor=3@0.95[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.8965
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-yes-security-office",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.8783327535829869,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_type=office@0.75[rules]",
+    "room_ids=['f1-office-security'] -> Security Office@0.75[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.8783
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-yes-security-office",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.8783327535829869,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.054
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_type=office@0.75[rules]",
+    "room_ids=['f1-office-security'] -> Security Office@0.75[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.8783
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-asr-three-oh-two",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9953986923371515,
+   "n_rooms": 100,
+   "active_location": 3,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "unit=302 -> Office 302@0.95[rules]",
+    "room_type=office@1.00[rules]",
+    "floor=3@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9954
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-asr-three-oh-two",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9091838743556994,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.454
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "unit=302 -> Office 302@0.73[rules]",
+    "floor=3@0.95[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9092
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-correction-name",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9499999999999998,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules",
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['f1-storage-mail'] -> Mail Room & Receiving@0.95[rules]",
+    "room_type=copy_room@0.80[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     69,
+     0.0
+    ],
+    [
+     3,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-correction-name",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.895,
+   "n_rooms": 100,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 2,
+   "turn_secs": [
+    1.254,
+    1.933
+   ],
+   "turn_requests": [
+    1,
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm",
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f1-storage-mail'] -> Mail Room & Receiving@0.90[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     69,
+     0.0001
+    ],
+    [
+     3,
+     1,
+     0.895
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-injection",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.981615320454321,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules",
+    "rules"
+   ],
+   "evidence": [
+    "name_contains=office,unit=303 -> Office 303@0.95[rules]",
+    "room_type=office@1.00[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9816
+    ],
+    [
+     3,
+     1,
+     0.9816
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-injection",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 100,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 2,
+   "turn_secs": [
+    0.927,
+    1.023
+   ],
+   "turn_requests": [
+    1,
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm",
+    "llm"
+   ],
+   "evidence": [
+    "name_contains=office,unit=303 -> Office 303@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ],
+    [
+     3,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-no-info-numbers",
+   "mode": "rules",
+   "no_info": true,
+   "scenario": false,
+   "status": "ok",
+   "rank": 6,
+   "p_true": 0.037002038026235334,
+   "n_rooms": 100,
+   "active_location": 0,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [],
+   "trajectory": [
+    [
+     1,
+     6,
+     0.037
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "ptc-no-info-numbers",
+   "mode": "llm",
+   "no_info": true,
+   "scenario": false,
+   "status": "ok",
+   "rank": 6,
+   "p_true": 0.037002038026235334,
+   "n_rooms": 100,
+   "active_location": 0,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    0.576
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [],
+   "trajectory": [
+    [
+     1,
+     6,
+     0.037
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-860-kitchenette",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 2,
+   "p_true": 0.2774527225394754,
+   "n_rooms": 148,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "name_contains=suite,unit=860 -> Suite 860 open area, Suite 860 office 1, Suite 860 office 2 +3@0.95[rules]",
+    "room_type=break_room@1.00[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     2,
+     0.2775
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-860-kitchenette",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9915970348439131,
+   "n_rooms": 148,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.972
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "name_contains=suite,unit=860 -> Suite 860 open area, Suite 860 office 1, Suite 860 office 2 +3@0.95[rules]",
+    "room_ids=['f8-s860-r6'] -> Suite 860 kitchenette@0.90[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9916
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-zytrade-open-room",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.4456896567553571,
+   "n_rooms": 148,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['f8-s860-r1', 'f8-s860-r2', 'f8-s860-r3', 'f8-s860-r4', 'f8-s860-r5', 'f8-s860-r6'] -> Suite 860 open area, Suite 860 office 1, Suite 860 office 2 +3@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.4457
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-zytrade-open-room",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9543386060997539,
+   "n_rooms": 148,
+   "active_location": 3,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    2.59
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f8-s860-r1', 'f8-s860-r2', 'f8-s860-r3', 'f8-s860-r4', 'f8-s860-r5', 'f8-s860-r6'] -> Suite 860 open area, Suite 860 office 1, Suite 860 office 2 +3@0.84[rules]",
+    "room_ids=['f8-s860-r1'] -> Suite 860 open area@0.70[llm]",
+    "room_type=open_office@0.70[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9543
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-next-door-to-black-label",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 11,
+   "p_true": 0.02512087754527358,
+   "n_rooms": 148,
+   "active_location": 0,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [],
+   "trajectory": [
+    [
+     1,
+     11,
+     0.0251
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-next-door-to-black-label",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.798456698956573,
+   "n_rooms": 148,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    2.751
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f8-s850-r1'] -> Suite 850 open area@0.60[llm]",
+    "floor=8@0.70[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.7985
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-no-info-unmatched-999",
+   "mode": "rules",
+   "no_info": true,
+   "scenario": false,
+   "status": "ok",
+   "rank": 19,
+   "p_true": 0.022372174139884078,
+   "n_rooms": 148,
+   "active_location": 0,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "unit=999 -> UNMATCHED@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     19,
+     0.0224
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "bundy-no-info-unmatched-999",
+   "mode": "llm",
+   "no_info": true,
+   "scenario": false,
+   "status": "ok",
+   "rank": 19,
+   "p_true": 0.022372174139884078,
+   "n_rooms": 148,
+   "active_location": 0,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.168
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "unit=999 -> UNMATCHED@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     19,
+     0.0224
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "wash-office-4-then-floor",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9474905053225962,
+   "n_rooms": 38,
+   "active_location": 3,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules",
+    "rules"
+   ],
+   "evidence": [
+    "name_contains=office,unit=4 -> Office 4, Office 4@0.95[rules]",
+    "room_type=office@1.00[rules]",
+    "floor=2@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.5709
+    ],
+    [
+     3,
+     1,
+     0.9475
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "wash-office-4-then-floor",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9446658851685487,
+   "n_rooms": 38,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 2,
+   "turn_secs": [
+    0.919,
+    2.051
+   ],
+   "turn_requests": [
+    1,
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm",
+    "llm"
+   ],
+   "evidence": [
+    "name_contains=office,unit=4 -> Office 4, Office 4@0.95[rules]",
+    "floor=2@0.95[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.5606
+    ],
+    [
+     3,
+     1,
+     0.9447
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "wash-office-4-ambiguous",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 2,
+   "p_true": 0.3961080234698008,
+   "n_rooms": 38,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "name_contains=office,unit=4 -> Office 4, Office 4@0.95[rules]",
+    "room_type=office@0.80[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     2,
+     0.3961
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "wash-office-4-ambiguous",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 2,
+   "p_true": 0.3894416364995704,
+   "n_rooms": 38,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.088
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "name_contains=office,unit=4 -> Office 4, Office 4@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     2,
+     0.3894
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "wash-control-room",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.994588623222809,
+   "n_rooms": 38,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['f1-r08'] -> Control Room@0.95[rules]",
+    "room_type=server_room@1.00[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9946
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "wash-control-room",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 38,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.737
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f1-r08'] -> Control Room@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "mariposa-asr-307",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 40,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "unit=307 -> Unit 307@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "mariposa-asr-307",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.95,
+   "n_rooms": 40,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    0.904
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "unit=307 -> Unit 307@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "cornerstone-340",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9953410294004637,
+   "n_rooms": 99,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "unit=340 -> 340 Citrin Cooperman@0.95[rules]",
+    "room_ids=['t244891941', 't258199591'] -> 850 Citrin Cooperman, 340 Citrin Cooperman@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9953
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "cornerstone-340",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9755760667723586,
+   "n_rooms": 99,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.33
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "unit=340 -> 340 Citrin Cooperman@0.95[rules]",
+    "room_ids=['t244891941', 't258199591'] -> 850 Citrin Cooperman, 340 Citrin Cooperman@0.56[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9756
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "cornerstone-citrin-ambiguous",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.550525315179234,
+   "n_rooms": 99,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['t244891941', 't258199591'] -> 850 Citrin Cooperman, 340 Citrin Cooperman@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.5505
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "cornerstone-citrin-ambiguous",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.550525315179234,
+   "n_rooms": 99,
+   "active_location": 1,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    1.31
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['t244891941', 't258199591'] -> 850 Citrin Cooperman, 340 Citrin Cooperman@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.5505
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "cornerstone-across-from-architects",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9512106281620677,
+   "n_rooms": 99,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules"
+   ],
+   "evidence": [
+    "room_ids=['t258199551'] -> 405 Douglas Emmett, Inc.@0.95[rules]",
+    "room_type=corridor@0.80[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.9512
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "cornerstone-across-from-architects",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": false,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9500000000000001,
+   "n_rooms": 99,
+   "active_location": 2,
+   "facts": 0,
+   "suggested_type": null,
+   "requests_sent": 0,
+   "requests_to_produce": 1,
+   "turn_secs": [
+    2.146
+   ],
+   "turn_requests": [
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['t258199551'] -> 405 Douglas Emmett, Inc.@0.95[rules]",
+    "room_ids=['t244738371'] -> 400 Nadel Architects@0.68[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     1,
+     0.95
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "scenario:cardiac_arrest_office",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": true,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.6121985903204272,
+   "n_rooms": 100,
+   "active_location": 4,
+   "facts": 3,
+   "suggested_type": "cardiac_arrest",
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules",
+    "rules",
+    "rules",
+    "rules"
+   ],
+   "evidence": [
+    "room_type=conference@1.00[rules]",
+    "floor=2@0.95[rules]",
+    "landmark=window@0.80[rules]",
+    "view=parking_lot@0.90[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     17,
+     0.019
+    ],
+    [
+     3,
+     17,
+     0.019
+    ],
+    [
+     6,
+     6,
+     0.0496
+    ],
+    [
+     7,
+     1,
+     0.6122
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "scenario:cardiac_arrest_office",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": true,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9208234003433018,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 3,
+   "suggested_type": "cardiac_arrest",
+   "requests_sent": 0,
+   "requests_to_produce": 4,
+   "turn_secs": [
+    1.464,
+    0.964,
+    1.598,
+    2.334
+   ],
+   "turn_requests": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm",
+    "llm",
+    "llm",
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f2-conference-n'] -> Conference Room 2N@0.75[llm]",
+    "floor=2@0.95[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     17,
+     0.019
+    ],
+    [
+     3,
+     17,
+     0.019
+    ],
+    [
+     6,
+     6,
+     0.0496
+    ],
+    [
+     7,
+     1,
+     0.9208
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "scenario:fire_smoke_office",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": true,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9972657263211974,
+   "n_rooms": 100,
+   "active_location": 5,
+   "facts": 4,
+   "suggested_type": "fire_smoke",
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules",
+    "rules",
+    "rules",
+    "rules"
+   ],
+   "evidence": [
+    "name_contains=office,unit=302 -> Office 302@0.95[rules]",
+    "floor=3@0.95[rules]",
+    "room_type=office@1.00[rules]",
+    "landmark=window@0.75[rules]",
+    "view=street@0.90[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     22,
+     0.018
+    ],
+    [
+     3,
+     1,
+     0.9954
+    ],
+    [
+     6,
+     1,
+     0.9973
+    ],
+    [
+     7,
+     1,
+     0.9973
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "scenario:fire_smoke_office",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": true,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.9930018632976357,
+   "n_rooms": 100,
+   "active_location": 4,
+   "facts": 5,
+   "suggested_type": "fire_smoke",
+   "requests_sent": 0,
+   "requests_to_produce": 4,
+   "turn_secs": [
+    1.5,
+    1.948,
+    2.944,
+    1.508
+   ],
+   "turn_requests": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm",
+    "llm",
+    "llm",
+    "llm"
+   ],
+   "evidence": [
+    "name_contains=office,unit=302 -> Office 302@0.95[rules]",
+    "floor=3@0.95[llm]",
+    "landmark=window@0.75[rules]",
+    "view=street@0.80[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     22,
+     0.018
+    ],
+    [
+     3,
+     1,
+     0.9856
+    ],
+    [
+     6,
+     1,
+     0.993
+    ],
+    [
+     7,
+     1,
+     0.993
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "scenario:active_threat_office",
+   "mode": "rules",
+   "no_info": false,
+   "scenario": true,
+   "status": "ok",
+   "rank": 9,
+   "p_true": 0.04824105048115201,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 5,
+   "suggested_type": "active_threat",
+   "requests_sent": 0,
+   "requests_to_produce": 0,
+   "turn_secs": [],
+   "turn_requests": [],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "rules",
+    "rules",
+    "rules",
+    "rules"
+   ],
+   "evidence": [
+    "room_type=storage@1.00[rules]",
+    "floor=3@0.95[rules]"
+   ],
+   "trajectory": [
+    [
+     1,
+     85,
+     0.0013
+    ],
+    [
+     3,
+     9,
+     0.0463
+    ],
+    [
+     6,
+     9,
+     0.0482
+    ],
+    [
+     7,
+     9,
+     0.0482
+    ]
+   ],
+   "note": ""
+  },
+  {
+   "call_id": "scenario:active_threat_office",
+   "mode": "llm",
+   "no_info": false,
+   "scenario": true,
+   "status": "ok",
+   "rank": 1,
+   "p_true": 0.935583370750616,
+   "n_rooms": 100,
+   "active_location": 2,
+   "facts": 7,
+   "suggested_type": "active_threat",
+   "requests_sent": 0,
+   "requests_to_produce": 4,
+   "turn_secs": [
+    1.37,
+    3.133,
+    1.399,
+    1.382
+   ],
+   "turn_requests": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0
+   },
+   "sources": [
+    "llm",
+    "llm",
+    "llm",
+    "llm"
+   ],
+   "evidence": [
+    "room_ids=['f3-storage-supply'] -> Supply & Copy Room 3@0.79[llm]",
+    "floor=3@0.95[llm]"
+   ],
+   "trajectory": [
+    [
+     1,
+     85,
+     0.0013
+    ],
+    [
+     3,
+     1,
+     0.9277
+    ],
+    [
+     6,
+     1,
+     0.9356
+    ],
+    [
+     7,
+     1,
+     0.9356
+    ]
+   ],
+   "note": ""
+  }
+ ]
+}

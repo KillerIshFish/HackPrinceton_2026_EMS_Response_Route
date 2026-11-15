@@ -1,0 +1,207 @@
+Model settings: {'thinking': 'disabled', 'effort': 'low', 'strict': False}; model claude-haiku-5-5; request cap: none (LLM_MAX_CALLS).
+Not cached yet: 0 of 60 calls for the grounded interpreter (78 caller turns in all, usually one request each); 0 utterances for the vocabulary extractor.
+
+ptc-office-number [ptc-100] true=f3-office-303
+    rules  rank 1/100  p=0.982  evidence 2  facts 0  req 0 (0 sent)
+    llm    rank 1/100  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.3
+ptc-door-sign [ptc-100] true=f4-boardroom
+    rules  rank 1/100  p=0.997  evidence 3  facts 0  req 0 (0 sent)
+    llm    rank 1/100  p=0.985  evidence 2  facts 0  req 1 (0 sent)  s/turn 1.3
+ptc-next-to-server-room [ptc-100] true=f2-open-office-n2
+    rules  rank 3/100  p=0.136  evidence 1  facts 0  req 0 (0 sent)
+    llm    rank 1/100  p=0.466  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.6
+ptc-correction-floor [ptc-100] true=f4-break-room
+    rules  rank 1/100  p=0.971  evidence 3  facts 0  req 0 (0 sent)
+    llm    rank 1/100  p=0.962  evidence 2  facts 0  req 2 (0 sent)  s/turn 1.9,2.0
+ptc-yes-window-bathroom [ptc-100] true=f4-restroom-north
+    rules  rank 1/100  p=0.198  evidence 2  facts 0  req 0 (0 sent)
+    llm    rank 1/100  p=0.910  evidence 3  facts 0  req 1 (0 sent)  s/turn 2.6
+ptc-no-to-street [ptc-100] true=f3-office-301
+    rules  rank 2/100  p=0.404  evidence 5  facts 0  req 0 (0 sent)
+    llm    rank 2/100  p=0.439  evidence 4  facts 0  req 2 (0 sent)  s/turn 2.2,1.4
+ptc-homophones [ptc-100] true=f4-break-room
+    rules  rank 43/100  p=0.009  evidence 0  facts 0  req 0 (0 sent)
+    llm    rank 1/100  p=0.894  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.4
+ptc-dropped-words-copy-room [ptc-100] true=f3-storage-supply
+    rules  rank 1/100  p=0.920  evidence 3  facts 0  req 0 (0 sent)
+    llm    rank 1/100  p=0.990  evidence 3  facts 0  req 1 (0 sent)  s/turn 4.2
+ptc-security-office [ptc-100] true=f1-office-security
+    rules  rank 1/100  p=0.982  evidence 2  facts 0  req 0 (0 sent)
+    llm    rank 1/100  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.2
+ptc-no-info-collapse [ptc-100] true=no-info
+    rules  rank 15/100  p=0.020  evidence 0  facts 1  req 0 (0 sent)
+    llm    rank 15/100  p=0.020  evidence 0  facts 1  req 1 (0 sent)  s/turn 1.3
+ptc-no-info-scared [ptc-100] true=no-info
+    rules  rank 68/100  p=0.002  evidence 0  facts 0  req 0 (0 sent)
+    llm    rank 68/100  p=0.002  evidence 0  facts 0  req 2 (0 sent)  s/turn 0.9,0.6
+bundy-tenant-black-label [bundy-olympic] true=f8-s830
+    rules  rank 1/148  p=0.965  evidence 2  facts 0  req 0 (0 sent)
+    llm    rank 1/148  p=0.990  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.0
+bundy-suite-640 [bundy-olympic] true=f6-s640
+    rules  rank 1/148  p=0.950  evidence 1  facts 0  req 0 (0 sent)
+    llm    rank 1/148  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.7
+bundy-sweet-475 [bundy-olympic] true=f4-s475
+    rules  rank 1/148  p=0.950  evidence 1  facts 0  req 0 (0 sent)
+    llm    rank 1/148  p=0.840  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.7
+bundy-tenant-law-firm [bundy-olympic] true=f4-s450
+    rules  rank 1/148  p=0.950  evidence 1  facts 0  req 0 (0 sent)
+    llm    rank 1/148  p=0.796  evidence 1  facts 1  req 1 (0 sent)  s/turn 1.3
+bundy-correction-suite [bundy-olympic] true=f6-s660
+    rules  rank 1/148  p=0.950  evidence 1  facts 0  req 0 (0 sent)
+    llm    rank 1/148  p=0.922  evidence 1  facts 0  req 2 (0 sent)  s/turn 1.0,1.1
+bundy-negated-across-hall [bundy-olympic] true=f5-s530
+    rules  rank 1/148  p=0.958  evidence 2  facts 0  req 0 (0 sent)
+    llm    rank 1/148  p=0.951  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.0
+bundy-pt-front-desk [bundy-olympic] true=f1-s101-r6
+    rules  rank 4/148  p=0.029  evidence 2  facts 0  req 0 (0 sent)
+    llm    rank 1/148  p=0.567  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.4
+bundy-yes-eighth-floor [bundy-olympic] true=f8-s810
+    rules  rank 1/148  p=0.989  evidence 3  facts 0  req 0 (0 sent)
+    llm    rank 1/148  p=0.985  evidence 2  facts 0  req 2 (0 sent)  s/turn 0.8,1.3
+bundy-kitchenette [bundy-olympic] true=f6-s650-r2
+    rules  rank 2/148  p=0.403  evidence 3  facts 0  req 0 (0 sent)
+    llm    rank 1/148  p=0.995  evidence 3  facts 0  req 1 (0 sent)  s/turn 2.5
+bundy-no-info-seizure [bundy-olympic] true=no-info
+    rules  rank 3/148  p=0.042  evidence 0  facts 0  req 0 (0 sent)
+    llm    rank 3/148  p=0.042  evidence 0  facts 1  req 1 (0 sent)  s/turn 1.6
+wash-kitchen-common [washington-5285] true=f1-r20
+    rules  rank 1/38  p=0.995  evidence 2  facts 0  req 0 (0 sent)
+    llm    rank 1/38  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.8
+wash-roof [washington-5285] true=f3-r37
+    rules  rank 2/38  p=0.070  evidence 1  facts 0  req 0 (0 sent)
+    llm    rank 1/38  p=0.895  evidence 1  facts 1  req 1 (0 sent)  s/turn 2.1
+wash-upstairs-houses [washington-5285] true=f2-r26
+    rules  rank 2/38  p=0.152  evidence 4  facts 0  req 0 (0 sent)
+    llm    rank 2/38  p=0.265  evidence 3  facts 0  req 1 (0 sent)  s/turn 4.2
+wash-warehouse-noise [washington-5285] true=f1-r01
+    rules  rank 3/38  p=0.041  evidence 0  facts 0  req 0 (0 sent)
+    llm    rank 1/38  p=0.943  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.8
+wash-no-info-hello [washington-5285] true=no-info
+    rules  rank 1/38  p=0.150  evidence 0  facts 0  req 0 (0 sent)
+    llm    rank 1/38  p=0.150  evidence 0  facts 0  req 1 (0 sent)  s/turn 1.2
+mariposa-apartment-202 [prop-4388250] true=u23175679
+    rules  rank 1/40  p=0.950  evidence 1  facts 0  req 0 (0 sent)
+    llm    rank 1/40  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.1
+mariposa-correction-unit [prop-4388250] true=u24637996
+    rules  rank 1/40  p=0.950  evidence 1  facts 0  req 0 (0 sent)
+    llm    rank 1/40  p=0.922  evidence 1  facts 0  req 2 (0 sent)  s/turn 2.2,1.8
+mariposa-no-info-fall [prop-4388250] true=no-info
+    rules  rank 4/40  p=0.079  evidence 0  facts 1  req 0 (0 sent)
+    llm    rank 4/40  p=0.079  evidence 0  facts 1  req 1 (0 sent)  s/turn 1.2
+cornerstone-tenant-nadel [prop-247451] true=t244738371
+    rules  rank 1/99  p=0.950  evidence 1  facts 0  req 0 (0 sent)
+    llm    rank 1/99  p=0.950  evidence 1  facts 1  req 1 (0 sent)  s/turn 1.5
+cornerstone-garden-cafe [prop-247451] true=t244889771
+    rules  rank 1/99  p=0.950  evidence 2  facts 0  req 0 (0 sent)
+    llm    rank 1/99  p=0.937  evidence 2  facts 0  req 1 (0 sent)  s/turn 1.5
+cornerstone-suite-795 [prop-247451] true=t18490561
+    rules  rank 1/99  p=0.950  evidence 1  facts 0  req 0 (0 sent)
+    llm    rank 1/99  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.7
+ptc-bare-302 [ptc-100] true=f3-office-302
+    rules  rank 1/100  p=0.950  evidence 1  facts 0  req 0 (0 sent)
+    llm    rank 1/100  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.1
+ptc-my-office-302 [ptc-100] true=f3-office-302
+    rules  rank 1/100  p=0.995  evidence 3  facts 2  req 0 (0 sent)
+    llm    rank 1/100  p=0.986  evidence 2  facts 2  req 1 (0 sent)  s/turn 2.3
+ptc-room-405 [ptc-100] true=f4-office-405
+    rules  rank 1/100  p=0.950  evidence 1  facts 0  req 0 (0 sent)
+    llm    rank 1/100  p=0.985  evidence 2  facts 0  req 1 (0 sent)  s/turn 1.4
+ptc-server-room [ptc-100] true=f2-server-room
+    rules  rank 1/100  p=0.995  evidence 2  facts 0  req 0 (0 sent)
+    llm    rank 1/100  p=0.950  evidence 1  facts 1  req 1 (0 sent)  s/turn 1.3
+ptc-conference-2n [ptc-100] true=f2-conference-n
+    rules  rank 1/100  p=0.988  evidence 2  facts 0  req 0 (0 sent)
+    llm    rank 1/100  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.3
+ptc-fire-in-301 [ptc-100] true=f3-office-302
+    rules  rank 1/100  p=0.950  evidence 1  facts 1  req 0 (0 sent)
+    llm    rank 1/100  p=0.895  evidence 1  facts 1  req 1 (0 sent)  s/turn 1.3
+ptc-across-from-302 [ptc-100] true=f3-storage-supply
+    rules  rank 3/100  p=0.330  evidence 3  facts 0  req 0 (0 sent)
+    llm    rank 1/100  p=0.973  evidence 3  facts 0  req 1 (0 sent)  s/turn 2.6
+ptc-lounge-next-to-boardroom [ptc-100] true=f4-break-room
+    rules  rank 1/100  p=0.826  evidence 2  facts 0  req 0 (0 sent)
+    llm    rank 1/100  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.0
+ptc-meeting-room-next-to-break-room [ptc-100] true=f3-conference-n
+    rules  rank 5/100  p=0.069  evidence 1  facts 0  req 0 (0 sent)
+    llm    rank 1/100  p=0.897  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.5
+ptc-yes-security-office [ptc-100] true=f1-office-security
+    rules  rank 1/100  p=0.878  evidence 2  facts 0  req 0 (0 sent)
+    llm    rank 1/100  p=0.878  evidence 2  facts 0  req 1 (0 sent)  s/turn 1.1
+ptc-asr-three-oh-two [ptc-100] true=f3-office-302
+    rules  rank 1/100  p=0.995  evidence 3  facts 0  req 0 (0 sent)
+    llm    rank 1/100  p=0.909  evidence 2  facts 0  req 1 (0 sent)  s/turn 1.5
+ptc-correction-name [ptc-100] true=f1-storage-mail
+    rules  rank 1/100  p=0.950  evidence 2  facts 0  req 0 (0 sent)
+    llm    rank 1/100  p=0.895  evidence 1  facts 0  req 2 (0 sent)  s/turn 1.3,1.9
+ptc-injection [ptc-100] true=f3-office-303
+    rules  rank 1/100  p=0.982  evidence 2  facts 0  req 0 (0 sent)
+    llm    rank 1/100  p=0.950  evidence 1  facts 0  req 2 (0 sent)  s/turn 0.9,1.0
+ptc-no-info-numbers [ptc-100] true=no-info
+    rules  rank 6/100  p=0.037  evidence 0  facts 0  req 0 (0 sent)
+    llm    rank 6/100  p=0.037  evidence 0  facts 0  req 1 (0 sent)  s/turn 0.6
+bundy-860-kitchenette [bundy-olympic] true=f8-s860-r6
+    rules  rank 2/148  p=0.277  evidence 2  facts 0  req 0 (0 sent)
+    llm    rank 1/148  p=0.992  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.0
+bundy-zytrade-open-room [bundy-olympic] true=f8-s860-r1
+    rules  rank 1/148  p=0.446  evidence 1  facts 0  req 0 (0 sent)
+    llm    rank 1/148  p=0.954  evidence 3  facts 0  req 1 (0 sent)  s/turn 2.6
+bundy-next-door-to-black-label [bundy-olympic] true=f8-s850-r1
+    rules  rank 11/148  p=0.025  evidence 0  facts 0  req 0 (0 sent)
+    llm    rank 1/148  p=0.798  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.8
+bundy-no-info-unmatched-999 [bundy-olympic] true=no-info
+    rules  rank 19/148  p=0.022  evidence 0  facts 0  req 0 (0 sent)
+    llm    rank 19/148  p=0.022  evidence 0  facts 0  req 1 (0 sent)  s/turn 1.2
+wash-office-4-then-floor [washington-5285] true=f2-r26
+    rules  rank 1/38  p=0.947  evidence 3  facts 0  req 0 (0 sent)
+    llm    rank 1/38  p=0.945  evidence 2  facts 0  req 2 (0 sent)  s/turn 0.9,2.1
+wash-office-4-ambiguous [washington-5285] true=f1-r06
+    rules  rank 2/38  p=0.396  evidence 2  facts 0  req 0 (0 sent)
+    llm    rank 2/38  p=0.389  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.1
+wash-control-room [washington-5285] true=f1-r08
+    rules  rank 1/38  p=0.995  evidence 2  facts 0  req 0 (0 sent)
+    llm    rank 1/38  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.7
+mariposa-asr-307 [prop-4388250] true=u23325523
+    rules  rank 1/40  p=0.950  evidence 1  facts 0  req 0 (0 sent)
+    llm    rank 1/40  p=0.950  evidence 1  facts 0  req 1 (0 sent)  s/turn 0.9
+cornerstone-340 [prop-247451] true=t258199591
+    rules  rank 1/99  p=0.995  evidence 2  facts 0  req 0 (0 sent)
+    llm    rank 1/99  p=0.976  evidence 2  facts 0  req 1 (0 sent)  s/turn 1.3
+cornerstone-citrin-ambiguous [prop-247451] true=t244891941
+    rules  rank 1/99  p=0.551  evidence 1  facts 0  req 0 (0 sent)
+    llm    rank 1/99  p=0.551  evidence 1  facts 0  req 1 (0 sent)  s/turn 1.3
+cornerstone-across-from-architects [prop-247451] true=t258199551
+    rules  rank 1/99  p=0.951  evidence 2  facts 0  req 0 (0 sent)
+    llm    rank 1/99  p=0.950  evidence 2  facts 0  req 1 (0 sent)  s/turn 2.1
+
+Original calls (32)
+mode   calls (loc+none)  top-1  top-3  p(true) no-info empty  req/call (sent) req/turn 1-req turns  tok/call in/out  s/turn mean/med/p90 fallback
+-------------------------------------------------------------------------------------------------------------------------------------------------
+rules         32 (27+5)    70%    93%    0.694          100%      0.00 (0.00)        -           -              0/0                    -        0
+llm           32 (27+5)    93%   100%    0.863          100%      1.19 (0.00)     1.00        100%              0/0       1.80/1.68/2.61        0
+
+Calls added 2026-11-14 (25)
+mode   calls (loc+none)  top-1  top-3  p(true) no-info empty  req/call (sent) req/turn 1-req turns  tok/call in/out  s/turn mean/med/p90 fallback
+-------------------------------------------------------------------------------------------------------------------------------------------------
+rules         25 (23+2)    78%    91%    0.756          100%      0.00 (0.00)        -           -              0/0                    -        0
+llm           25 (23+2)    96%   100%    0.897          100%      1.12 (0.00)     1.00        100%              0/0       1.53/1.31/2.52        0
+
+All free-form calls (57)
+mode   calls (loc+none)  top-1  top-3  p(true) no-info empty  req/call (sent) req/turn 1-req turns  tok/call in/out  s/turn mean/med/p90 fallback
+-------------------------------------------------------------------------------------------------------------------------------------------------
+rules         57 (50+7)    74%    92%    0.723          100%      0.00 (0.00)        -           -              0/0                    -        0
+llm           57 (50+7)    94%   100%    0.879          100%      1.16 (0.00)     1.00        100%              0/0       1.69/1.48/2.58        0
+Accuracy columns cover location calls only; 'no-info empty' covers the no-information calls. Calls with a fallback are left out of every column except their own. s/turn is time spent in model requests.
+
+Scripted scenarios: rank / probability of the true room after each caller turn (last = end of call)
+scenario:cardiac_arrest_office true=f2-conference-n
+    rules  [1] 17/0.019  [3] 17/0.019  [6] 6/0.050  [7] 1/0.612   end: rank 1/100 p=0.612  suggested cardiac_arrest  req 0
+    llm    [1] 17/0.019  [3] 17/0.019  [6] 6/0.050  [7] 1/0.921   end: rank 1/100 p=0.921  suggested cardiac_arrest  req 4
+scenario:fire_smoke_office true=f3-office-302
+    rules  [1] 22/0.018  [3] 1/0.995  [6] 1/0.997  [7] 1/0.997   end: rank 1/100 p=0.997  suggested fire_smoke  req 0
+    llm    [1] 22/0.018  [3] 1/0.986  [6] 1/0.993  [7] 1/0.993   end: rank 1/100 p=0.993  suggested fire_smoke  req 4
+scenario:active_threat_office true=f3-storage-supply
+    rules  [1] 85/0.001  [3] 9/0.046  [6] 9/0.048  [7] 9/0.048   end: rank 9/100 p=0.048  suggested active_threat  req 0
+    llm    [1] 85/0.001  [3] 1/0.928  [6] 1/0.936  [7] 1/0.936   end: rank 1/100 p=0.936  suggested active_threat  req 4
+
+This run sent 0 Anthropic request(s). Tokens: input 0, cache read 0, cache write 0, output 0.
+data/processed/llm_usage.json calls: 1071 -> 1071

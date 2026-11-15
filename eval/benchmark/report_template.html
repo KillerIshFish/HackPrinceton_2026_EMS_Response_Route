@@ -1,0 +1,483 @@
+<title>Caller Locator Benchmark</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column (~70ch) with charts allowed to run the full 900px measure; CAD-style T+ timecodes as the subject detail. */
+:root {
+  --bg: #f6f7f8; --surface: #ffffff; --ink: #0f1720; --ink2: #4a5562; --muted: #7d8690;
+  --grid: #e3e6ea; --axis: #c4cad1; --line: rgba(15,23,32,0.10);
+  --app: #2a78d6; --app-soft: #86b6ef; --disp: #eb6834; --addr: #1baf7a; --shared: #c9ced4;
+  --note-bg: #fff6e9; --note-ink: #7a4300; --note-line: #f0c98f;
+  --f-head: "Barlow Semi Condensed", "Barlow", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Barlow", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111417; --surface: #181c20; --ink: #eef1f4; --ink2: #b9c1ca; --muted: #828b95;
+  --grid: #262b31; --axis: #3a4148; --line: rgba(255,255,255,0.10);
+  --app: #3987e5; --app-soft: #2f5f99; --disp: #d95926; --addr: #199e70; --shared: #4a525b;
+  --note-bg: #2a2114; --note-ink: #f2c98a; --note-line: #5c4521; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111417; --surface: #181c20; --ink: #eef1f4; --ink2: #b9c1ca; --muted: #828b95;
+  --grid: #262b31; --axis: #3a4148; --line: rgba(255,255,255,0.10);
+  --app: #3987e5; --app-soft: #2f5f99; --disp: #d95926; --addr: #199e70; --shared: #4a525b;
+  --note-bg: #2a2114; --note-ink: #f2c98a; --note-line: #5c4521; color-scheme: dark }
+
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 17px; line-height: 1.55; }
+.wrap { max-width: 920px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 40px 72px; display: grid; gap: 56px; }
+section { display: grid; gap: 18px; min-width: 0; }
+h1, h2, h3 { font-family: var(--f-head); line-height: 1.12; margin: 0; text-wrap: balance; letter-spacing: -0.005em; }
+h1 { font-size: clamp(34px, 6vw, 52px); font-weight: 700; }
+h2 { font-size: 28px; font-weight: 700; }
+h3 { font-size: 19px; font-weight: 600; }
+p { margin: 0; max-width: 70ch; }
+.eyebrow { font-family: var(--f-mono); font-size: 12.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 20px; color: var(--ink2); max-width: 64ch; }
+.muted { color: var(--muted); }
+.small { font-size: 14.5px; color: var(--ink2); }
+.mono, .num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+header { display: grid; gap: 16px; }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 16px 14px; display: grid; gap: 6px; align-content: start; }
+.tile .big { font-family: var(--f-head); font-size: 38px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.tile .big.app { color: var(--app); }
+.tile .cap { font-size: 14.5px; color: var(--ink2); line-height: 1.35; }
+
+.note { background: var(--note-bg); color: var(--note-ink); border: 1px solid var(--note-line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 6px; }
+.note strong { font-weight: 600; }
+.note p { max-width: none; }
+
+figure { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 18px 14px; display: grid; gap: 10px; min-width: 0; }
+figcaption { display: grid; gap: 4px; }
+figcaption .t { font-family: var(--f-head); font-weight: 600; font-size: 18px; }
+figcaption .s { font-size: 14.5px; color: var(--ink2); }
+.chart { position: relative; width: 100%; min-width: 0; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.diagram { overflow-x: auto; }
+.diagram svg { min-width: 640px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--ink2); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 13px; line-height: 1.35; padding: 7px 9px; border-radius: 6px; white-space: nowrap; transform: translate(-50%, calc(-100% - 10px)); z-index: 5; font-variant-numeric: tabular-nums; }
+.tip[hidden] { display: none !important; }
+
+.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; min-width: 640px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+th { font-weight: 600; color: var(--ink2); font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; }
+td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--f-mono); font-size: 14px; }
+tr:last-child td { border-bottom: none; }
+td .sub { display: block; font-size: 13px; color: var(--muted); }
+.good { color: var(--app); font-weight: 600; }
+
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+ul.lim { margin: 0; padding-left: 20px; display: grid; gap: 8px; max-width: 72ch; }
+code { font-family: var(--f-mono); font-size: 0.86em; background: var(--grid); padding: 1px 5px; border-radius: 4px; }
+pre { margin: 0; font-family: var(--f-mono); font-size: 13.5px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto; }
+:focus-visible { outline: 2px solid var(--app); outline-offset: 2px; }
+@media (max-width: 520px) { body { font-size: 16px; } .tile .big { font-size: 32px; } figure { padding: 14px 12px 12px; } }
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Simulation benchmark · <span id="n-trials"></span> simulated 911 calls · 4 buildings · 7 call types</div>
+  <h1>How much faster does the app find the caller?</h1>
+  <p class="lede">We simulated 911 calls from inside four real and synthetic buildings and timed three ways of finding the caller once the crew is at the door: a full sweep from the address alone, an informed dispatcher relaying what the caller said, and the app's ranked search plan. Every comparison uses the same callers, entrance, walking speeds and ambulance arrival time. Only the search order differs.</p>
+  <div class="tiles" id="tiles"></div>
+  <div class="note">
+    <p><strong>Read this as a simulation, not field evidence.</strong> Callers, phone fixes and room-search times are modelled, and survival comes from published curves applied to the simulated times. The biggest weakness the stress tests found is that if callers are anywhere in the building with equal odds, rather than where the app's occupancy prior expects, most of the advantage disappears (see <a href="#stress" style="color:inherit">Stress tests</a>).</p>
+  </div>
+</header>
+
+<section id="method">
+  <div class="eyebrow">Method</div>
+  <h2>What was simulated</h2>
+  <p>Each simulated call draws a true room from the app's occupancy model, a caller persona matched to the emergency (a panicked bystander, an elderly visitor, an injured caller), a phone fix with realistic error, and the location clues that caller would give, including wrong floors and hedges. Each search method then searches the building from the same entrance until it reaches the true room.</p>
+  <figure>
+    <figcaption><span class="t">Test pipeline</span><span class="s">One simulated call, three search methods, one shared clock.</span></figcaption>
+    <div class="diagram" id="pipeline"></div>
+  </figure>
+  <figure>
+    <figcaption><span class="t">Where the minutes go on a typical call</span><span class="s">Median times across all call types in the main benchmark. The drive and the walk to the door are the same for every method; only the search inside differs.</span></figcaption>
+    <div class="diagram" id="timeline"></div>
+  </figure>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Search method</th><th>What the crew knows</th><th>How it searches</th></tr></thead>
+    <tbody>
+      <tr><td><b style="color:var(--addr)">●</b> Address only</td><td>The street address</td><td>Nearest room first until the whole building is covered</td></tr>
+      <tr><td><b style="color:var(--disp)">●</b> Informed dispatcher</td><td>The floor and room type the caller stated, relayed by voice</td><td>That room type on that floor, then the rest of that floor, then that room type elsewhere, then everything else, nearest first within each step. This is the main comparison.</td></tr>
+      <tr><td><b style="color:var(--app)">●</b> App</td><td>Phone height fix plus parsed caller clues, fused into room probabilities</td><td>The app's optimised search plan (for cardiac arrest it maximises survival), then a sweep of any rooms left</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="time">
+  <div class="eyebrow">Result 1 · response time</div>
+  <h2>The app reaches the patient sooner on every call type</h2>
+  <p id="time-text"></p>
+  <figure>
+    <figcaption><span class="t">Median minutes from the building entrance to the patient</span><span class="s">Log scale. 400 calls per call type in each of 4 buildings (1,600 per row).</span></figcaption>
+    <div class="legend" data-legend></div>
+    <div class="chart" id="c-time"></div>
+  </figure>
+  <figure>
+    <figcaption><span class="t">Minutes saved per call against the informed dispatcher</span><span class="s" id="saved-sub">Median of paired differences with a 95% bootstrap interval. Medical calls only; fire is described below.</span></figcaption>
+    <div class="chart" id="c-saved"></div>
+  </figure>
+  <p class="small" id="fire-text"></p>
+</section>
+
+<section id="survival">
+  <div class="eyebrow">Result 2 · survivability</div>
+  <h2>What the saved minutes are worth</h2>
+  <p id="surv-text"></p>
+  <div class="tablewrap"><table id="t-outcome"></table></div>
+  <figure>
+    <figcaption><span class="t">Cardiac arrest: predicted survival to hospital discharge</span><span class="s">Mean over 1,600 calls per type, 95% bootstrap interval. Curves: Valenzuela 1997 (witnessed), De Maio 2003 (unwitnessed).</span></figcaption>
+    <div class="legend" data-legend></div>
+    <div class="chart" id="c-surv"></div>
+  </figure>
+  <div class="two">
+    <figure>
+      <figcaption><span class="t">Minutes from the 911 call to the patient</span><span class="s">All 4,800 cardiac arrest calls, including the ambulance drive. Hover for values.</span></figcaption>
+      <div class="legend" data-legend></div>
+      <div class="chart" id="c-cdf"></div>
+    </figure>
+    <figure>
+      <figcaption><span class="t">Survival gain vs. ambulance arrival time</span><span class="s">Survival points gained over the dispatcher when the ambulance reaches the curb this many minutes after the call.</span></figcaption>
+      <div class="legend" id="sens-legend"></div>
+      <div class="chart" id="c-sens"></div>
+    </figure>
+  </div>
+  <p class="small">The faster the ambulance arrives, the more a minute saved inside matters, because the patient is still on the steep part of the survival curve. In a system with 4-minute ambulance arrival, the gain for a witnessed arrest with bystander CPR is about <span id="sens-4"></span> survival points per call.</p>
+</section>
+
+<section id="stress">
+  <div class="eyebrow">Result 3 · stress tests</div>
+  <h2>Does the advantage hold when the assumptions break?</h2>
+  <p id="stress-text"></p>
+  <figure>
+    <figcaption><span class="t">Mean minutes saved per call against the informed dispatcher</span><span class="s">150 calls per call type per building in each stress test (4,200 per bar); main benchmark 11,200. In-building time capped at 60 minutes for this average.</span></figcaption>
+    <div class="chart" id="c-stress"></div>
+  </figure>
+</section>
+
+<section id="speech">
+  <div class="eyebrow">Result 4 · real-sounding speech</div>
+  <h2>Does it still work when callers talk like people?</h2>
+  <p id="speech-text"></p>
+  <figure>
+    <figcaption><span class="t">Held-out speech test: median minutes from entrance to patient</span><span class="s" id="speech-sub"></span></figcaption>
+    <div class="chart" id="c-speech"></div>
+  </figure>
+  <div class="tablewrap"><table id="t-speech"></table></div>
+</section>
+
+<section id="buildings">
+  <div class="eyebrow">By building</div>
+  <h2>The bigger the building, the bigger the saving</h2>
+  <p id="bldg-text"></p>
+  <figure>
+    <figcaption><span class="t">Median minutes from entrance to patient, all call types</span><span class="s">Log scale. 2,800 calls per building.</span></figcaption>
+    <div class="legend" data-legend></div>
+    <div class="chart" id="c-bldg"></div>
+  </figure>
+</section>
+
+<section id="limits">
+  <div class="eyebrow">Limitations</div>
+  <h2>What this does not show</h2>
+  <ul class="lim">
+    <li><b>No real calls.</b> Callers, their clues and their mistakes come from the project's own persona model. The held-out speech test makes the speech realistic but not the situations.</li>
+    <li><b>The caller's location is drawn from the app's own occupancy prior.</b> When it is drawn uniformly instead, the app's median advantage falls to zero and it is slower than the dispatcher on 40% of calls. The prior's room-type and hour-of-day weights have not been checked against real incident locations.</li>
+    <li><b>One crew searches alone.</b> In a real incident, more units arrive and people in the building direct the crew. That shortens the long tails of every method, the address-only sweep most of all.</li>
+    <li><b>Room-search times and the 90% detection rate are unverified planning settings</b>, and every look is assumed to find a person who is there. Fire uses a measured hose-advance rate (0.04 m/s) for every room, which makes fire search times very long in absolute terms.</li>
+    <li><b>Outcome models are coarse.</b> Cardiac arrest uses published logistic curves with an assumed 1.2 minutes from collapse to call. Fire, stroke and internal bleeding use linear per-minute rates, and fire survival is floored at zero. Overdose has no published curve and is reported as time only.</li>
+    <li><b>The app is slower than the dispatcher on about 1 call in 5</b>, usually when the caller is in a room the evidence makes look unlikely. The averages above include those calls.</li>
+  </ul>
+</section>
+
+<section id="repro">
+  <div class="eyebrow">Reproduce</div>
+  <h2>Run it yourself</h2>
+  <p class="small">All code is in <code>eval/benchmark/</code>. The main benchmark and stress tests need no network; the speech test calls Claude Haiku 5.5 and caches every reply. Outputs land in <code>eval/results/</code>.</p>
+<pre>uv run python -m eval.benchmark.simulate --main 400 --robust 150   # 32,200 calls, about 5 minutes on 20 cores
+uv run python -m eval.benchmark.speech --per-cell 10                # 280 Haiku-written calls
+uv run python -m eval.run_agent_eval --modes rules,llm               # 57 hand-written free-form calls
+uv run --with matplotlib --with pandas python -m eval.benchmark.analyze</pre>
+  <p class="small muted" id="assump"></p>
+</section>
+</div>
+
+<script>
+const D = /*DATA*/null;
+const ARMS = ["C", "B", "A"];
+const ARM = { C: { label: "App", color: "var(--app)" }, B: { label: "Informed dispatcher", color: "var(--disp)" }, A: { label: "Address only", color: "var(--addr)" } };
+const CT = D.call_types;
+const NS = "http://www.w3.org/2000/svg";
+const $ = (id) => document.getElementById(id);
+const fmtMin = (m) => m < 1 ? `${Math.round(m * 60)} s` : m < 120 ? `${m.toFixed(1)} min` : `${(m / 60).toFixed(1)} h`;
+const pct = (x, d = 0) => `${(100 * x).toFixed(d)}%`;
+const mmss = (min) => { const s = Math.round(min * 60); return `T+${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`; };
+
+function el(tag, attrs = {}, parent, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function svgFor(host, w, h) {
+  host.querySelectorAll("svg").forEach((s) => s.remove());
+  return el("svg", { viewBox: `0 0 ${w} ${h}`, role: "img" }, host);
+}
+function tipFor(host) {
+  let t = host.querySelector(".tip");
+  if (!t) { t = document.createElement("div"); t.className = "tip"; t.hidden = true; host.appendChild(t); }
+  return {
+    show(html, x, y) { t.innerHTML = html; t.hidden = false; const r = host.getBoundingClientRect(); const sx = r.width / host._vw; t.style.left = `${Math.min(Math.max(x * sx, 80), r.width - 80)}px`; t.style.top = `${y * sx}px`; },
+    hide() { t.hidden = true; },
+  };
+}
+const txt = (p, x, y, s, o = {}) => el("text", { x, y, fill: o.fill || "var(--ink2)", "font-size": o.size || 13, "text-anchor": o.anchor || "start", "dominant-baseline": o.base || "middle", "font-family": o.mono ? "var(--f-mono)" : "var(--f-body)", "font-weight": o.weight || 400 }, p, s);
+
+document.querySelectorAll("[data-legend]").forEach((L) => { L.innerHTML = ARMS.map((a) => `<span><i style="background:${ARM[a].color}"></i>${ARM[a].label}</span>`).join(""); });
+
+/* ---------- dot plot, log x ---------- */
+function dotPlot(host, rows, ticks) {
+  const W = host.clientWidth || 800, narrow = W < 560;
+  const left = narrow ? 8 : 230, right = 24, rowH = narrow ? 52 : 38, top = 6, h = top + rows.length * rowH + 34;
+  host._vw = W;
+  const s = svgFor(host, W, h), tip = tipFor(host);
+  const lo = Math.log10(ticks[0]), hi = Math.log10(ticks[ticks.length - 1]);
+  const x = (m) => left + (Math.log10(Math.max(ticks[0], Math.min(m, ticks[ticks.length - 1]))) - lo) / (hi - lo) * (W - left - right);
+  ticks.forEach((t) => { el("line", { x1: x(t), x2: x(t), y1: top, y2: h - 30, stroke: "var(--grid)" }, s); txt(s, x(t), h - 16, String(t), { anchor: "middle", fill: "var(--muted)", size: 12, mono: true }); });
+  txt(s, W - right, h - 2, "minutes", { anchor: "end", fill: "var(--muted)", size: 11.5, base: "auto" });
+  rows.forEach((r, i) => {
+    const yc = top + i * rowH + (narrow ? 32 : rowH / 2);
+    if (narrow) txt(s, left, yc - 20, r.label, { size: 13, fill: "var(--ink)" });
+    else txt(s, left - 12, yc, r.label, { anchor: "end", size: 13.5, fill: "var(--ink)" });
+    const xs = ARMS.map((a) => x(r.v[a]));
+    el("line", { x1: Math.min(...xs), x2: Math.max(...xs), y1: yc, y2: yc, stroke: "var(--grid)", "stroke-width": 3, "stroke-linecap": "round" }, s);
+    ARMS.slice().reverse().forEach((a) => {
+      const c = el("circle", { cx: x(r.v[a]), cy: yc, r: 6.5, fill: ARM[a].color, stroke: "var(--surface)", "stroke-width": 2 }, s);
+      const hit = el("circle", { cx: x(r.v[a]), cy: yc, r: 13, fill: "transparent", tabindex: 0 }, s);
+      const show = () => tip.show(`<b>${r.label}</b><br>${ARM[a].label}: ${fmtMin(r.v[a])}`, x(r.v[a]), yc - 6);
+      hit.addEventListener("mouseenter", show); hit.addEventListener("focus", show);
+      hit.addEventListener("mouseleave", tip.hide); hit.addEventListener("blur", tip.hide);
+    });
+    txt(s, x(r.v.C), yc - 14, fmtMin(r.v.C), { anchor: "middle", size: 11.5, fill: "var(--ink2)", mono: true });
+  });
+}
+
+/* ---------- horizontal bars with CI ---------- */
+function barCI(host, rows, o = {}) {
+  const W = host.clientWidth || 800, narrow = W < 560;
+  const left = narrow ? 8 : 230, right = narrow ? 12 : 260, rowH = narrow ? 50 : 34, top = 4, h = top + rows.length * rowH + 30;
+  host._vw = W;
+  const s = svgFor(host, W, h), tip = tipFor(host);
+  const max = o.max || Math.max(...rows.map((r) => r.hi ?? r.v)) * 1.08;
+  const x = (v) => left + Math.max(0, v) / max * (W - left - right);
+  const step = o.step || niceStep(max);
+  for (let t = 0; t <= max + 1e-9; t += step) { el("line", { x1: x(t), x2: x(t), y1: top, y2: h - 26, stroke: "var(--grid)" }, s); txt(s, x(t), h - 12, o.tickFmt ? o.tickFmt(t) : String(+t.toFixed(2)), { anchor: "middle", fill: "var(--muted)", size: 12, mono: true }); }
+  rows.forEach((r, i) => {
+    const y0 = top + i * rowH + (narrow ? 22 : 7), bh = narrow ? 16 : 20, yc = y0 + bh / 2;
+    if (narrow) txt(s, left, y0 - 9, r.label, { size: 13, fill: "var(--ink)" });
+    else txt(s, left - 12, yc, r.label, { anchor: "end", size: 13.5, fill: "var(--ink)" });
+    const w = Math.max(2, x(r.v) - left);
+    el("path", { d: `M${left},${y0} h${w - 4} q4,0 4,4 v${bh - 8} q0,4 -4,4 h${-(w - 4)} z`, fill: r.color || "var(--app)" }, s);
+    if (r.lo !== undefined) {
+      el("line", { x1: x(r.lo), x2: x(r.hi), y1: yc, y2: yc, stroke: "var(--ink)", "stroke-width": 1.4 }, s);
+      [r.lo, r.hi].forEach((v) => el("line", { x1: x(v), x2: x(v), y1: yc - 5, y2: yc + 5, stroke: "var(--ink)", "stroke-width": 1.4 }, s));
+    }
+    const lx = Math.max(x(r.hi ?? r.v), x(r.v)) + 8;
+    if (!narrow) txt(s, lx, yc, r.note, { size: 12.5 });
+    else txt(s, Math.min(lx, W - 4), yc, r.short || r.note, { size: 12, anchor: lx > W - 120 ? "end" : "start" });
+    const hit = el("rect", { x: 0, y: y0 - 6, width: W, height: bh + 12, fill: "transparent", tabindex: 0 }, s);
+    const show = () => tip.show(r.tip || `<b>${r.label}</b><br>${r.note}`, x(r.v), y0);
+    hit.addEventListener("mouseenter", show); hit.addEventListener("focus", show);
+    hit.addEventListener("mouseleave", tip.hide); hit.addEventListener("blur", tip.hide);
+  });
+  if (o.axis) txt(s, W - 4, h - 1, o.axis, { anchor: "end", fill: "var(--muted)", size: 11.5, base: "auto" });
+}
+function niceStep(max) { const raw = max / 5, p = Math.pow(10, Math.floor(Math.log10(raw))); const n = raw / p; return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * p; }
+
+/* ---------- grouped vertical bars with CI ---------- */
+function groupedBars(host, groups) {
+  const W = host.clientWidth || 800, left = 44, right = 8, top = 18, bottom = 48, h = 300;
+  host._vw = W;
+  const s = svgFor(host, W, h), tip = tipFor(host);
+  const max = Math.max(...groups.flatMap((g) => ARMS.map((a) => g.ci[a][1]))) * 1.12;
+  const y = (v) => top + (1 - v / max) * (h - top - bottom);
+  const step = niceStep(max);
+  for (let t = 0; t <= max; t += step) { el("line", { x1: left, x2: W - right, y1: y(t), y2: y(t), stroke: "var(--grid)" }, s); txt(s, left - 6, y(t), `${t}%`, { anchor: "end", fill: "var(--muted)", size: 12, mono: true }); }
+  const gw = (W - left - right) / groups.length, bw = Math.min(46, gw / 4.2);
+  groups.forEach((g, gi) => {
+    const cx = left + gw * (gi + 0.5);
+    ARMS.forEach((a, j) => {
+      const bx = cx + (j - 1) * (bw + 4) - bw / 2, v = g.v[a], top0 = y(v), base = y(0);
+      el("path", { d: `M${bx},${base} V${top0 + 4} q0,-4 4,-4 h${bw - 8} q4,0 4,4 V${base} z`, fill: ARM[a].color }, s);
+      const [lo, hi] = g.ci[a];
+      el("line", { x1: bx + bw / 2, x2: bx + bw / 2, y1: y(lo), y2: y(hi), stroke: "var(--ink)", "stroke-width": 1.3 }, s);
+      txt(s, bx + bw / 2, y(hi) - 9, `${v.toFixed(1)}%`, { anchor: "middle", size: 11.5, mono: true });
+      const hit = el("rect", { x: bx - 2, y: top, width: bw + 4, height: h - top - bottom, fill: "transparent", tabindex: 0 }, s);
+      const show = () => tip.show(`<b>${g.label}</b><br>${ARM[a].label}: ${v.toFixed(2)}% (95% CI ${lo.toFixed(2)}–${hi.toFixed(2)})`, bx + bw / 2, top0);
+      hit.addEventListener("mouseenter", show); hit.addEventListener("focus", show);
+      hit.addEventListener("mouseleave", tip.hide); hit.addEventListener("blur", tip.hide);
+    });
+    g.lines.forEach((ln, k) => txt(s, cx, h - bottom + 18 + k * 16, ln, { anchor: "middle", size: 13, fill: "var(--ink)" }));
+  });
+}
+
+/* ---------- line chart with crosshair ---------- */
+function lineChart(host, series, o) {
+  const W = host.clientWidth || 420, left = 46, right = 10, top = 12, bottom = 40, h = 280;
+  host._vw = W;
+  const s = svgFor(host, W, h), tip = tipFor(host);
+  const x = (v) => left + (v - o.x0) / (o.x1 - o.x0) * (W - left - right);
+  const y = (v) => top + (1 - (v - o.y0) / (o.y1 - o.y0)) * (h - top - bottom);
+  o.yt.forEach((t) => { el("line", { x1: left, x2: W - right, y1: y(t), y2: y(t), stroke: "var(--grid)" }, s); txt(s, left - 6, y(t), o.yf(t), { anchor: "end", fill: "var(--muted)", size: 12, mono: true }); });
+  o.xt.forEach((t) => txt(s, x(t), h - bottom + 16, String(t), { anchor: "middle", fill: "var(--muted)", size: 12, mono: true }));
+  txt(s, W - right, h - 4, o.xlabel, { anchor: "end", fill: "var(--muted)", size: 11.5, base: "auto" });
+  (o.marks || []).forEach((m) => { el("line", { x1: x(m.x), x2: x(m.x), y1: top, y2: h - bottom, stroke: "var(--axis)", "stroke-dasharray": "4 4" }, s); txt(s, x(m.x) + 4, top + 8, m.label, { size: 11.5, fill: "var(--muted)" }); });
+  series.forEach((se) => {
+    if (se.band) el("path", { d: "M" + se.band.map(([a, lo]) => `${x(a)},${y(lo)}`).join("L") + "L" + se.band.slice().reverse().map(([a, , hi]) => `${x(a)},${y(hi)}`).join("L") + "Z", fill: se.color, opacity: 0.14 }, s);
+    el("path", { d: "M" + se.pts.filter(([a]) => a >= o.x0 && a <= o.x1).map(([a, b]) => `${x(a)},${y(b)}`).join("L"), fill: "none", stroke: se.color, "stroke-width": 2, "stroke-linejoin": "round" }, s);
+  });
+  const cross = el("line", { y1: top, y2: h - bottom, stroke: "var(--ink2)", "stroke-width": 1, opacity: 0 }, s);
+  const dots = series.map((se) => el("circle", { r: 4.5, fill: se.color, stroke: "var(--surface)", "stroke-width": 2, opacity: 0 }, s));
+  const hit = el("rect", { x: left, y: top, width: W - left - right, height: h - top - bottom, fill: "transparent" }, s);
+  hit.addEventListener("mousemove", (ev) => {
+    const r = s.getBoundingClientRect(); const vx = (ev.clientX - r.left) / r.width * W;
+    const xv = o.x0 + (vx - left) / (W - left - right) * (o.x1 - o.x0);
+    cross.setAttribute("x1", x(xv)); cross.setAttribute("x2", x(xv)); cross.setAttribute("opacity", 0.5);
+    const vals = series.map((se, i) => { const yv = o.at(se, xv); dots[i].setAttribute("cx", x(xv)); dots[i].setAttribute("cy", y(yv)); dots[i].setAttribute("opacity", 1); return `<span style="color:${se.color}">●</span> ${se.label}: ${o.vf(yv)}`; });
+    tip.show(`<b>${o.xf(xv)}</b><br>${vals.join("<br>")}`, x(xv), top + 40);
+  });
+  hit.addEventListener("mouseleave", () => { cross.setAttribute("opacity", 0); dots.forEach((d) => d.setAttribute("opacity", 0)); tip.hide(); });
+}
+
+/* ---------- diagrams ---------- */
+function pipeline() {
+  const host = $("pipeline"), W = 860, h = 250; host._vw = W;
+  const s = svgFor(host, W, h);
+  const box = (x, y, w, hh, title, lines, stroke = "var(--axis)") => {
+    el("rect", { x, y, width: w, height: hh, rx: 8, fill: "var(--bg)", stroke, "stroke-width": 1.3 }, s);
+    txt(s, x + 12, y + 18, title, { size: 13.5, fill: "var(--ink)", weight: 600 });
+    lines.forEach((l, i) => txt(s, x + 12, y + 38 + i * 17, l, { size: 12.5 }));
+  };
+  const arrow = (x1, y1, x2, y2) => { el("path", { d: `M${x1},${y1} L${x2},${y2}`, stroke: "var(--muted)", "stroke-width": 1.4, fill: "none", "marker-end": "url(#ah)" }, s); };
+  const defs = el("defs", {}, s); const mk = el("marker", { id: "ah", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, defs);
+  el("path", { d: "M0,0 L10,5 L0,10 z", fill: "var(--muted)" }, mk);
+  box(8, 20, 170, 96, "Simulated caller", ["true room from the", "occupancy model", "persona by call type"]);
+  box(8, 134, 170, 96, "Evidence", ["phone height ±3 m (90%)", "horizontal ±30 m (50%)", "spoken clues, some wrong"]);
+  arrow(178, 68, 228, 100); arrow(178, 182, 228, 150);
+  box(230, 14, 230, 66, "Address only", ["nearest-first sweep"], "var(--addr)");
+  box(230, 92, 230, 66, "Informed dispatcher", ["stated floor and room type first"], "var(--disp)");
+  box(230, 170, 230, 66, "App", ["fused room probabilities", "→ optimised search plan"], "var(--app)");
+  [47, 125, 203].forEach((yy) => arrow(460, yy, 510, 125));
+  box(512, 70, 170, 110, "Time to patient", ["call → curb (shared,", "median 7 min)", "+ 1 min to the door", "+ search (per method)"]);
+  arrow(682, 125, 700, 125);
+  box(702, 70, 150, 110, "Outcome", ["published survival", "curves and per-", "minute rates by", "call type"]);
+}
+function timeline() {
+  const host = $("timeline"), W = 860, h = 150; host._vw = W;
+  const s = svgFor(host, W, h);
+  const curb = D.assumptions.curb_median_s / 60, entry = D.assumptions.entry_s / 60;
+  const tB = D.main.pooled.time.median_B / 60, tC = D.main.pooled.time.median_C / 60;
+  const total = curb + entry + Math.max(tB, tC);
+  const L = 150, R = 16, x = (m) => L + m / (total * 1.2) * (W - L - R);
+  const row = (y, label, t, color) => {
+    txt(s, L - 12, y + 13, label, { anchor: "end", size: 13.5, fill: "var(--ink)" });
+    el("rect", { x: x(0), y, width: x(curb) - x(0) - 2, height: 26, rx: 4, fill: "var(--shared)" }, s);
+    el("rect", { x: x(curb), y, width: x(curb + entry) - x(curb) - 2, height: 26, rx: 4, fill: "var(--shared)", opacity: 0.7 }, s);
+    el("rect", { x: x(curb + entry), y, width: x(curb + entry + t) - x(curb + entry), height: 26, rx: 4, fill: color }, s);
+    txt(s, x(curb + entry + t) + 6, y + 13, `${mmss(curb + entry + t)} patient`, { size: 12, mono: true, fill: "var(--ink2)" });
+    txt(s, x(curb + entry) + 8, y + 13, `search ${fmtMin(t)}`, { size: 12, fill: "#fff", weight: 600 });
+  };
+  txt(s, x(curb / 2), 14, "drive (same for all)", { anchor: "middle", size: 12, fill: "var(--muted)" });
+  txt(s, x(curb + entry / 2), 14, "to door", { anchor: "middle", size: 12, fill: "var(--muted)" });
+  row(30, "Informed dispatcher", tB, "var(--disp)");
+  row(70, "App", tC, "var(--app)");
+  [[0, "T+00:00 call"], [curb, mmss(curb) + " curb"], [curb + entry, mmss(curb + entry) + " door"]].forEach(([m, l], i) => {
+    el("line", { x1: x(m), x2: x(m), y1: 26, y2: 104, stroke: "var(--axis)", "stroke-dasharray": "3 3" }, s);
+    txt(s, x(m) + (i ? 0 : 0), 122 + (i === 2 ? 16 : 0), l, { anchor: i ? "middle" : "start", size: 12, mono: true, fill: "var(--muted)" });
+  });
+}
+
+/* ---------- fill text and charts ---------- */
+function render() {
+  const M = D.main, P = M.pooled.time;
+  $("n-trials").textContent = D.n_trials.toLocaleString("en-US");
+  const cp = D.cardiac_pooled, sp = D.speech;
+  $("tiles").innerHTML = [
+    [`${(P.saved_vs_B_median / 60).toFixed(1)} min`, `median time saved per call against an informed dispatcher (${(P.median_B / 60).toFixed(1)} → ${(P.median_C / 60).toFixed(1)} min inside the building)`],
+    [`+${cp.lives_per_1000_vs_B.toFixed(0)}`, `more cardiac arrest survivors per 1,000 calls than the dispatcher (95% CI ${cp.lives_per_1000_vs_B_ci[0].toFixed(0)}–${cp.lives_per_1000_vs_B_ci[1].toFixed(0)})`],
+    [pct(P.frac_faster_than_B), `of calls reached sooner than the dispatcher; ${pct(P.frac_slower_than_B)} later, ${pct(P.frac_tie_B)} the same`],
+    sp ? [`${(sp.saved_llm_vs_B_median / 60).toFixed(1)} min`, `median saved on ${sp.n} held-out calls written by Claude Haiku and read by the app's own interpreter (faster on ${pct(sp.llm_faster_than_B)})`] : null,
+  ].filter(Boolean).map(([b, c]) => `<div class="tile"><div class="big app">${b}</div><div class="cap">${c}</div></div>`).join("");
+
+  const med = CT.filter((c) => c.key !== "fire_smoke");
+  $("time-text").textContent = `Across all ${M.pooled.time.n.toLocaleString("en-US")} main-benchmark calls the app reached the patient in a median of ${fmtMin(P.median_C / 60)} after entering, against ${fmtMin(P.median_B / 60)} for the informed dispatcher and ${fmtMin(P.median_A / 60)} for a sweep from the address alone. Within five minutes of entering, the app had reached ${pct(P.frac_C_within_5min)} of patients, the dispatcher ${pct(P.frac_B_within_5min)} and the sweep ${pct(P.frac_A_within_5min)}. The app put the true room first in its list ${pct(P.top1)} of the time and in its top three ${pct(P.top3)} of the time.`;
+  dotPlot($("c-time"), CT.map((c) => ({ label: c.label, v: Object.fromEntries(ARMS.map((a) => [a, M.by_type[c.key].time[`median_${a}`] / 60])) })), [1, 2, 5, 10, 20, 50, 100, 200, 500]);
+  barCI($("c-saved"), med.map((c) => { const t = M.by_type[c.key].time; return { label: c.label, v: t.saved_vs_B_median / 60, lo: t.saved_vs_B_median_ci[0] / 60, hi: t.saved_vs_B_median_ci[1] / 60, note: `${(t.saved_vs_B_median / 60).toFixed(1)} min · faster in ${pct(t.frac_faster_than_B)}, slower in ${pct(t.frac_slower_than_B)}`, short: `${(t.saved_vs_B_median / 60).toFixed(1)} min`, tip: `<b>${c.label}</b><br>median saved ${(t.saved_vs_B_median / 60).toFixed(2)} min (95% CI ${(t.saved_vs_B_median_ci[0] / 60).toFixed(2)}–${(t.saved_vs_B_median_ci[1] / 60).toFixed(2)})<br>app faster ${pct(t.frac_faster_than_B)} · same ${pct(t.frac_tie_B)} · slower ${pct(t.frac_slower_than_B)}` }; }), { axis: "minutes saved" });
+  const F = M.by_type.fire_smoke.time;
+  $("fire-text").textContent = `Fire with a trapped occupant is left off the chart because its scale is different. The app uses the measured hose-advance rate in smoke (0.04 m/s along every wall), so one crew searching room by room takes a long time whatever the order. The median search took ${fmtMin(F.median_C / 60)} with the app against ${fmtMin(F.median_B / 60)} for the dispatcher, a ${pct(1 - F.median_C / F.median_B)} reduction. The absolute times say more about the smoke model than about real fireground practice.`;
+
+  const pp = (x, d = 2) => `${x >= 0 ? "+" : ""}${x.toFixed(d)}`;
+  const cardiacKeys = ["cardiac_cpr", "cardiac_nocpr", "cardiac_unwitnessed"];
+  $("surv-text").textContent = `For cardiac arrest the app's earlier contact raises predicted survival by ${cp.gain_vs_B_pp.toFixed(2)} percentage points per call on average across the three arrest types (95% CI ${cp.gain_vs_B_ci[0].toFixed(2)}–${cp.gain_vs_B_ci[1].toFixed(2)}). That is about ${cp.lives_per_1000_vs_B.toFixed(0)} more survivors per 1,000 arrests than the informed dispatcher and ${cp.lives_per_1000_vs_A.toFixed(0)} more than an address-only sweep. Survival is low for every method because many simulated buildings are large and the ambulance alone takes a median of 7 minutes.`;
+  const rows = CT.filter((c) => M.by_type[c.key].outcome.kind !== "time_only").map((c) => {
+    const o = M.by_type[c.key].outcome;
+    const unit = o.kind === "linear_call" ? (c.key === "stroke" ? "good-outcome points" : "mortality points") : "survival points";
+    const range = o.gain_vs_B_rate_low !== undefined ? `<span class="sub">rate range ${[o.gain_vs_B_rate_low, o.gain_vs_B_rate_high].sort((a, b) => a - b).map((v) => v.toFixed(2)).join(" to ")}</span>` : "";
+    const show = (v) => o.kind === "linear_call" ? `${Math.abs(v).toFixed(2)} lost` : `${v.toFixed(2)}%`;
+    return `<tr><td>${c.label}<span class="sub">${c.outcome_label}</span></td><td class="r">${show(o.mean_A)}</td><td class="r">${show(o.mean_B)}</td><td class="r">${show(o.mean_C)}</td><td class="r"><span class="good">${pp(o.gain_vs_B)}</span><span class="sub">${o.gain_vs_B_ci[0].toFixed(2)} to ${o.gain_vs_B_ci[1].toFixed(2)}</span>${range}</td><td>${unit}</td></tr>`;
+  });
+  $("t-outcome").innerHTML = `<thead><tr><th>Call type and outcome model</th><th class="r">Address only</th><th class="r">Dispatcher</th><th class="r">App</th><th class="r">App vs dispatcher (95% CI)</th><th>Unit</th></tr></thead><tbody>${rows.join("")}<tr><td>Overdose<span class="sub">No published curve</span></td><td class="r" colspan="4">time only: median ${fmtMin(M.by_type.overdose.time.median_B / 60)} → ${fmtMin(M.by_type.overdose.time.median_C / 60)}</td><td>minutes</td></tr></tbody>`;
+  groupedBars($("c-surv"), cardiacKeys.map((k) => { const o = M.by_type[k].outcome; const lab = CT.find((c) => c.key === k).label; return { label: lab, lines: lab.replace("Cardiac arrest, ", "").split(", "), v: Object.fromEntries(ARMS.map((a) => [a, o[`mean_${a}`]])), ci: Object.fromEntries(ARMS.map((a) => [a, o[`mean_${a}_ci`]])) }; }));
+
+  const cdf = D.cdf_cardiac;
+  const atCDF = (se, xv) => { const q = se.q; if (xv <= q[0]) return 0; for (let i = 1; i < q.length; i++) if (xv <= q[i]) return (i - 1 + (xv - q[i - 1]) / Math.max(1e-9, q[i] - q[i - 1])) / 100; return 1; };
+  lineChart($("c-cdf"), ARMS.map((a) => ({ label: ARM[a].label, color: ARM[a].color, q: cdf[a], pts: cdf[a].map((m, i) => [m, i / 100]) })), { x0: 0, x1: 45, y0: 0, y1: 1, xt: [0, 10, 20, 30, 40], yt: [0, 0.25, 0.5, 0.75, 1], yf: (v) => pct(v), xlabel: "minutes after the call", at: atCDF, vf: (v) => `${pct(v)} reached`, xf: (v) => `by ${v.toFixed(1)} min`, marks: [{ x: 15, label: "15 min" }] });
+
+  const sensColors = { cardiac_cpr: "var(--app)", cardiac_nocpr: "var(--disp)", cardiac_unwitnessed: "var(--addr)" };
+  const sens = Object.entries(D.sensitivity).map(([k, rs]) => ({ label: CT.find((c) => c.key === k).label.replace("Cardiac arrest, ", ""), color: sensColors[k], rs, pts: rs.map((r) => [r.curb_min, r.gain_vs_B]), band: rs.map((r) => [r.curb_min, r.ci[0], r.ci[1]]) }));
+  $("sens-legend").innerHTML = sens.map((se) => `<span><i style="background:${se.color}"></i>${se.label}</span>`).join("");
+  const ymax = Math.ceil(Math.max(...sens.flatMap((se) => se.rs.map((r) => r.ci[1]))));
+  lineChart($("c-sens"), sens, { x0: 3, x1: 15, y0: 0, y1: ymax, xt: [3, 5, 7, 9, 11, 13, 15], yt: Array.from({ length: ymax + 1 }, (_, i) => i), yf: (v) => `+${v}`, xlabel: "minutes, call to curb", at: (se, xv) => { const r = se.rs; let i = r.findIndex((p) => p.curb_min >= xv); if (i <= 0) return r[Math.max(0, i)].gain_vs_B; const a = r[i - 1], b = r[i]; return a.gain_vs_B + (b.gain_vs_B - a.gain_vs_B) * (xv - a.curb_min) / (b.curb_min - a.curb_min); }, vf: (v) => `+${v.toFixed(2)} pts`, xf: (v) => `ambulance at ${v.toFixed(1)} min`, marks: [{ x: 7, label: "US urban median" }] });
+  $("sens-4").textContent = D.sensitivity.cardiac_cpr.find((r) => r.curb_min === 4).gain_vs_B.toFixed(1);
+
+  const V = D.variants, U = D.uniform_truth.pooled.time, NP = D.no_phone.pooled.time, E4 = D.error_x4.pooled.time, NC = D.no_clues.pooled.time;
+  $("stress-text").textContent = `Callers who get their floor or window side wrong far more often do not hurt the app (${fmtMin(E4.saved_vs_B_mean_capped / 60)} saved at four times the error rate), because the fusion never lets one clue rule a room out, while the dispatcher goes wherever the caller says. Without a phone fix the app still saves ${fmtMin(NP.saved_vs_B_mean_capped / 60)} on average. With no usable words from the caller the dispatcher has nothing to work with, and the phone fix alone saves ${fmtMin(NC.saved_vs_B_mean_capped / 60)}. The test the app does not pass is the uniform one: when the caller is equally likely to be in any room, including corridors and stairwells, the median saving is ${fmtMin(U.saved_vs_B_median / 60)} and the app is slower on ${pct(U.frac_slower_than_B)} of calls. Its advantage depends on its occupancy prior being roughly right, which should be checked against real incident locations.`;
+  barCI($("c-stress"), Object.keys(V).map((v) => { const t = D[v].pooled.time; return { label: V[v], v: t.saved_vs_B_mean_capped / 60, lo: t.saved_vs_B_mean_capped_ci[0] / 60, hi: t.saved_vs_B_mean_capped_ci[1] / 60, color: v === "main" ? "var(--app)" : "var(--app-soft)", note: `${(t.saved_vs_B_mean_capped / 60).toFixed(1)} min · faster in ${pct(t.frac_faster_than_B)}, slower in ${pct(t.frac_slower_than_B)}`, short: `${(t.saved_vs_B_mean_capped / 60).toFixed(1)} min` }; }), { axis: "mean minutes saved" });
+
+  if (sp) {
+    $("speech-sub").textContent = `${sp.n} calls written by Claude Haiku 5.5 from simulated callers, 10 per call type per building.`;
+    $("speech-text").textContent = `The main benchmark hands the app structured clues. To test the speech path, Claude Haiku 5.5 wrote ${sp.n} new call transcripts from simulated callers, with panic, filler, repetition and hedging, and was told to convey only that caller's facts. These calls were never used to tune the app. The app's interpreter then read each transcript turn by turn, exactly as in the console. Reading speech with the Haiku interpreter, the app reached the patient in a median of ${fmtMin(sp.median_llm / 60)}, against ${fmtMin(sp.median_structured / 60)} with clean clues and ${fmtMin(sp.median_B / 60)} for the dispatcher who heard the same call. It was faster than the dispatcher on ${pct(sp.llm_faster_than_B)} of these calls and slower on ${pct(sp.llm_slower_than_B)}, and most of the benefit of clean clues survived. On these transcripts keyword rules did about as well as the Haiku interpreter, because the generated callers only describe room type, floor, window view and nearby stairs, which the rules vocabulary already covers. On the team's 57 hand-written free-form calls (room numbers, tenant names, corrections), the Haiku interpreter ranked the true room first ${D.freeform.llm_top1} of the time against ${D.freeform.rules_top1} for keyword rules; that is where the model reader earns its place.`;
+    barCI($("c-speech"), [
+      { label: "Informed dispatcher (same call)", v: sp.median_B / 60, color: "var(--disp)", note: fmtMin(sp.median_B / 60) },
+      { label: "App, structured clues", v: sp.median_structured / 60, color: "var(--app)", note: `${fmtMin(sp.median_structured / 60)} · top 3: ${pct(sp.top3_structured)}` },
+      { label: "App, keyword rules on speech", v: sp.median_rules / 60, color: "var(--app-soft)", note: `${fmtMin(sp.median_rules / 60)} · top 3: ${pct(sp.top3_rules)}` },
+      { label: "App, Claude Haiku on speech", v: sp.median_llm / 60, color: "var(--app)", note: `${fmtMin(sp.median_llm / 60)} · top 3: ${pct(sp.top3_llm)}` },
+    ], { axis: "median minutes, entrance to patient" });
+    $("t-speech").innerHTML = `<thead><tr><th>App reading</th><th class="r">True room ranked 1st</th><th class="r">In top 3</th><th class="r">Median search</th><th class="r">Median saved vs dispatcher</th></tr></thead><tbody>
+      <tr><td>Structured clues (upper bound)</td><td class="r">${pct(sp.top1_structured)}</td><td class="r">${pct(sp.top3_structured)}</td><td class="r">${fmtMin(sp.median_structured / 60)}</td><td class="r">${fmtMin(sp.saved_structured_vs_B_median / 60)}</td></tr>
+      <tr><td>Keyword rules on Haiku-written speech</td><td class="r">${pct(sp.top1_rules)}</td><td class="r">${pct(sp.top3_rules)}</td><td class="r">${fmtMin(sp.median_rules / 60)}</td><td class="r">${fmtMin(sp.saved_rules_vs_B_median / 60)}</td></tr>
+      <tr><td>Claude Haiku interpreter on Haiku-written speech</td><td class="r">${pct(sp.top1_llm)}</td><td class="r">${pct(sp.top3_llm)}</td><td class="r">${fmtMin(sp.median_llm / 60)}</td><td class="r">${fmtMin(sp.saved_llm_vs_B_median / 60)}</td></tr></tbody>`;
+  }
+
+  const B = D.buildings;
+  $("bldg-text").textContent = `In the 38-room scanned office the app saves ${fmtMin(M.by_building["washington-5285"].time.saved_vs_B_median / 60)} at the median; in the 8-storey tower and the 208-room university building it saves ${fmtMin(M.by_building["bundy-olympic"].time.saved_vs_B_median / 60)} and ${fmtMin(M.by_building["jrr-princeton"].time.saved_vs_B_median / 60)}. The more rooms there are to check, the more the search order matters.`;
+  dotPlot($("c-bldg"), Object.keys(B).map((b) => ({ label: B[b], v: Object.fromEntries(ARMS.map((a) => [a, M.by_building[b].time[`median_${a}`] / 60])) })), [1, 2, 5, 10, 20, 50, 100, 200]);
+
+  const A = D.assumptions;
+  $("assump").textContent = `Shared assumptions: call-to-curb time lognormal with median ${A.curb_median_s / 60} min (IQR 5–10 min; Mell et al. 2017, JAMA Surgery, NEMSIS urban), 1 minute from curb to entrance, crew walking 1.2 m/s with 29 s per flight of stairs (heavy load, ODPM 2/2005), one two-person crew. Statistics are paired with 2,000-resample percentile bootstraps. Generated ${D.generated}.`;
+}
+
+pipeline(); timeline(); render();
+let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 150); });
+</script>

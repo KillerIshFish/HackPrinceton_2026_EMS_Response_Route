@@ -1,0 +1,18 @@
+32200 trials in 1288 jobs on 20 workers
+  2000/32200  12s  errors=0
+  4000/32200  17s  errors=0
+  6000/32200  22s  errors=0
+  8000/32200  29s  errors=0
+  10000/32200  65s  errors=0
+  12000/32200  85s  errors=0
+  14000/32200  95s  errors=0
+  16000/32200  120s  errors=0
+  18000/32200  127s  errors=0
+  20000/32200  149s  errors=0
+  22000/32200  155s  errors=0
+  24000/32200  179s  errors=0
+  26000/32200  193s  errors=0
+  28000/32200  231s  errors=0
+  30000/32200  241s  errors=0
+  32000/32200  281s  errors=0
+wrote C:\Users\carco\HackPrinceton_2026_EMS_Response_Route\eval\results\benchmark_trials.csv (32200 rows, 0 errors) in 286s

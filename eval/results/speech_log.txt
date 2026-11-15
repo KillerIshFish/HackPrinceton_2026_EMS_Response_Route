@@ -1,0 +1,17 @@
+280 calls; generating 252 dialogues with claude-haiku-5-5
+  generated in 81s
+  evaluated 20  105s
+  evaluated 40  126s
+  evaluated 60  143s
+  evaluated 80  157s
+  evaluated 100  172s
+  evaluated 120  184s
+  evaluated 140  196s
+  evaluated 160  212s
+  evaluated 180  227s
+  evaluated 200  239s
+  evaluated 220  263s
+  evaluated 240  287s
+  evaluated 260  304s
+  evaluated 280  322s
+wrote C:\Users\carco\HackPrinceton_2026_EMS_Response_Route\eval\results\speech_results.json (280 calls) in 322s
