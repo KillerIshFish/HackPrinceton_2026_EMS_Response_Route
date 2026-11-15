@@ -22,7 +22,7 @@ import { FloorProbBar } from "./components/FloorProbBar";
 import { TranscriptPanel } from "./components/TranscriptPanel";
 import { SearchPlan, gatesWithRoom } from "./components/SearchPlan";
 import { AerialApproach } from "./components/AerialApproach";
-import { ScanViewer } from "./components/ScanViewer";
+import { ScanViewer, useScanAvailability } from "./components/ScanViewer";
 import { Building3D } from "./components/Building3D";
 import { BuildingSearch } from "./components/BuildingSearch";
 import { PolicyBanners, SituationBar } from "./components/SituationBar";
@@ -214,10 +214,22 @@ export default function App() {
     };
   }, [sitePending, buildingId]);
 
-  const scannedRoomIds = useMemo(
-    () => new Set(Object.entries(meta?.rooms ?? {}).filter(([, m]) => m.model_id).map(([id]) => id)),
-    [meta],
-  );
+  // Which Matterport tours the scan viewer can show for this building. The Scan tab and every
+  // "Show 3D scan" action follow it: a building with no tour that loads offers neither.
+  const scan = useScanAvailability(building, meta);
+  /** room metadata for the floor plan: a room whose tour cannot be shown carries no scan */
+  const planRoomMeta = useMemo(() => {
+    if (!meta) return undefined;
+    const out: BuildingMeta["rooms"] = {};
+    for (const [id, m] of Object.entries(meta.rooms)) {
+      if (!m.model_id || scan.roomIds.has(id)) out[id] = m;
+      else {
+        const { model_id: _model, sweep_id: _sweep, ...rest } = m;
+        out[id] = rest;
+      }
+    }
+    return out;
+  }, [meta, scan]);
 
   // Follow the most probable floor whenever the posterior changes (unless the user pinned a floor).
   const topFloor = useMemo(
@@ -272,7 +284,12 @@ export default function App() {
   // Matterport's plan image of the shown floor (buildings built from a whole-building scan)
   const plan = meta?.building_id === building.id ? meta.floorplans?.[String(shownFloor)] : undefined;
   const planImage = plan ? { ...plan, href: api.floorplanUrl(building.id, shownFloor) } : null;
-  const hasScan = meta !== null && meta.matterport_models.length > 0;
+  const hasScan = meta !== null && scan.available;
+  /** "Show 3D scan" on a room: pin it and open the Scan tab */
+  const viewScan = (roomId: string) => {
+    setPinnedRoomId(roomId);
+    if (hasScan) setView("scan");
+  };
   const { policy } = state;
 
   // -------------------------------------------------------------------------
@@ -313,8 +330,8 @@ export default function App() {
             follow={follow}
             onSelectFloor={selectFloor}
             onToggleFollow={() => setFollow((v) => !v)}
-            roomMeta={meta?.rooms}
-            onSelectRoom={setPinnedRoomId}
+            roomMeta={planRoomMeta}
+            onSelectRoom={hasScan ? viewScan : undefined}
             planImage={planImage}
             rotationDeg={meta?.georeference?.rotation_deg ?? 0}
           />
@@ -350,12 +367,13 @@ export default function App() {
       label: "Scan",
       icon: <ScanLine size={14} aria-hidden />,
       disabled: !hasScan,
-      unavailableReason: "No 3D scan is on file for this building",
+      unavailableReason: scan.reason ?? "No 3D scan is on file for this building",
       content:
         meta && hasScan ? (
           <ScanViewer
             building={building}
             meta={meta}
+            scan={scan}
             posterior={state.posterior}
             sdkKey={config?.matterport_sdk_key ?? null}
             pinnedRoomId={pinnedRoomId}
@@ -555,11 +573,8 @@ export default function App() {
                 busy={busy}
                 actions={actions}
                 onHoverRooms={setOutlineRoomIds}
-                scannedRoomIds={scannedRoomIds}
-                onViewScan={(roomId) => {
-                  setPinnedRoomId(roomId);
-                  if (hasScan) setView("scan");
-                }}
+                scannedRoomIds={scan.roomIds}
+                onViewScan={hasScan ? viewScan : undefined}
               />
             </div>
           )}

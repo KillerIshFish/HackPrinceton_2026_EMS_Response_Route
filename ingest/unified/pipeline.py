@@ -78,10 +78,20 @@ def load_model(building_id: str) -> Optional[BuildingModel]:
     )
 
 
-def build_property_model(facts: dict, models: Optional[dict] = None, scheme_override: Optional[str] = None) -> BuildingModel:
-    """Layers 1-5 for one property: pure function of the record and the cached scans."""
+def building_count(facts: dict, roster: Optional[dict] = None) -> int:
+    """How many buildings the record describes: the count it states, or the buildings its units name."""
+    roster = roster or build_roster(facts)
+    return max(len({s["block"] for s in roster["slots"]}) or 1, int(facts.get("num_buildings") or 1))
+
+
+def build_property_model(facts: dict, models: Optional[dict] = None, scheme_override: Optional[str] = None,
+                         site: Optional[dict] = None) -> BuildingModel:
+    """Layers 1-5 for one property: pure function of the record, the cached scans and the outline in ``site``.
+
+    ``site`` (``context.layout_site``) is the building's real outline; without it the layout is the assumed bar.
+    """
     roster = build_roster(facts, scheme_override)
-    layout = build_layout(facts, roster, interior=make_interior(models) if models else None)
+    layout = build_layout(facts, roster, interior=make_interior(models) if models else None, site=site)
     stamped = layout["stats"]["units_with_stamped_interior"]
     if layout["archetype"] == "floor_stack":
         tier = "stack-only"
@@ -90,7 +100,8 @@ def build_property_model(facts: dict, models: Optional[dict] = None, scheme_over
     geo = facts.get("latlng")
     return BuildingModel(
         schema=SCHEMA_VERSION, id=f"prop-{facts['property_id']}", name=facts["name"], address=facts["address"],
-        use_type=facts["use_type"], archetype=layout["archetype"], tier=tier, yaw_deg=0.0,
+        use_type=facts["use_type"], archetype=layout["archetype"], tier=tier,
+        yaw_deg=float((layout["stats"].get("shape") or {}).get("yaw_deg") or 0.0),
         geolocation=(float(geo[0]), float(geo[1])) if geo else None, levels=tuple(layout["levels"]),
         spaces=tuple(sorted(layout["spaces"], key=lambda s: s.id)), walls=tuple(layout["walls"]),
         links=tuple(sorted(layout["links"], key=lambda ln: (ln.a, ln.b, ln.kind))), entrances=tuple(layout["entrances"]),

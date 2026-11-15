@@ -53,6 +53,11 @@ Pipeline
 7. Koopman     = posterior after an unsuccessful look with detection probability q:
                  ``p_r <- p_r * (1 - q)`` then renormalise with the outside mass
                  (``koopman_update`` / ``residual_probs``).
+8. Second team = with ``second_team_rooms`` (the floors the phone's height fix allows, when
+                 a caller statement contradicts the fix: ``core.fusion``) and two or more
+                 teams, team 2's route starts with the stops in those rooms unless a team
+                 already starts there (``_start_second_team_in``). Team 1 follows the
+                 caller's statement; the phone's floor is not left for later.
 """
 
 from __future__ import annotations
@@ -848,6 +853,38 @@ def _plan_teams(
     return V, routes, notes
 
 
+def _start_second_team_in(routes: list[list[int]], V: _Visits, wanted: set[str], deadline: float
+                          ) -> tuple[list[list[int]], int]:
+    """Make team 2 start in the ``wanted`` rooms (module docstring, step 8).
+
+    Nothing changes when there is one team, when some team's first stop is already in a
+    wanted room, or when no planned stop is in one. Otherwise team 2's stops in wanted rooms
+    come first; when it has none, the other teams' stops there are handed to it (never a
+    team's first stop). The block is put in its best order from the start; the rest of each
+    route keeps its order. Returns (routes, number of stops put first).
+    """
+    if len(routes) < 2 or not wanted:
+        return routes, 0
+    if any(r and V.room_ids[r[0]] in wanted for r in routes):
+        return routes, 0
+    block = [k for k in routes[1] if V.room_ids[k] in wanted]
+    routes = [list(r) for r in routes]
+    if not block:
+        for a, r in enumerate(routes):
+            if a == 1:
+                continue
+            take = [k for k in r[1:] if V.room_ids[k] in wanted]
+            block.extend(take)
+            routes[a] = [k for k in r if k not in take]
+    if not block:
+        return routes, 0
+    block, _ = _improve_route(block, V.T, V.s, V.p, V.start, deadline)
+    taken = set(block)
+    routes[1] = block + [k for k in routes[1] if k not in taken]
+    routes, _ = _drop_early_repeats(routes, V)
+    return routes, len(block)
+
+
 # ---------------------------------------------------------------------------
 # Public planner
 # ---------------------------------------------------------------------------
@@ -871,6 +908,7 @@ def plan_search(
     *,
     crew_size: Optional[int] = None,
     treatment_s: float = 0.0,
+    second_team_rooms: Optional[Iterable[str]] = None,
 ) -> SearchPlan:
     """Build the ordered search plan for the current beliefs and the looks made so far.
 
@@ -904,6 +942,10 @@ def plan_search(
       default is ``recommend_approach``'s pick on the residual masses.
     * ``start_node``   - where the team(s) are now (e.g. the room just searched when
       replanning). Defaults to the entrance. All ETAs are relative to this node.
+    * ``second_team_rooms`` - rooms on the floors the phone's height fix allows, given when a
+      caller statement contradicts that fix (``core.fusion.Fused.phone_band``). With two or
+      more teams, team 2's route then starts with its stops in those rooms, unless a team
+      already starts there. With one team nothing changes.
 
     Report fields: ``Stop.kind`` / ``mode`` / ``p_find`` / ``travel_s`` / ``search_s``;
     ``SearchPlan.cumulative_success`` (sum of p_find over the plan, on the scale of
@@ -1070,6 +1112,16 @@ def plan_search(
         else:
             notes.extend(team_notes)
 
+    # ---- caller against phone: team 2 starts on the phone's floor (step 8) -------
+    second_first = set(second_team_rooms or ()) if n_teams > 1 else set()
+    routes, put_first = _start_second_team_in(routes, V, second_first, time.perf_counter() + _SEED_BUDGET_S)
+    if put_first:
+        notes.append(
+            f"Team 2 starts with {put_first} stop(s) on the floor the phone's height fix points to: a caller "
+            "statement contradicts that fix, so team 1 follows the caller's statement and the phone's floor is "
+            "not left for later. This order was set by that rule, not by expected time alone."
+        )
+
     # ---- survival objective (non-linear): local search from the linear solution ----
     if survival is not None:
         curve = _survival_curve(survival, float(treatment_s))
@@ -1082,6 +1134,7 @@ def plan_search(
         routes = [_improve_route_value(r, value, sdeadline)[0] for r in routes]
         if n_teams > 1:
             routes, _ = _drop_early_repeats(routes, V)
+        routes, _ = _start_second_team_in(routes, V, second_first, time.perf_counter() + _SEED_BUDGET_S)
         after = sum(value(r) for r in routes)
         found = sum(V.p[k] for r in routes for k in r)
         seed_desc = "the exact linear order" if solver == "exact" else "the linear (expected-time) plan"

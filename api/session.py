@@ -7,10 +7,12 @@ Pipeline per state::
 
     caller turn -> parser.interpret.interpret_turn            -> Evidence, Facts, suggested type
                    (+ parser.rule_facts.read_facts when the agent did not read the turn)
-    Evidence    -> core.evidence.evidence_match (cached) with core.fusion.statement_term
-    prior x phone fix x matches -> core.fusion.fuse           -> evidence-only belief
-                   (same maths as core.fusion.posterior_probs; grounded agent items capped at 0.85,
-                   a statement that names rooms is fused with core.fusion.naming_floor)
+    Evidence    -> core.evidence.evidence_match (cached)
+    prior x phone fix x matches -> core.fusion.fuse_evidence  -> evidence-only belief + notices
+                   (same maths as core.fusion.posterior_probs: a specific statement gives the
+                   place it names its stated share; of two that conflict the later one is used;
+                   a statement that contradicts the phone's height fix leads and the phone keeps
+                   a share. The notices about the last two are added to the policy banners.)
     belief + every look (room, mode) -> planning.search_order.residual_probs -> displayed posterior
     situation + facts -> situation.policy.policy_for          -> Policy (travel profile, stake, banners)
     policy.route_enabled false -> empty plan, approach with no entrance / staging, no question prompts
@@ -39,8 +41,7 @@ from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from core.evidence import EvidenceMatch, evidence_match, normalize_unit
-from core.fusion import fuse, statement_term
-from core.phone_likelihood import phone_likelihood
+from core.fusion import Fused, fuse_evidence
 from core.prior import compute_prior
 from core.schema import (
     AgentTraceEntry,
@@ -678,17 +679,21 @@ class CallSession:
         sit = self.situation
         return Gates(closed_room_ids=list(sit.closed_room_ids), closed_entrance_ids=list(sit.closed_entrance_ids))
 
-    def _belief(self, fix: Optional[PhoneFix], items: list[Evidence]) -> tuple[dict[str, float], float]:
-        """Evidence-only belief: prior x phone fix x active evidence, before any search.
+    def _fused(self, fix: Optional[PhoneFix], items: list[Evidence]) -> Fused:
+        """Evidence-only belief with the notices about it: prior x phone fix x active evidence,
+        before any search.
 
-        Same maths as ``core.fusion.posterior_probs`` (``statement_term``: grounded agent
-        items count at most 0.85, statements that name rooms use the naming factor); match
-        vectors come from the session cache.
+        Same maths as ``core.fusion.posterior_probs`` (``core.fusion.fuse_evidence``); match
+        vectors come from the session cache. ``Fused.notices`` are the console notices for
+        caller statements that conflict with each other or with the phone's height fix.
         """
         prior, p0 = compute_prior(self.building, hour=self.prior_hour)
-        phone = phone_likelihood(self.building, fix)
-        matches = [statement_term(e, self._match(e)) for e in items if e.status == "active"]
-        return fuse(prior, p0, phone, matches)
+        return fuse_evidence(self.building, prior, p0, fix, items, match_of=self._match)
+
+    def _belief(self, fix: Optional[PhoneFix], items: list[Evidence]) -> tuple[dict[str, float], float]:
+        """Evidence-only belief (``_fused`` without the notices)."""
+        fused = self._fused(fix, items)
+        return fused.room_probs, fused.p_not_in_model
 
     def _probs(self, upto: int) -> tuple[dict[str, float], float]:
         return self._belief(*self._evidence(upto))
@@ -726,17 +731,30 @@ class CallSession:
     def policy(self) -> Policy:
         return policy_for(self.building, self.situation, self._facts(), elapsed_s=self.elapsed_s())
 
+    def statement_notices(self) -> list:
+        """Notices (``core.schema.Banner``) about caller statements that conflict with each
+        other or with the phone's height fix (``core.fusion.statement_notices``)."""
+        return list(self._fused(*self._evidence(self._last)).notices)
+
     def posterior(self) -> Posterior:
         belief, p0 = self._probs(self._last)
         room_probs, p_nim = residual_probs(belief, p0, self._looks())
         return summarize(self.building, room_probs, p_nim)
 
     def plan(self, n_teams: Optional[int] = None) -> SearchPlan:
-        belief, p0 = self._probs(self._last)
+        fused = self._fused(*self._evidence(self._last))
         policy = self.policy()
-        return self._plan(belief, p0, n_teams or self.n_teams, policy, self._gates())
+        return self._plan(fused.room_probs, fused.p_not_in_model, n_teams or self.n_teams, policy, self._gates(),
+                          self._phone_floor_rooms(fused))
 
-    def _plan(self, belief: dict[str, float], p0: float, n_teams: int, policy: Policy, gates: Gates) -> SearchPlan:
+    @staticmethod
+    def _phone_floor_rooms(fused: Fused) -> Optional[frozenset]:
+        """Rooms on the floors the phone's height fix allows, when a caller statement
+        contradicts the fix (the second team starts there); None otherwise."""
+        return fused.phone_band if fused.phone_conflicts else None
+
+    def _plan(self, belief: dict[str, float], p0: float, n_teams: int, policy: Policy, gates: Gates,
+              second_team_rooms: Optional[frozenset] = None) -> SearchPlan:
         """The search plan, or an empty one when the policy turns routes off (never computed then).
 
         ``belief`` is evidence only; ``plan_search`` applies every look itself, so searched
@@ -752,7 +770,7 @@ class CallSession:
         plan = plan_search(
             self.building, belief, p0, n_teams=n_teams, start_node=start,
             profile=policy.travel, survival=survival_from(self.situation, self.elapsed_s()),
-            searched=looks, gates=gates,
+            searched=looks, gates=gates, second_team_rooms=second_team_rooms,
         )
         return self._with_hazard_classes(_given_looks(plan, belief, p0, looks), policy)
 
@@ -828,7 +846,10 @@ class CallSession:
         policy = self.policy()
         gates = self._gates()
         fix, evidence = self._evidence(self._last)
-        belief, p0 = self._belief(fix, evidence)
+        fused = self._fused(fix, evidence)
+        belief, p0 = fused.room_probs, fused.p_not_in_model
+        if fused.notices:  # shown with the policy banners, after the policy's own
+            policy = policy.model_copy(update={"banners": [*policy.banners, *fused.notices]})
         room_probs, p_nim = residual_probs(belief, p0, self._looks())
         clues = [e.clue for e in evidence if e.kind == "vocab" and e.clue is not None and e.status == "active"]
         asked = self._asked_keys(evidence)
@@ -843,7 +864,7 @@ class CallSession:
             cleared_room_ids=self._searched_ids(),
             n_teams=self.n_teams,
             posterior=summarize(self.building, room_probs, p_nim),
-            plan=self._plan(belief, p0, self.n_teams, policy, gates),
+            plan=self._plan(belief, p0, self.n_teams, policy, gates, self._phone_floor_rooms(fused)),
             approach=self._approach(room_probs, policy, gates),
             next_question=next_question(self.building, room_probs, p_nim, asked=asked, policy=policy),
             history=[self._history_point(i, policy, gates) for i in range(len(self.revealed))],

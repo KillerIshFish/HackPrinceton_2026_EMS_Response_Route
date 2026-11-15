@@ -1,0 +1,71 @@
+# How much a specific caller statement weighs (core/fusion.py, parser/statement_rating.py).
+#
+# A specific statement says where the caller is by a room, unit or suite number, an exact
+# room or tenant name, a floor number, or "top floor" / "ground floor" / "basement".
+# Descriptions (a room type, a view, a landmark, a sound) are not specific statements: they
+# keep the soft factor of core/fusion.py (eps = 0.1).
+#
+# Every number here is a judgement: nothing published says how often a 911 caller is right
+# about their own room or floor. Same entry shape as configs/situations.yaml:
+#
+#   some_setting:
+#     value: 0.95                # the number the code uses
+#     range: [0.9, 0.97]         # plausible range, or null
+#     label: judgement           # measured | derived | judgement | unverified
+#     source: "why this number"
+
+version: 1
+
+# ---------------------------------------------------------------------------
+# The share of the probability the stated floor or room gets when the statement stands
+# alone, whatever the prior says and however tall the building is.
+#
+#   share = low + (high - low) * certainty * specificity
+#
+# certainty   how sure the caller sounds, 0 to 1 (plain statement 1.0, "I think" about 0.5,
+#             "I think maybe ...?" near 0)
+# specificity how exactly the words pin the place down, 0 to 1 (a number or a name given in
+#             full 1.0, "somewhere on three" / "the third or fourth floor" about 0.5)
+#
+# In Claude Haiku mode the model rates both for each statement; in rules mode fixed word
+# patterns estimate the same two things (parser/statement_rating.py). The mapping is the same.
+# ---------------------------------------------------------------------------
+stated_share:
+  low:
+    value: 0.40
+    range: [0.3, 0.5]
+    label: judgement
+    source: "Share for a hesitant, vague statement ('I think maybe the third floor?'). Set by the project owner, 2026-11-14."
+  high:
+    value: 0.95
+    range: [0.9, 0.97]
+    label: judgement
+    source: "Share for a plain, exact statement ('I'm in room 302'). Also the cap on any single statement, so no statement can take a room to zero. Set by the project owner, 2026-11-14."
+  missing_rating:
+    value: 0.5
+    range: [0.0, 0.5]
+    label: judgement
+    source: "Certainty or specificity used when the model left a rating out or wrote something unusable: never more than this."
+
+# ---------------------------------------------------------------------------
+# Two or more statements that agree (the same place, or a room on the stated floor)
+# reinforce each other, up to this share. Below 1 so that later evidence can still move it.
+# ---------------------------------------------------------------------------
+reinforced_share_max:
+  value: 0.99
+  range: [0.97, 0.995]
+  label: judgement
+  source: "Cap on the share agreeing statements can reach together."
+
+# ---------------------------------------------------------------------------
+# Caller against phone. When the caller's stated floor or room lies outside the floors the
+# phone's height fix allows (+/- 3 m, the 80 % bound), the caller's statement leads, and the
+# phone's floors keep this share of the probability so that a second team can be sent there.
+# The share is lowered automatically when the caller's statement is weak, so that the stated
+# place still leads.
+# ---------------------------------------------------------------------------
+phone_share_when_caller_disagrees:
+  value: 0.25
+  range: [0.15, 0.35]
+  label: judgement
+  source: "Share kept by the phone's height fix when a specific caller statement contradicts it. Chosen so that with two teams the second team's first stop is on the phone's floor (tests/test_statement_weight.py)."
