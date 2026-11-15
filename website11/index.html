@@ -138,22 +138,6 @@
       background: var(--raised); border: 1px solid var(--line-strong); color: var(--ink); white-space: nowrap;
     }
 
-    /* Code */
-    .code { position: relative; margin: 0 0 14px; }
-    .code pre {
-      margin: 0; padding: 16px 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-      overflow-x: auto; font-size: 14px; line-height: 1.6; color: var(--ink);
-    }
-    .code pre .c { color: var(--ink-mute); }
-    .code button {
-      position: absolute; top: 10px; right: 10px; padding: 4px 10px; border-radius: 6px;
-      border: 1px solid var(--line-strong); background: var(--raised); color: var(--ink-dim); font: 12px var(--sans); cursor: pointer;
-    }
-    .code button:hover { color: var(--ink); }
-    .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
-    @media (max-width: 860px) { .two { grid-template-columns: minmax(0, 1fr); } }
-    .label { font-size: 13px; color: var(--ink-mute); margin: 0 0 8px; }
-
     /* Brand */
     .brand-dash { color: var(--ink-mute); font-weight: 400; }
     @media (max-width: 340px) { .brand-long, .brand-dash { display: none; } }
@@ -228,7 +212,6 @@
         <a href="#how">How it works</a>
         <a href="#method">Methodology</a>
         <a href="#tour">Console tour</a>
-        <a href="#run">Run it</a>
       </nav>
     </div>
   </header>
@@ -244,7 +227,7 @@
           every room a probability, and hand responders the search order with the shortest expected time to reach the caller.
         </p>
         <div class="cta">
-          <a class="btn btn-primary" id="launch" href="#run">Launch the console →</a>
+          <a class="btn btn-primary" href="http://localhost:5173">Launch the console →</a>
           <a class="btn btn-ghost" href="https://github.com/KillerIshFish/HackPrinceton_2026_EMS_Response_Route">View on GitHub</a>
         </div>
       </div>
@@ -448,27 +431,6 @@ greedy index = p_find(k) / (travel + look time)</div>
         </ol>
       </div>
     </section>
-
-    <section id="run">
-      <div class="wrap">
-        <h2>Run it yourself</h2>
-        <p class="section-lede">You need Python 3.11+, <a href="https://docs.astral.sh/uv/">uv</a> and Node 20+. Start the backend and the frontend in two terminals, then open <code>http://localhost:5173</code>.</p>
-        <div class="two">
-          <div>
-            <p class="label">1 · Backend (repo root)</p>
-            <div class="code"><pre><code>uv sync
-uv run uvicorn api.server:app --reload --port 8000</code></pre><button type="button">Copy</button></div>
-          </div>
-          <div>
-            <p class="label">2 · Frontend</p>
-            <div class="code"><pre><code>cd web
-npm install
-npm run dev</code></pre><button type="button">Copy</button></div>
-          </div>
-        </div>
-        <p class="label" style="margin-top:10px">Optional: put <code>ANTHROPIC_API_KEY</code> in <code>.env</code> to turn on the Claude Haiku parser. Without it the console uses keyword rules.</p>
-      </div>
-    </section>
   </main>
 
   <footer>
@@ -479,13 +441,6 @@ npm run dev</code></pre><button type="button">Copy</button></div>
   </footer>
 
   <script>
-    // Set this to the deployed console URL once it's hosted. Left empty, the button scrolls to "Run it yourself".
-    const APP_URL = "";
-    if (APP_URL) {
-      const launch = document.getElementById("launch");
-      launch.href = APP_URL;
-    }
-
     // Example call in the synthetic building (README walkthrough). Rows are floors 4 -> 1;
     // each row is five rooms' shading level 0-3 and the floor's share of probability.
     const TURNS = [
@@ -612,17 +567,6 @@ npm run dev</code></pre><button type="button">Copy</button></div>
       addEventListener("resize", fit);
       fit();
     })();
-
-    // Copy buttons
-    document.querySelectorAll(".code button").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        try {
-          await navigator.clipboard.writeText(btn.previousElementSibling.innerText);
-          btn.textContent = "Copied";
-        } catch { btn.textContent = "Select & copy"; }
-        setTimeout(() => (btn.textContent = "Copy"), 1500);
-      });
-    });
   </script>
 </body>
 </html>
