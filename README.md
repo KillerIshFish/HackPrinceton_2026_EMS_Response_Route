@@ -324,10 +324,11 @@ features, plus nearby named places, are drawn as a street map in the Approach pa
 (Aerial / Map switch). Properties with several buildings are skipped, because their
 positions on the ground are invented.
 
-**OpenStreetMap from disk.** The map data around every property in the kit is committed
-as `data/osm/site_pack.sqlite.gz` (36 MB) and is unpacked on first use, so lookups take a
-few milliseconds and nothing needs downloading. `docs/osm-site-map.md` explains how to
-bring this into another branch and how to rebuild the data.
+**OpenStreetMap from disk.** The map data around every property in the kit lives in
+`data/osm/site_pack.sqlite.gz` (36 MB, gitignored and shared privately within the team,
+because it records where every CoStar kit property is). Put it in place and it is unpacked
+on first use, so lookups take a few milliseconds. `docs/osm-site-map.md` explains how to get
+it and how to rebuild it.
 
 For an address that is not near a kit property, the public Overpass server is
 asked instead. That server can take a minute or refuse connections. The pipeline waits

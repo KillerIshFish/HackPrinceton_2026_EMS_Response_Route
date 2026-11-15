@@ -7,8 +7,23 @@
 data/**
 !data/**/
 !data/**/.gitkeep
-# OpenStreetMap around the kit's properties (ODbL, small enough to commit): see docs/osm-site-map.md
-!data/osm/site_pack.sqlite.gz
+# data/osm/site_pack.sqlite.gz is NOT committed: its `sites` table holds every CoStar kit
+# property's location. Share it privately with the team; see docs/osm-site-map.md.
+
+# Licensed vendor data (Matterport, Vexcel, CoStar) must never be committed, wherever it lands.
+# These apply anywhere in the tree, independent of the data/** rule above.
+**/raw/matterport/**
+**/raw/vexcel/**
+**/raw/costar/**
+!**/raw/*/.gitkeep
+**/costar-hackathon-kit/
+**/processed/costar_*.json
+**/matterport/floorplans/
+**/vexcel_cache/
+**/tile_cache/
+# Files derived from vendor data (CoStar ids/facts, Matterport scan mapping, Vexcel responses)
+configs/real_buildings.yaml
+tests/fixtures/vexcel_meta_*.json
 
 # Python
 __pycache__/

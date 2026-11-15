@@ -4,7 +4,7 @@ The public Overpass server can take half a minute to answer anything. Every prop
 kit is in greater Los Angeles or greater Houston, so the two regional extracts are indexed
 once and read locally; Overpass is only asked for points outside them.
 
-    uv run python -m ingest.unified.osm_local --unpack        # use the site pack committed in this repo
+    uv run python -m ingest.unified.osm_local --unpack        # use the site pack (shared privately; gitignored)
     uv run python -m ingest.unified.osm_local 34.0323 -118.4522   # what is around a point
 
     uv run python -m ingest.unified.osm_local --download      # fetch the two extracts (about 1.4 GB)
@@ -15,7 +15,7 @@ Two indexes, one shape
 ----------------------
 * The **full index** covers the whole Los Angeles and Houston boxes, so any address in them is
   answered locally. It is built from the regional extracts and is far too large to commit.
-* The **site pack** (``data/osm/site_pack.sqlite.gz``, committed) holds only what lies within
+* The **site pack** (``data/osm/site_pack.sqlite.gz``, gitignored, shared privately) holds only what lies within
   ``PACK_REACH_M`` of a property in the kit. It answers for those properties and nothing else,
   and is unpacked to the index path on first use when no index is there. Nobody who only
   works with the kit's properties needs to download or build anything.
@@ -223,7 +223,7 @@ def export_pack(points: list[tuple[float, float]], pack_path: Optional[Path] = N
 
 
 def unpack(pack_path: Optional[Path] = None, index_path: Optional[Path] = None, force: bool = False) -> bool:
-    """Write the committed site pack out as the index. Leaves an existing index alone unless ``force``."""
+    """Write the local site pack out as the index. Leaves an existing index alone unless ``force``."""
     import gzip
     import shutil
 
@@ -252,7 +252,7 @@ def _close_all() -> None:
 def _open(index_path: Optional[Path] = None):
     """``(connection, meta)`` for the index, or None when there is none (or it is an older shape).
 
-    With no index at the default path, the committed site pack is unpacked there first.
+    With no index at the default path, the local site pack (if present) is unpacked there first.
     """
     path = index_path or INDEX_PATH
     key = str(path)

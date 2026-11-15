@@ -20,22 +20,17 @@ suggested), the site view draws the site and the building outline only, with no 
 staging marker, in both Aerial and Map modes (`showApproach` on `AerialSite`). A building
 generated before this addition keeps its old window views until it is generated again.
 
-## The map data is in this repo. Do not download it again.
+## The map data is shared privately, not committed. Do not download it again.
 
-The file `data/osm/site_pack.sqlite.gz` (36 MB) is committed. It holds everything within
-230 m of each of the 3,339 properties in the kit: 383,490 map elements.
+The file `data/osm/site_pack.sqlite.gz` (36 MB) holds everything within 230 m of each of the
+3,339 properties in the kit: 383,490 map elements. It is **gitignored**: its `sites` table
+records the location of every CoStar kit property, which is licensed data and must not be in
+the public repo. Get a copy from a teammate (same channel as the CoStar kit).
 
-- **You do not need to run anything.** The first lookup unpacks it to
+- **Once it is in place, you do not need to run anything.** The first lookup unpacks it to
   `data/processed/osm_index.sqlite` (198 MB, gitignored) if no index is there.
 - To unpack it explicitly: `uv run python -m ingest.unified.osm_local --unpack`
-- To bring only the map data into another branch:
-
-  ```bash
-  git checkout integration/unified-model -- data/osm/site_pack.sqlite.gz .gitignore
-  ```
-
-  The `.gitignore` change matters: `data/**` is ignored, and one added line
-  (`!data/osm/site_pack.sqlite.gz`) lets this file through.
+- Without the pack (or an index), lookups fall back to the public Overpass server.
 
 **Do not** run `--download` or the full index build unless you need addresses that are not
 in the kit. That path fetches 1.4 GB, takes about 16 minutes and writes a 3 GB index. The
